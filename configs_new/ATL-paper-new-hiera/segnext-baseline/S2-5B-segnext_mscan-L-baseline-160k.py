@@ -92,7 +92,7 @@ model = dict(
             rand_init=True)),
     # model training and testing settings
     train_cfg=dict(),
-    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
+    test_cfg=dict(mode='whole'))
 
 # # dataset settings
 # train_dataloader = dict(batch_size=16)
@@ -116,7 +116,7 @@ param_scheduler = [
         type=PolyLR,
         power=1.0,
         begin=1500,
-        end=80000,
+        end=160000,
         eta_min=0.0,
         by_epoch=False,
     )
@@ -124,7 +124,7 @@ param_scheduler = [
 
 
 
-train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=4000)
+train_cfg.update(type=IterBasedTrainLoop, max_iters=160000, val_interval=16000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),
@@ -134,37 +134,10 @@ default_hooks.update(
     visualization=dict(type=SegVisualizationHook))
 
 
-
-# =================================  推理图像 =================================
-
-test_pipeline=[  #
-    dict(type=LoadSingleRSImageFromFile),
-    # dict(type=Resize, scale=(512, 512), keep_ratio=True),   # 不 Resize 按原图尺寸推理
-    # dict(type=Resize, scale=(6800, 7200), keep_ratio=True),
-    # add loading annotation after ``Resize`` because ground truth
-    # does not need to do resize data transform
-    # dict(type=LoadAnnotations),  # 不需要验证，不用添加 Annotations
-    dict(type=PackSegInputs)
-]
-
-test_dataloader.update(dict(
-    batch_size=1,
-    num_workers=4,
-    persistent_workers=True,
-    sampler=dict(type=DefaultSampler, shuffle=False),
-    dataset=dict(
-        type=dataset_type,
-        data_root=None,
-        data_prefix=dict(img_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/论文画图/figure3-S2/img/median-2'),
-        pipeline=test_pipeline)))
-
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
     type=IoUMetric,
     iou_metrics=['mIoU', 'mFscore'],
-    format_only=True,
+    # format_only=True,
     keep_results=True)
-
-
-

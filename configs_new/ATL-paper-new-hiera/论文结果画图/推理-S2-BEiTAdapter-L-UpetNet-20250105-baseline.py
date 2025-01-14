@@ -120,8 +120,7 @@ model=dict(
             align_corners=False,
             loss_decode=dict(
                 type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)),
-        test_cfg=dict(mode='whole'))
-
+        test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
 # dataset config
 train_pipeline = [
     dict(type=LoadSingleRSImageFromFile),
@@ -195,7 +194,7 @@ test_dataloader.update(dict(
     dataset=dict(
         type=dataset_type,
         data_root=None,
-        data_prefix=dict(img_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/论文画图/figure3-S2/img'),
+        data_prefix=dict(img_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/论文画图/figure3-S2/img/median-2'),
         pipeline=test_pipeline)))
 
 val_evaluator = dict(
@@ -205,4 +204,3 @@ test_evaluator = dict(
     iou_metrics=['mIoU', 'mFscore'],
     format_only=True,
     keep_results=True)
-
