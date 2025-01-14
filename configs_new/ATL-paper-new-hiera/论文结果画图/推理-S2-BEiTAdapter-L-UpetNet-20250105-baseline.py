@@ -34,7 +34,7 @@ from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
 from mmseg.evaluation import IoUMetric
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_S2_crop10m_4class import *
+    from ..._base_.datasets.a_atl_0_paper_5b_s2_19class import *
     from ..._base_.default_runtime import *
     # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_80k import *
@@ -44,13 +44,13 @@ find_unuser_parameters = False
 # 一定记得改类别数！！！！！！！！！！！！！！！！！！！！！！！
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
-# L1_num_classes = 5  # number of L1 Level label   # 5
-# L2_num_classes = 10  # number of L1 Level label  # 11  5+11+21=37类
-L3_num_classes = 4  # number of L1 Level label  # 21
+L1_num_classes = 5  # number of L1 Level label   # 5
+L2_num_classes = 10  # number of L1 Level label  # 11  5+11+21=37类
+L3_num_classes = 19  # number of L1 Level label  # 21
 
 # 总的类别数，包括背景，L1+L2+L3级标签数
 
-# num_classes = L1_num_classes + L2_num_classes + L3_num_classes # 37 
+num_classes = L1_num_classes + L2_num_classes + L3_num_classes # 37 
 
 # 这和后面base的模型不一样的话，如果在decode_head里，给这三个数赋值的话，会报非常难定的错误
 crop_size = (512, 512)
@@ -120,8 +120,7 @@ model=dict(
             align_corners=False,
             loss_decode=dict(
                 type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)),
-        test_cfg=dict(mode='whole'))
-
+        test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
 # dataset config
 train_pipeline = [
     dict(type=LoadSingleRSImageFromFile),
@@ -175,10 +174,33 @@ default_hooks.update(
     visualization=dict(type=SegVisualizationHook))
 
 
+# =================================  推理图像 =================================
+
+test_pipeline=[  #
+    dict(type=LoadSingleRSImageFromFile),
+    # dict(type=Resize, scale=(512, 512), keep_ratio=True),   # 不 Resize 按原图尺寸推理
+    # dict(type=Resize, scale=(6800, 7200), keep_ratio=True),
+    # add loading annotation after ``Resize`` because ground truth
+    # does not need to do resize data transform
+    # dict(type=LoadAnnotations),  # 不需要验证，不用添加 Annotations
+    dict(type=PackSegInputs)
+]
+
+test_dataloader.update(dict(
+    batch_size=1,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type=DefaultSampler, shuffle=False),
+    dataset=dict(
+        type=dataset_type,
+        data_root=None,
+        data_prefix=dict(img_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/论文画图/figure3-S2/img/median-2'),
+        pipeline=test_pipeline)))
+
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
     type=IoUMetric,
     iou_metrics=['mIoU', 'mFscore'],
-    # format_only=True,
+    format_only=True,
     keep_results=True)

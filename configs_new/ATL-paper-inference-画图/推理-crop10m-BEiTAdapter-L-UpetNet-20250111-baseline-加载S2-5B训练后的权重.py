@@ -55,6 +55,7 @@ L3_num_classes = 4  # number of L1 Level label  # 21
 # 这和后面base的模型不一样的话，如果在decode_head里，给这三个数赋值的话，会报非常难定的错误
 crop_size = (512, 512)
 pretrained = 'checkpoints/2-对比实验的权重/vit-adapter-offical/BEiT/beitv2_large_patch16_224_pt1k_ft21k-10chan.pth'
+# load_from = '/opt/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-1-最终能展现在论文的结果/S2-BEiTAdapter-L-UpetNet-20250105-baseline_miou_60.55/iter_80000.pth'
 
 data_preprocessor = dict(
         type=SegDataPreProcessor,
@@ -120,7 +121,7 @@ model=dict(
             align_corners=False,
             loss_decode=dict(
                 type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)),
-        test_cfg=dict(mode='whole'))
+        test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
 
 # dataset config
 train_pipeline = [
@@ -175,10 +176,33 @@ default_hooks.update(
     visualization=dict(type=SegVisualizationHook))
 
 
+# =================================  推理图像 =================================
+
+test_pipeline=[  #
+    dict(type=LoadSingleRSImageFromFile),
+    # dict(type=Resize, scale=(512, 512), keep_ratio=True),   # 不 Resize 按原图尺寸推理
+    # dict(type=Resize, scale=(6800, 7200), keep_ratio=True),
+    # add loading annotation after ``Resize`` because ground truth
+    # does not need to do resize data transform
+    # dict(type=LoadAnnotations),  # 不需要验证，不用添加 Annotations
+    dict(type=PackSegInputs)
+]
+
+test_dataloader.update(dict(
+    batch_size=1,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type=DefaultSampler, shuffle=False),
+    dataset=dict(
+        type=dataset_type,
+        data_root=None,
+        data_prefix=dict(img_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/论文画图/figure3-S2/img/median-2/'),
+        pipeline=test_pipeline)))
+
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
     type=IoUMetric,
     iou_metrics=['mIoU', 'mFscore'],
-    # format_only=True,
+    format_only=True,
     keep_results=True)

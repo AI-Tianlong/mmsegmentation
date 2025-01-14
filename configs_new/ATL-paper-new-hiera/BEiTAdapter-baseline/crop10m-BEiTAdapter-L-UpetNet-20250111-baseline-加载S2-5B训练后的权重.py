@@ -55,6 +55,7 @@ L3_num_classes = 4  # number of L1 Level label  # 21
 # 这和后面base的模型不一样的话，如果在decode_head里，给这三个数赋值的话，会报非常难定的错误
 crop_size = (512, 512)
 pretrained = 'checkpoints/2-对比实验的权重/vit-adapter-offical/BEiT/beitv2_large_patch16_224_pt1k_ft21k-10chan.pth'
+# load_from = '/opt/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-1-最终能展现在论文的结果/S2-BEiTAdapter-L-UpetNet-20250105-baseline_miou_60.55/iter_80000.pth'
 
 data_preprocessor = dict(
         type=SegDataPreProcessor,
