@@ -21,6 +21,7 @@ from mmseg.models.segmentors.atl_hiera_37_encoder_decoder import ATL_Hiera_Encod
 from mmseg.models.data_preprocessor import SegDataPreProcessor
 # Backbone
 from mmpretrain.models.backbones.convnext import ConvNeXt
+from mmseg.models.backbones.swin import SwinTransformer
 # DecodeHead
 from mmseg.models.decode_heads.uper_head import UPerHead
 from mmseg.models.decode_heads.atl_hiera_37_uper_head_multi_convseg import ATL_hiera_UPerHead_Multi_convseg
@@ -45,10 +46,12 @@ with read_base():
 find_unuser_parameters = False
 L3_num_classes = 19
 crop_size = (512, 512)
+
+backbone_norm_cfg = dict(type='LN', requires_grad=True)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
 # pretrained  = 'https://download.openmmlab.com/mmclassification/v0/convnext/downstream/convnext-large_3rdparty_in21k_20220301-e6e0ea0a.pth'
-pretrained = 'checkpoints/2-对比实验的权重/convnext/large/convnext-large-4chan.pth'
+pretrained = 'checkpoints/2-对比实验的权重/swin/base/swin-base-4chan.pth'
 data_preprocessor = dict(
         type=SegDataPreProcessor,
         mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
@@ -60,20 +63,31 @@ data_preprocessor = dict(
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
-    pretrained=None,
     backbone=dict(
-        type=ConvNeXt,
-        in_channels=4,
-        arch='large',
-        out_indices=[0, 1, 2, 3],
-        drop_path_rate=0.4,
-        layer_scale_init_value=1.0,
-        gap_before_final_norm=False,
-        init_cfg=dict(
-            type='Pretrained', checkpoint=pretrained, prefix='backbone.')),
+        type=SwinTransformer,
+        pretrain_img_size=384,
+        embed_dims=128,
+        patch_size=4,
+        window_size=12,
+        mlp_ratio=4,
+        depths=[2, 2, 18, 2],
+        num_heads=[4, 8, 16, 32],
+        strides=(4, 2, 2, 2),
+        out_indices=(0, 1, 2, 3),
+        qkv_bias=True,
+        qk_scale=None,
+        patch_norm=True,
+        drop_rate=0.,
+        attn_drop_rate=0.,
+        drop_path_rate=0.3,
+        use_abs_pos_embed=False,
+        act_cfg=dict(type='GELU'),
+        norm_cfg=backbone_norm_cfg,
+        init_cfg=dict(type='Pretrained', checkpoint=pretrained),
+        ),
     decode_head=dict(
         type=UPerHead,
-        in_channels=[192, 384, 768, 1536],
+        in_channels=[128, 256, 512, 1024],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
         channels=512,
@@ -85,9 +99,9 @@ model = dict(
             type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)),
     auxiliary_head=dict(
         type=FCNHead,
-        in_channels=768,
+        in_channels=384,
         in_index=2,
-        channels=256,
+        channels=512,
         num_convs=1,
         concat_input=False,
         dropout_ratio=0.1,
@@ -102,23 +116,21 @@ model = dict(
 
 
 optimizer=dict(
-        type=AdamW, 
-        lr=0.0001, 
-        betas=(0.9, 0.999), 
-        weight_decay=0.05)
+    type=AdamW, 
+    lr=0.00006, 
+    betas=(0.9, 0.999), 
+    weight_decay=0.01)
 
 optim_wrapper = dict(
     # type='AmpOptimWrapper',  # mmengine 混合精度江都训练内存
     type=OptimWrapper,
     optimizer=optimizer,
-    constructor=LearningRateDecayOptimizerConstructor,
-    paramwise_cfg={
-        'decay_rate': 0.9,
-        'decay_type': 'stage_wise',
-        'num_layers': 12
-    },
-    )
-    # loss_scale='dynamic')
+    paramwise_cfg=dict(
+        custom_keys={
+            'absolute_pos_embed': dict(decay_mult=0.),
+            'relative_position_bias_table': dict(decay_mult=0.),
+            'norm': dict(decay_mult=0.)
+        }))
 
 param_scheduler = [
     dict(
@@ -133,7 +145,7 @@ param_scheduler = [
     )
 ]
 
-train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
+train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=2000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),
