@@ -53,6 +53,12 @@ def parse_args():
 
 def main():
     args = parse_args()
+    # segnext 不确定性，给他确定了
+    import os
+    os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"  # 或 ":16:8"
+
+    import torch
+    torch.use_deterministic_algorithms(True)
 
     # load config
     cfg = Config.fromfile(args.config)

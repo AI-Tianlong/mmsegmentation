@@ -489,7 +489,7 @@ class TreeTripletLoss(nn.Module):
         
         triplet_loss=0
         exist_classes = torch.unique(labels)  # 当前label中存在的类别
-        exist_classes = [x for x in exist_classes if x != 255]
+        exist_classes = [x for x in exist_classes if x != self.ignore_index]
         class_count=0
         
         # hiera_map = [0,0,1,1,1,2,2,2,3,3,4,5,5,6,6,6,6,6,6]
@@ -499,9 +499,7 @@ class TreeTripletLoss(nn.Module):
                                            # 然后去找正例 i^P postive 和 反例 i^N negative
             # 只找 L2 L3之间的关系，不考虑 L1了？？？ 
 
-           
-
-            for postive_list in L2_map:
+            for postive_list in L2_L3map:
                 if class_ in postive_list:
                     postive_list_cuda = torch.tensor(postive_list).cuda()
                     index_pos = torch.isin(labels, postive_list_cuda) & ~index_anchor
@@ -538,9 +536,6 @@ class TreeTripletLoss(nn.Module):
 
 
 
-
-
-
 # 消融实验--------------> 只保留三个celoss 
 @MODELS.register_module()
 class ATL_Hiera_Loss_convseg(nn.Module):
@@ -554,10 +549,8 @@ class ATL_Hiera_Loss_convseg(nn.Module):
         super().__init__()
         self.num_classes = num_classes
         self.loss_weight = loss_weight
-        self.tree_triplet_loss = TreeTripletLoss(ignore_index = 255)
-        
         self.ignore_index = ignore_index  # 应该都是255了
-        
+        self.tree_triplet_loss = TreeTripletLoss(ignore_index = self.ignore_index)
         self.cross_entropy_loss = CrossEntropyLoss(loss_name='loss_hiera_ce')
 
         self._loss_name = loss_name
@@ -582,23 +575,23 @@ class ATL_Hiera_Loss_convseg(nn.Module):
         hiera_label_list = convert_low_level_label_to_High_level(label, FiveBillion_19Classes_HieraMap_nobackground)
 
         # Focal Tree-Min Loss                # [list]
-        tree_min_loss = Tree_Min_Loss(pred_seg_logits, hiera_label_list, self.num_classes, ignore_index=self.ignore_index)  # 10.9371
+        # tree_min_loss = Tree_Min_Loss(pred_seg_logits, hiera_label_list, self.num_classes, ignore_index=self.ignore_index)  # 10.9371
 
-        ce_loss_L1 = self.cross_entropy_loss(pred_seg_logits[0],
-                                                hiera_label_list[0],
-                                                weight=None,
-                                                ignore_index=self.ignore_index)
+        # ce_loss_L1 = self.cross_entropy_loss(pred_seg_logits[0],
+        #                                         hiera_label_list[0],
+        #                                         weight=None,
+        #                                         ignore_index=self.ignore_index)
 
 
-        ce_loss_L2 = self.cross_entropy_loss(pred_seg_logits[1],
-                                                hiera_label_list[1],
-                                                weight=None,
-                                                ignore_index=self.ignore_index)
+        # ce_loss_L2 = self.cross_entropy_loss(pred_seg_logits[1],
+        #                                         hiera_label_list[1],
+        #                                         weight=None,
+        #                                         ignore_index=self.ignore_index)
 
         ce_loss_L3 = self.cross_entropy_loss(pred_seg_logits[2],
-                                                hiera_label_list[2],
-                                                weight=None,
-                                                ignore_index=self.ignore_index)
+                                             hiera_label_list[2],
+                                             weight=None,
+                                             ignore_index=self.ignore_index)
       
         # loss = tree_min_loss + ce_loss_L1 + ce_loss_L2 + ce_loss_L3
         
@@ -608,8 +601,9 @@ class ATL_Hiera_Loss_convseg(nn.Module):
         # loss = 0.3 * ce_loss_L1 + 0.3 * ce_loss_L2 +  ce_loss_L3  # 64.54的性能
         # loss = (5 * ce_loss_L1 + 10 * ce_loss_L2 + 19 * ce_loss_L3)/(5+10+19)  # 消融 L1 L2 L3  5:10:19 = 0.147:0.294:0.553
         # loss += tree_min_loss   
-        loss = ce_loss_L3                                                                         #                        
-        
+        # loss = ce_loss_L3   
+
+         
         # loss_triplet, class_count = self.tree_triplet_loss(embedding, label)
         # class_counts = [torch.ones_like(class_count) for _ in range(torch.distributed.get_world_size())]
         # torch.distributed.all_gather(class_counts, class_count, async_op=False)
@@ -617,8 +611,17 @@ class ATL_Hiera_Loss_convseg(nn.Module):
 
         # if torch.distributed.get_world_size()==torch.nonzero(class_counts, as_tuple=False).size(0):
         #     factor = 1/4*(1+torch.cos(torch.tensor((step.item()-80000)/80000*math.pi))) if step.item()<80000 else 0.5
-        #     loss += factor*loss_triplet
-            
+       
+
+        # ============================== 20250115 segnext 实验 ==========================
+        # segnext 实验1：
+        # loss = 0.3*ce_loss_L1 + 0.5*ce_loss_L2 + ce_loss_L3           
+        # segnext 实验2：
+        # loss = 0.3*ce_loss_L1 + 0.5*ce_loss_L2 + ce_loss_L3 + tree_min_loss      
+        # segnext 实验3：
+        # loss = 0.3*ce_loss_L1 + 0.5*ce_loss_L2 +  ce_loss_L3 + tree_min_loss + factor*loss_triplet
+        # segnext 实验4：只要celoss L3
+        loss = ce_loss_L3
         
         return loss*self.loss_weight
 

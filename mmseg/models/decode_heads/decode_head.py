@@ -144,7 +144,7 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
         elif isinstance(loss_decode, (list, tuple)):
             self.loss_decode = nn.ModuleList()
             for loss in loss_decode:
-                self.loss_decode.append(MODELS.build(loss))
+                self.loss_decode.append(MODELS.build(loss)) # 如果是dict的话，多个loss_decode
         else:
             raise TypeError(f'loss_decode must be a dict or sequence of dict,\
                 but got {type(loss_decode)}')
@@ -312,6 +312,7 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
             size=seg_label.shape[2:],
             mode='bilinear',
             align_corners=self.align_corners)
+        
         if self.sampler is not None:
             seg_weight = self.sampler.sample(seg_logits, seg_label)
         else:
@@ -330,13 +331,15 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
         
         for loss_decode in losses_decode:
             if loss_decode.loss_name not in loss:  # loss['atl_loss_ce'],log就打印decode.atl_loss_ce
-                # pdb.set_trace()
+                
+                # import pdb; pdb.set_trace()
                 loss[loss_decode.loss_name] = loss_decode(
                     seg_logits,
                     seg_label,
                     weight=seg_weight,
                     ignore_index=self.ignore_index)
-                # pdb.set_trace()
+                print(loss)
+                # import pdb; pdb.set_trace()
             else:
                 # pdb.set_trace()
                 loss[loss_decode.loss_name] += loss_decode(
