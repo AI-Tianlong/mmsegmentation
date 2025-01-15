@@ -38,8 +38,9 @@ with read_base():
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
-randomness=dict(seed=1104012885)
-
+# 非常的一致，连loss和acc_seg都一模一样，去除了种子的影响
+randomness=dict(seed=42, deterministic=True)
+find_unused_parameters=True
 
 num_classes = 19 #倒是也不太影像，这里该改成19的
 
@@ -125,7 +126,7 @@ param_scheduler = [
     )
 ]
 
-train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=4000)
+train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=2000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),

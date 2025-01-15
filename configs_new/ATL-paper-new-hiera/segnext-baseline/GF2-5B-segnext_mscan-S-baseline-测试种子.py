@@ -38,7 +38,7 @@ with read_base():
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
-randomness=dict(seed=1104012885)
+randomness=dict(seed=1104012885) # 这个可以指定种子
 
 
 num_classes = 19 #倒是也不太影像，这里该改成19的
