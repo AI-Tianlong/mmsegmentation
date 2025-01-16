@@ -577,16 +577,16 @@ class ATL_Hiera_Loss_convseg(nn.Module):
         # Focal Tree-Min Loss                # [list]
         # tree_min_loss = Tree_Min_Loss(pred_seg_logits, hiera_label_list, self.num_classes, ignore_index=self.ignore_index)  # 10.9371
 
-        # ce_loss_L1 = self.cross_entropy_loss(pred_seg_logits[0],
-        #                                         hiera_label_list[0],
-        #                                         weight=None,
-        #                                         ignore_index=self.ignore_index)
+        ce_loss_L1 = self.cross_entropy_loss(pred_seg_logits[0],
+                                                hiera_label_list[0],
+                                                weight=None,
+                                                ignore_index=self.ignore_index)
 
 
-        # ce_loss_L2 = self.cross_entropy_loss(pred_seg_logits[1],
-        #                                         hiera_label_list[1],
-        #                                         weight=None,
-        #                                         ignore_index=self.ignore_index)
+        ce_loss_L2 = self.cross_entropy_loss(pred_seg_logits[1],
+                                                hiera_label_list[1],
+                                                weight=None,
+                                                ignore_index=self.ignore_index)
 
         ce_loss_L3 = self.cross_entropy_loss(pred_seg_logits[2],
                                              hiera_label_list[2],
@@ -620,9 +620,21 @@ class ATL_Hiera_Loss_convseg(nn.Module):
         # loss = 0.3*ce_loss_L1 + 0.5*ce_loss_L2 + ce_loss_L3 + tree_min_loss      
         # segnext 实验3：
         # loss = 0.3*ce_loss_L1 + 0.5*ce_loss_L2 +  ce_loss_L3 + tree_min_loss + factor*loss_triplet
-        # segnext 实验4：只要celoss L3
-        loss = ce_loss_L3
-        
+
+
+        # ===================================  segnext 实验 ==========================
+        # 实验1：只要celoss L3
+        # loss = ce_loss_L3
+
+        # 实验2：L1 + L2 + L3 
+        # loss = ce_loss_L1 + ce_loss_L2 +ce_loss_L3
+
+        # 实验3：L1 + L2 + L3  (attentation 分割头)
+        # loss = ce_loss_L1 + ce_loss_L2 +ce_loss_L3
+
+        # 实验4：(5*L1 + 10*L2 + 19*L3)/34  (attentation 分割头)
+        loss = (5*ce_loss_L1 + 10*ce_loss_L2 + 19*ce_loss_L3)/(5+10+19)
+
         return loss*self.loss_weight
 
     @property

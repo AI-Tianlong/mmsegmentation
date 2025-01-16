@@ -20,6 +20,7 @@ from mmseg.models.backbones import MSCAN
 # DecodeHead
 from mmseg.models.decode_heads.ham_head import LightHamHead
 from mmseg.models.decode_heads.atl_hiera_37_ham_head_multi_convseg import ATL_Hiera_LightHamHead_Multi_convseg
+from mmseg.models.decode_heads.atl_hiera_37_ham_head_multi_convseg_baseline import  ATL_Hiera_LightHamHead_Multi_convseg_baseline
 # Loss
 from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
 from mmseg.models.losses.atl_hiera_37_loss_convseg import ATL_Hiera_Loss_convseg
@@ -74,6 +75,13 @@ model = dict(
         act_cfg=dict(type=GELU),
         norm_cfg=dict(type=SyncBN, requires_grad=True)),
     decode_head=dict(
+        # type=ATL_Hiera_LightHamHead_Multi_convseg_baseline,
+        # # num_classes_level_list=[5,10,19],
+        # num_classes=L3_num_classes,
+        # loss_decode=dict(
+        #     type=ATL_Hiera_Loss_convseg, num_classes=[5,10,19], loss_weight=1.0),
+        
+        
         # 经过修改的具有层级结构的
         type=ATL_Hiera_LightHamHead_Multi_convseg,
         num_classes_level_list=[5,10,19],

@@ -228,7 +228,7 @@ class ProjectionHead(nn.Module):
 
 
 @MODELS.register_module()
-class ATL_Hiera_LightHamHead_Multi_convseg(BaseDecodeHead):
+class ATL_Hiera_LightHamHead_Multi_convseg_attentation(BaseDecodeHead):
     """SegNeXt decode head.
 
     This decode head is the implementation of `SegNeXt: Rethinking
@@ -267,9 +267,15 @@ class ATL_Hiera_LightHamHead_Multi_convseg(BaseDecodeHead):
         if isinstance(num_classes_level_list, list):
             self.num_classes_level_list = num_classes_level_list  # [5,9,10]
 
-            self.conv_seg_L1 = nn.Conv2d(self.channels, num_classes_level_list[0], kernel_size=1) #(1024-->6)
-            self.conv_seg_L2 = nn.Conv2d(self.channels, num_classes_level_list[1], kernel_size=1) #(1024-->12)
-            self.conv_seg_L3 = self.conv_seg #(1024-->22)
+            self.conv_seg_L1 = nn.Conv2d(self.channels, num_classes_level_list[0], kernel_size=1) #(1024-->5)
+            self.conv_attention_L1 = nn.Conv2d(num_classes_level_list[0], 1, kernel_size=1) #(5-->1)
+    
+            self.conv_seg_L2 = nn.Conv2d(self.channels, num_classes_level_list[1], kernel_size=1)
+            self.conv_attention_L2 = nn.Conv2d(num_classes_level_list[1], 1, kernel_size=1) #(10-->1)
+
+            self.conv_seg_L3 = self.conv_seg #(1024-->12)
+
+
 
         elif isinstance(num_classes_level_list, int):
             num_classes = num_classes
@@ -356,15 +362,19 @@ class ATL_Hiera_LightHamHead_Multi_convseg(BaseDecodeHead):
 
         # apply a conv block to align feature map
         output = self.align(x) # [4, 1024, 64, 64] --> [4, 1024, 64, 64]
-        # output = self.cls_seg(output)
-        # return output
+        
 
-        # import pdb; pdb.set_trace()
+        output_L1 = self.cls_seg(output, self.conv_seg_L1) # [4, 1024, 64, 64] --> [4, 5, 64, 64]
+        output_L1_attentation = self.conv_attention_L1(output_L1) # [4, 5, 64, 64] --> [4, 1, 64, 64]
+        output = output + output_L1_attentation # [4, 1024, 64, 64] --> [4, 1024, 64, 64] add L1特征图
 
-        output_L1 = self.cls_seg(output, self.conv_seg_L1) # [4, 5, 64, 64]
-        output_L2 = self.cls_seg(output, self.conv_seg_L2) # [4, 10, 64, 64]
-        output_L3 = self.cls_seg(output, self.conv_seg)    # [4, 19, 64, 64]
 
+        output_L2 = self.cls_seg(output, self.conv_seg_L2) # [4, 1024, 64, 64] --> [4, 10, 64, 64]
+        output_L2_attentation = self.conv_attention_L2(output_L2) # [4, 10, 64, 64] --> [4, 1, 64, 64]
+        output = output + output_L2_attentation # [4, 1024, 64, 64] --> [4, 1024, 64, 64] add L2特征图
+
+        output_L3 = self.cls_seg(output, self.conv_seg) # [4, 1024, 64, 64] --> [4, 19, 64, 64]
+        
         output_list = [output_L1, output_L2, output_L3]
         self.step += 1
 
@@ -486,7 +496,12 @@ class ATL_Hiera_LightHamHead_Multi_convseg(BaseDecodeHead):
                 seg_logits, embedding = seg_logits
 
                 if isinstance(seg_logits, list) and len(seg_logits) == 3:
+                    # 仅输出L3作为结果
                     seg_logits = seg_logits[2]
+
+
+
+
                     assert seg_logits.shape[1] == self.num_classes_level_list[-1]
                 elif isinstance(seg_logits, torch.Tensor) and seg_logits.shape[1]==sum(self.num_classes_level_list):
                     seg_logits = seg_logits[:,-self.num_classes_level_list[-1]:,:,:]

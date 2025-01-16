@@ -339,7 +339,7 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
                     weight=seg_weight,
                     ignore_index=self.ignore_index)
                 print(loss)
-                # import pdb; pdb.set_trace()
+                import pdb; pdb.set_trace()
             else:
                 # pdb.set_trace()
                 loss[loss_decode.loss_name] += loss_decode(
