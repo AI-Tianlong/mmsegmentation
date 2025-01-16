@@ -338,7 +338,7 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
                     seg_label,
                     weight=seg_weight,
                     ignore_index=self.ignore_index)
-                print(loss)
+                # print(loss)
                 # import pdb; pdb.set_trace()
             else:
                 # pdb.set_trace()
