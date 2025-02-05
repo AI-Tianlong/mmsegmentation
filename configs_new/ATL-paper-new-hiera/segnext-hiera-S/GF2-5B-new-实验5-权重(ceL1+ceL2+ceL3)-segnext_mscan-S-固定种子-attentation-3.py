@@ -21,6 +21,7 @@ from mmseg.models.backbones import MSCAN
 from mmseg.models.decode_heads.ham_head import LightHamHead
 from mmseg.models.decode_heads.atl_hiera_37_ham_head_multi_convseg import ATL_Hiera_LightHamHead_Multi_convseg
 from mmseg.models.decode_heads.atl_hiera_37_ham_head_multi_convseg_baseline import  ATL_Hiera_LightHamHead_Multi_convseg_baseline
+from mmseg.models.decode_heads.atl_hiera_37_ham_head_multi_convseg_attention import ATL_Hiera_LightHamHead_Multi_convseg_attentation
 # Loss
 from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
 from mmseg.models.losses.atl_hiera_37_loss_convseg import ATL_Hiera_Loss_convseg
@@ -29,7 +30,7 @@ from mmseg.evaluation import IoUMetric
 
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class import *
+    from ..._base_.datasets.a_atl_0_paper_5b_GF2_19class import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
@@ -83,7 +84,7 @@ model = dict(
         
         
         # 经过修改的具有层级结构的
-        type=ATL_Hiera_LightHamHead_Multi_convseg,
+        type=ATL_Hiera_LightHamHead_Multi_convseg_attentation,
         num_classes_level_list=[5,10,19],
         loss_decode=dict(
             type=ATL_Hiera_Loss_convseg, num_classes=[5,10,19], loss_weight=1.0),
@@ -110,8 +111,7 @@ model = dict(
             rand_init=True)),
     # model training and testing settings
     train_cfg=dict(),
-    # test_cfg=dict(mode='whole'))
-    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
+    test_cfg=dict(mode='whole'))
 
 # # dataset settings
 # train_dataloader = dict(batch_size=16)

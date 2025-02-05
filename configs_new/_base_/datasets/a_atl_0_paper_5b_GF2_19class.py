@@ -16,6 +16,7 @@ dataset_type = ATL_S2_5B_Dataset_19class
 data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-seg-裁切好的训练图像_S2_GF2_Google_size512'
 
 crop_size = (512, 512)
+# crop_size = (1547, 1547)
 train_pipeline = [
     dict(type=LoadSingleRSImageFromFile),
     dict(type=LoadAnnotations),
@@ -67,7 +68,7 @@ tta_pipeline = [
 
 train_dataloader = dict(
     batch_size=4,
-    num_workers=3,
+    num_workers=4,  # numworkers 也会影响！
     persistent_workers=True,
     sampler=dict(type=InfiniteSampler, shuffle=True),
     dataset=dict(

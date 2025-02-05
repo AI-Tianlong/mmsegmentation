@@ -315,8 +315,8 @@ def Focal_Tree_Min_Loss(pred_seg_logits, # [B,5+10+19,512,512]
     label_L2[invalid_pos]=0  # 无效的位置设置为19, 之后忽略掉
     label_L2_one_hot = F.one_hot(label_L2, num_classes=len(L2_L3map)).permute(0,3,1,2)  # [2,10,512,512]
     # 处理L3标签
-    label_L3[invalid_pos]=0  # 无效的位置设置为19, 之后忽略掉
-    label_L3_one_hot = F.one_hot(label_L3, num_classes=len(L3_L3map)).permute(0,3,1,2)  # [2,19,512,512]
+    label_L3[invalid_pos]=0  # 无效的位置设置为19, 之后忽略掉 
+    label_L3_one_hot = F.one_hot(label_L3, num_classes=len(L3_L3map)).permute(0,3,1,2)  # [2,19,512,512]  #这样有问题，所有的one-hot向量，都在耕地那里变多了。。有问题
     
 
     # 计算loss
@@ -550,7 +550,8 @@ class ATL_Hiera_Loss_convseg(nn.Module):
         self.num_classes = num_classes
         self.loss_weight = loss_weight
         self.ignore_index = ignore_index  # 应该都是255了
-        self.tree_triplet_loss = TreeTripletLoss(ignore_index = self.ignore_index)
+        # self.tree_triplet_loss = TreeTripletLoss(ignore_index = self.ignore_index)
+        self.tree_triplet_loss = Focal_Tree_Min_Loss(ignore_index = self.ignore_index)
         self.cross_entropy_loss = CrossEntropyLoss(loss_name='loss_hiera_ce')
 
         self._loss_name = loss_name
@@ -582,7 +583,6 @@ class ATL_Hiera_Loss_convseg(nn.Module):
                                                 weight=None,
                                                 ignore_index=self.ignore_index)
 
-
         ce_loss_L2 = self.cross_entropy_loss(pred_seg_logits[1],
                                                 hiera_label_list[1],
                                                 weight=None,
@@ -604,39 +604,29 @@ class ATL_Hiera_Loss_convseg(nn.Module):
         # loss = ce_loss_L3   
 
          
-        # loss_triplet, class_count = self.tree_triplet_loss(embedding, label)
-        # class_counts = [torch.ones_like(class_count) for _ in range(torch.distributed.get_world_size())]
-        # torch.distributed.all_gather(class_counts, class_count, async_op=False)
-        # class_counts = torch.cat(class_counts, dim=0)
+        loss_triplet, class_count = self.tree_triplet_loss(embedding, label)
+        class_counts = [torch.ones_like(class_count) for _ in range(torch.distributed.get_world_size())]
+        torch.distributed.all_gather(class_counts, class_count, async_op=False)
+        class_counts = torch.cat(class_counts, dim=0)
 
-        # if torch.distributed.get_world_size()==torch.nonzero(class_counts, as_tuple=False).size(0):
-        #     factor = 1/4*(1+torch.cos(torch.tensor((step.item()-80000)/80000*math.pi))) if step.item()<80000 else 0.5
+        if torch.distributed.get_world_size()==torch.nonzero(class_counts, as_tuple=False).size(0):
+            factor = 1/4*(1+torch.cos(torch.tensor((step.item()-80000)/80000*math.pi))) if step.item()<80000 else 0.5
        
-
-        # ============================== 20250115 segnext 实验 ==========================
-        # segnext 实验1：
-        # loss = 0.3*ce_loss_L1 + 0.5*ce_loss_L2 + ce_loss_L3           
-        # segnext 实验2：
-        # loss = 0.3*ce_loss_L1 + 0.5*ce_loss_L2 + ce_loss_L3 + tree_min_loss      
-        # segnext 实验3：
-        # loss = 0.3*ce_loss_L1 + 0.5*ce_loss_L2 +  ce_loss_L3 + tree_min_loss + factor*loss_triplet
-
-
         # ===================================  segnext 实验 ==========================
         # 实验1：只要celoss L3
         # loss = ce_loss_L3
 
-        # 实验2：L1 + L2 + L3 
-        # loss = ce_loss_L1 + ce_loss_L2 +ce_loss_L3
+        # 消融1、2、3：L1 + L2 + L3 
+        # loss = ce_loss_L1 + ce_loss_L2 + ce_loss_L3
 
-        # 实验3：L1 + L2 + L3  (attentation 分割头)
-        # loss = ce_loss_L1 + ce_loss_L2 +ce_loss_L3
+        # 消融4：L1 + L2 + L3 + Tree-Triplet Loss
+        loss = ce_loss_L1 + ce_loss_L2 + ce_loss_L3 + loss_triplet
 
         # # 实验4：(5*L1 + 10*L2 + 19*L3)/34  (attentation 分割头)
         # loss = (5*ce_loss_L1 + 10*ce_loss_L2 + 19*ce_loss_L3)/(5+10+19)
 
         # 实验5：(5*L1 + 10*L2 + 19*L3)/34  (attentation 分割头)
-        loss = (5*ce_loss_L1 + 10*ce_loss_L2 + 19*ce_loss_L3)/(5+10+19)
+        # loss = (5*ce_loss_L1 + 10*ce_loss_L2 + 19*ce_loss_L3)/(5+10+19)
 
         return loss*self.loss_weight
 

@@ -1,70 +1,73 @@
-
+from mmcv.transforms import (LoadImageFromFile, RandomChoice,
+                             RandomChoiceResize, RandomFlip)
 from mmengine.config import read_base
 from mmengine.optim.optimizer import OptimWrapper
 from mmengine.optim.scheduler.lr_scheduler import LinearLR, PolyLR
 from torch.nn.modules.batchnorm import SyncBatchNorm as SyncBN
 from torch.optim import AdamW
 
+from mmseg.datasets.transforms import (LoadAnnotations, PackSegInputs,
+                                       PhotoMetricDistortion, RandomCrop,
+                                       ResizeShortestEdge)
+from mmseg.datasets.transforms.loading import LoadSingleRSImageFromFile
+from mmseg.engine.optimizers import LayerDecayOptimizerConstructor
+
+from mmseg.models.data_preprocessor import SegDataPreProcessor
+
+from mmseg.evaluation import ATL_IoUMetric #多卡时有问题
+from mmseg.models.backbones import BEiTAdapter
+from mmseg.models.decode_heads.atl_fcn_head import ATL_FCNHead
+from mmseg.models.decode_heads.uper_head import UPerHead
 
 from torch.nn.modules.activation import GELU
 from torch.nn.modules.batchnorm import SyncBatchNorm as SyncBN
 from torch.nn.modules.normalization import GroupNorm as GN
 
-# EncoderDecoder
 from mmseg.models.segmentors.encoder_decoder import EncoderDecoder
-from mmseg.models.segmentors.atl_hiera_37_encoder_decoder import ATL_Hiera_EncoderDecoder
-# SegDataPreProcessor
-from mmseg.models.data_preprocessor import SegDataPreProcessor
-# Backbone
+from mmseg.models.segmentors.atl_encoder_decoder import ATL_EncoderDecoder
+from mmseg.models.backbones import ViTAdapter
 from mmseg.models.backbones import MSCAN
-# DecodeHead
+
 from mmseg.models.decode_heads.ham_head import LightHamHead
-from mmseg.models.decode_heads.atl_hiera_37_ham_head_multi_convseg import ATL_Hiera_LightHamHead_Multi_convseg
-from mmseg.models.decode_heads.atl_hiera_37_ham_head_multi_convseg_baseline import  ATL_Hiera_LightHamHead_Multi_convseg_baseline
-# Loss
 from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
-from mmseg.models.losses.atl_hiera_37_loss_convseg import ATL_Hiera_Loss_convseg
-# Evaluation
 from mmseg.evaluation import IoUMetric
 
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class import *
+    from ..._base_.datasets.a_atl_0_paper_5b_Google_18class import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
-
 # 非常的一致，连loss和acc_seg都一模一样，去除了种子的影响
 randomness=dict(seed=42, deterministic=True)
-
 find_unused_parameters=True
 
-L1_num_classes = 5  # number of L1 Level label   # 5
-L2_num_classes = 10  # number of L1 Level label  # 11  5+11+21=37类
-L3_num_classes = 19  # number of L1 Level label  # 21
+num_classes = 18 #倒是也不太影像，这里该改成19的
 
 # model settings
-checkpoint_file = 'checkpoints/2-对比实验的权重/segnext/small/segnext_mscan_s_4chan.pth'   # noqa
+checkpoint_file = 'checkpoints/2-对比实验的权重/segnext/small/segnext_mscan_s_3chan.pth'   # noqa
 ham_norm_cfg = dict(type=GN, num_groups=32, requires_grad=True)
-crop_size = (512, 512)
+
+crop_size = (2048, 2048)
+# crop_size = (512, 512)
 
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
-    std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
+    mean = [123.675, 116.28, 103.53],
+    std = [58.395, 57.12, 57.375],
     # bgr_to_rgb=True,
     pad_val=0,
     seg_pad_val=255,
-    size=(512, 512),
+    size=crop_size,
     test_cfg=dict(size_divisor=32))
 
 model = dict(
-    type=ATL_Hiera_EncoderDecoder,
+    type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type=MSCAN,
         init_cfg=dict(type='Pretrained', checkpoint=checkpoint_file),
-        in_channels=4,
+        in_channels=3,
         embed_dims=[64, 128, 320, 512],
         mlp_ratios=[8, 8, 4, 4],
         drop_rate=0.0,
@@ -75,32 +78,17 @@ model = dict(
         act_cfg=dict(type=GELU),
         norm_cfg=dict(type=SyncBN, requires_grad=True)),
     decode_head=dict(
-        # type=ATL_Hiera_LightHamHead_Multi_convseg_baseline,
-        # # num_classes_level_list=[5,10,19],
-        # num_classes=L3_num_classes,
-        # loss_decode=dict(
-        #     type=ATL_Hiera_Loss_convseg, num_classes=[5,10,19], loss_weight=1.0),
-        
-        
-        # 经过修改的具有层级结构的
-        type=ATL_Hiera_LightHamHead_Multi_convseg,
-        num_classes_level_list=[5,10,19],
-        loss_decode=dict(
-            type=ATL_Hiera_Loss_convseg, num_classes=[5,10,19], loss_weight=1.0),
-        
-        # ## 原版的-和baseline-完全一致
-        # type=LightHamHead,
-        # num_classes=L3_num_classes,
-        # loss_decode=dict(
-        #     type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0),
-
+        type=LightHamHead,
         in_channels=[128, 320, 512],
         in_index=[1, 2, 3],
         channels=256,
         ham_channels=256,
-        dropout_ratio=0.1,      
+        dropout_ratio=0.1,
+        num_classes=num_classes,
         norm_cfg=ham_norm_cfg,
         align_corners=False,
+        loss_decode=dict(
+            type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0),
         ham_kwargs=dict(
             MD_S=1,
             MD_R=16,
@@ -110,8 +98,7 @@ model = dict(
             rand_init=True)),
     # model training and testing settings
     train_cfg=dict(),
-    # test_cfg=dict(mode='whole'))
-    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
+    test_cfg=dict(mode='whole'))
 
 # # dataset settings
 # train_dataloader = dict(batch_size=16)

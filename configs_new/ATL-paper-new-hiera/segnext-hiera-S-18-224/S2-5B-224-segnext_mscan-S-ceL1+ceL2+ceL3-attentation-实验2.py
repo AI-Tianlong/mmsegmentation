@@ -21,6 +21,7 @@ from mmseg.models.backbones import MSCAN
 from mmseg.models.decode_heads.ham_head import LightHamHead
 from mmseg.models.decode_heads.atl_hiera_37_ham_head_multi_convseg import ATL_Hiera_LightHamHead_Multi_convseg
 from mmseg.models.decode_heads.atl_hiera_37_ham_head_multi_convseg_baseline import  ATL_Hiera_LightHamHead_Multi_convseg_baseline
+from mmseg.models.decode_heads.atl_hiera_37_ham_head_multi_convseg_attention import ATL_Hiera_LightHamHead_Multi_convseg_attentation
 # Loss
 from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
 from mmseg.models.losses.atl_hiera_37_loss_convseg import ATL_Hiera_Loss_convseg
@@ -29,7 +30,7 @@ from mmseg.evaluation import IoUMetric
 
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class import *
+    from ..._base_.datasets.a_atl_0_paper_5b_s2_18class_224 import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
@@ -39,24 +40,25 @@ randomness=dict(seed=42, deterministic=True)
 
 find_unused_parameters=True
 
-L1_num_classes = 5  # number of L1 Level label   # 5
-L2_num_classes = 10  # number of L1 Level label  # 11  5+11+21=37类
-L3_num_classes = 19  # number of L1 Level label  # 21
+L1_num_classes = 4  # number of L1 Level label   # 5
+L2_num_classes = 9  # number of L1 Level label  # 11  5+11+21=37类
+L3_num_classes = 18  # number of L1 Level label  # 21
 
 # model settings
-checkpoint_file = 'checkpoints/2-对比实验的权重/segnext/small/segnext_mscan_s_4chan.pth'   # noqa
+checkpoint_file = 'checkpoints/2-对比实验的权重/segnext/small/segnext_mscan_s_10chan.pth'   # noqa
 ham_norm_cfg = dict(type=GN, num_groups=32, requires_grad=True)
-crop_size = (512, 512)
+crop_size = (224, 224)
 
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
-    std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
+    mean =None,
+    std =None,
     # bgr_to_rgb=True,
     pad_val=0,
     seg_pad_val=255,
-    size=(512, 512),
+    size=crop_size,
     test_cfg=dict(size_divisor=32))
+
 
 model = dict(
     type=ATL_Hiera_EncoderDecoder,
@@ -64,7 +66,7 @@ model = dict(
     backbone=dict(
         type=MSCAN,
         init_cfg=dict(type='Pretrained', checkpoint=checkpoint_file),
-        in_channels=4,
+        in_channels=10,
         embed_dims=[64, 128, 320, 512],
         mlp_ratios=[8, 8, 4, 4],
         drop_rate=0.0,
@@ -83,10 +85,10 @@ model = dict(
         
         
         # 经过修改的具有层级结构的
-        type=ATL_Hiera_LightHamHead_Multi_convseg,
-        num_classes_level_list=[5,10,19],
+        type=ATL_Hiera_LightHamHead_Multi_convseg_attentation,
+        num_classes_level_list=[4,9,18],
         loss_decode=dict(
-            type=ATL_Hiera_Loss_convseg, num_classes=[5,10,19], loss_weight=1.0),
+            type=ATL_Hiera_Loss_convseg, num_classes=[4,9,18], loss_weight=1.0),
         
         # ## 原版的-和baseline-完全一致
         # type=LightHamHead,
@@ -110,8 +112,7 @@ model = dict(
             rand_init=True)),
     # model training and testing settings
     train_cfg=dict(),
-    # test_cfg=dict(mode='whole'))
-    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
+    test_cfg=dict(mode='whole'))
 
 # # dataset settings
 # train_dataloader = dict(batch_size=16)
@@ -141,7 +142,7 @@ param_scheduler = [
     )
 ]
 
-train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=2000)
+train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),

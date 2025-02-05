@@ -50,7 +50,7 @@ from .transforms import (CLAHE, AdjustGamma, Albu, BioMedical3DPad,
                          SegRescale)
 from .voc import PascalVOCDataset
 from .atl_0_paper_TUM_13classes import ATL_S2_TUM_13class
-from .atl_0_paper_5b_s2_22class import ATL_S2_5B_Dataset_22class, ATL_S2_5B_Dataset_19class
+from .atl_0_paper_5b_s2_22class import ATL_S2_5B_Dataset_22class, ATL_S2_5B_Dataset_19class, ATL_S2_5B_Dataset_18class
 from .atl_0_paper_new_5b_GF_Google_S2_19class import ATL_5B_GF_Google_S2_Dataset_19class_train,ATL_5B_GF_Google_S2_Dataset_19class_test
 from .atl_isaid import iSAIDDataset_16
 
@@ -80,5 +80,5 @@ __all__ = [
     'ATL_S2_5B_Dataset_22class', 'ATL_S2_5B_Dataset_19class' , 'ATL_S2_5B_Dataset_24class',
     'ATL2024Bisai_ROAD', 'ATL2024Bisai_GF', 
     'ATL_5B_GF_Google_S2_Dataset_19class_train','ATL_5B_GF_Google_S2_Dataset_19class_test',
-    'iSAIDDataset_16'
+    'iSAIDDataset_16','ATL_S2_5B_Dataset_18class'
     ] # type: ignore

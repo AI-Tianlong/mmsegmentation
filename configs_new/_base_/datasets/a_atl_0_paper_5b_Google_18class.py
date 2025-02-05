@@ -3,7 +3,7 @@ from mmcv.transforms.processing import (RandomFlip, RandomResize, Resize,
                                         TestTimeAug)
 from mmengine.dataset.sampler import DefaultSampler, InfiniteSampler
 
-from mmseg.datasets.atl_0_paper_5b_s2_22class import ATL_S2_5B_Dataset_19class
+from mmseg.datasets.atl_0_paper_5b_s2_22class import ATL_S2_5B_Dataset_18class
 from mmseg.datasets.transforms.formatting import PackSegInputs
 from mmseg.datasets.transforms.loading import (LoadAnnotations,
                                                LoadSingleRSImageFromFile)
@@ -12,10 +12,10 @@ from mmseg.datasets.transforms.transforms import (PhotoMetricDistortion,
 from mmseg.evaluation import IoUMetric
 
 # dataset settings
-dataset_type = ATL_S2_5B_Dataset_19class
-data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-seg-裁切好的训练图像_S2_GF2_Google_size512'
+dataset_type = ATL_S2_5B_Dataset_18class
+data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-Google-GF2-S2-地理配准-dataset-base224'
+crop_size = (2048, 2048)
 
-crop_size = (512, 512)
 train_pipeline = [
     dict(type=LoadSingleRSImageFromFile),
     dict(type=LoadAnnotations),
@@ -67,14 +67,15 @@ tta_pipeline = [
 
 train_dataloader = dict(
     batch_size=2,
-    num_workers=4,
+    num_workers=4,  # numworkers 也会影响！
     persistent_workers=True,
     sampler=dict(type=InfiniteSampler, shuffle=True),
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(
-            img_path='img_dir/train/S2_5B_19类_包含雪_size512', seg_map_path='ann_dir/train/S2_5B_19类_包含雪_size512'),
+            img_path='img_dir/train/Google-5B-18-base224',
+            seg_map_path='ann_dir/train/Google-5B-18-base224'),
         pipeline=train_pipeline))
 
 val_dataloader = dict(
@@ -85,7 +86,9 @@ val_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        data_prefix=dict(img_path='img_dir/val/S2_5B_19类_包含雪_size512', seg_map_path='ann_dir/val/S2_5B_19类_包含雪_size512'),
+        data_prefix=dict(
+            img_path='img_dir/val/Google-5B-18-base224',
+            seg_map_path='ann_dir/val/Google-5B-18-base224'),
         pipeline=val_pipeline))
 # 想用大图去推理
 test_dataloader = dict(
@@ -96,7 +99,9 @@ test_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        data_prefix=dict(img_path='img_dir/val/S2_5B_19类_包含雪_size512', seg_map_path='ann_dir/val/S2_5B_19类_包含雪_size512'),
+        data_prefix=dict(
+            img_path='img_dir/val/Google-5B-18-base224',
+            seg_map_path='ann_dir/val/Google-5B-18-base224'),
         pipeline=test_pipeline))
 
 val_evaluator = dict(
