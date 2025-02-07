@@ -18,7 +18,7 @@ class PotsdamDataset(BaseSegDataset):
                  [255, 255, 0], [255, 0, 0]])
 
     def __init__(self,
-                 img_suffix='.tif',
+                 img_suffix='.png',
                  seg_map_suffix='.png',
                  reduce_zero_label=True,
                  **kwargs) -> None:
