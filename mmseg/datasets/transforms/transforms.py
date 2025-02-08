@@ -44,12 +44,12 @@ class MultiImg_MultiAnn_Resize(BaseTransform):
 
     Required Keys:
 
-    - img_MSI_3chan
-    - img_MSI_4chan
-    - img_MSI_10chan
-    - gt_seg_map_MSI_3chan
-    - gt_seg_map_MSI_4chan
-    - gt_seg_map_MSI_10chan
+    - img_MSI_3chan    # resize 2048
+    - img_MSI_4chan    # resize 640
+    - img_MSI_10chan   # resize 224
+    - gt_seg_map_MSI_3chan     # resize 2048
+    - gt_seg_map_MSI_4chan     # resize 640
+    - gt_seg_map_MSI_10chan    # resize 224
 
     Modified Keys:
 
@@ -86,8 +86,7 @@ class MultiImg_MultiAnn_Resize(BaseTransform):
     """
     def __init__(self,
                  scale: Optional[Union[int, Tuple[int, int]]] = None,
-                 scale_factor: Optional[Union[float, Tuple[float,
-                                                           float]]] = None,
+                 scale_factor: Optional[Union[float, Tuple[float,float]]] = None,
                  keep_ratio: bool = False,
                  clip_object_border: bool = True,
                  backend: str = 'cv2',
@@ -121,7 +120,7 @@ class MultiImg_MultiAnn_Resize(BaseTransform):
 
     def _resize_img(self, results: dict) -> None:
         """Resize images with ``results['scale']``."""
-
+        import pdb;pdb.set_trace()
         if results.get('img_MSI_3chan', None) is not None:
             if self.keep_ratio:
                 img, scale_factor = mmcv.imrescale(

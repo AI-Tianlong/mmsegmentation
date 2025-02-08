@@ -51,10 +51,10 @@ from mmseg.evaluation import IoUMetric
 
 
 with read_base():
-    from .._base_.datasets.atl_0_paper_new_5b_GF_Google_S2_19class import *
-    from .._base_.default_runtime import *
-    from .._base_.models.upernet_beit_potsdam import *
-    from .._base_.schedules.schedule_80k import *
+    from ..._base_.datasets.atl_0_paper_new_5b_GF_Google_S2_19class import *
+    from ..._base_.default_runtime import *
+    from ..._base_.models.upernet_beit_potsdam import *
+    from ..._base_.schedules.schedule_80k import *
 
 find_unuser_parameters = True
 

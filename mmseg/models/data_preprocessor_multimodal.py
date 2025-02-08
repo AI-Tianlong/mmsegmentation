@@ -13,12 +13,12 @@ import numpy as np
 import torch.nn.functional as F
 # from mmseg.utils import stack_batch
 
-def multi_encoder_stack_batch(inputs: List[tuple],  # 这里规定输入的inputs是一个list，里面的元素是每一个图像的tensor。因为我是一个大list，里面套两个list, 然后里面还是一个
-                data_samples: Optional[SampleList] = None,
-                size: Optional[tuple] = None,
-                size_divisor: Optional[int] = None,
-                pad_val: Union[int, float] = 0,
-                seg_pad_val: Union[int, float] = 255) -> torch.Tensor:
+def multimodal_stack_batch(inputs: List[tuple],  # 这里规定输入的inputs是一个list，里面的元素是每一个图像的tensor。因为我是一个大list，里面套两个list, 然后里面还是一个
+                           data_samples: Optional[SampleList] = None,
+                           size: Optional[tuple] = None, #(2048, 640, 224)
+                           size_divisor: Optional[int] = None,
+                           pad_val: Union[int, float] = 0,
+                           seg_pad_val: Union[int, float] = 255) -> torch.Tensor:
     """Stack multiple inputs to form a batch and pad the images and gt_sem_segs
     to the max shape use the right bottom padding mode.
 
@@ -56,22 +56,29 @@ def multi_encoder_stack_batch(inputs: List[tuple],  # 这里规定输入的input
     padded_inputs = []
     padded_samples = []
     batch_size = len(inputs[0])# 2 3 4 
-
+    # inputs = 6？？？  我设置的batch是2，2*3是5 那为什么len(inputs)是6呢
+    # import pdb;pdb.set_trace()
     inputs = [input_MSI_xchan_.float()  for inputs_MSI_xchan in inputs for input_MSI_xchan_ in inputs_MSI_xchan]
     
+    # [(2413, 2413), (2377, 2377), (647, 647), (655, 655), (224, 224), (224, 224)]
     inputs_sizes = [(img.shape[-2], img.shape[-1]) for img in inputs]
+    
     max_size = np.stack(inputs_sizes).max(0)
     if size_divisor is not None and size_divisor > 1:
         # the last two dims are H,W, both subject to divisibility requirement
-        max_size = (max_size +
-                    (size_divisor - 1)) // size_divisor * size_divisor
+        max_size = (max_size +(size_divisor - 1)) // size_divisor * size_divisor
 
+
+    size_list = [value for value in size for _ in range(batch_size)]
+    padding_list = []
     # 开始拼接多个 tensor 为一个 4D 的batch
-    for i in range(len(inputs)):
+    for i in range(len(inputs)):  #inputs 是6， data_samples 是2
+                                  # inputs: [3,3,3,4,4,4,10,10,10]
+                                  # size:(2048,640,224)
         tensor = inputs[i]
-        if size is not None:
-            width = max(size[-1] - tensor.shape[-1], 0)
-            height = max(size[-2] - tensor.shape[-2], 0)
+        if size_list is not None:
+            width = max(size_list[i] - tensor.shape[-1], 0)  #max(512-2413,0)
+            height = max(size_list[i] - tensor.shape[-2], 0) #max(512-2413,0)
             # (padding_left, padding_right, padding_top, padding_bottom)
             padding_size = (0, width, 0, height)
         elif size_divisor is not None:
@@ -80,47 +87,61 @@ def multi_encoder_stack_batch(inputs: List[tuple],  # 这里规定输入的input
             padding_size = (0, width, 0, height)
         else:
             padding_size = [0, 0, 0, 0]
-
+        padding_list.append(padding_size)
         # pad img
-        pad_img = F.pad(tensor, padding_size, value=pad_val)
+        pad_img = F.pad(tensor, padding_size, value=pad_val) # [3,2413,2413], 比512大，不pad,小才pad
         padded_inputs.append(pad_img)
-
+                                                       # batch_size = 2      # batch_size = 3  
     # 所以应该分开去padd和stack
-    # pad gt_sem_seg
-    if data_samples is not None:
-
-        for i in range(len(data_samples)):
+    # len(data_samples) = 2 batch           #padding_list=[3chan,3chan,4chan,4chan,10chan,10chan]
+    # data_samples 是 2                     #padding_list=[3chan,3chan,3chan,4chan,4chan,4chan,10chan,10chan,10chan]
+    if data_samples is not None:            #data_samples[0] -> 3 4 10
+        import pdb;pdb.set_trace()
+        for i in range(len(padding_list)//batch_size): # 9/3=3  0 1 2
             data_sample = data_samples[i]
-            pad_shape = None
+            pad_shape_MSI_3chan = None
+            pad_shape_MSI_4chan = None
+            pad_shape_MSI_10chan = None
 
             # 看ATL_3_packSegInputs的代码，这里是把gt_sem_seg, gt_edge_map, gt_depth_map都pad了
 
             if 'gt_semantic_seg_MSI_3chan' in data_sample:
                 gt_semantic_seg_MSI_3chan = data_sample.gt_semantic_seg_MSI_3chan.data
                 del data_sample.gt_semantic_seg_MSI_3chan.data
-                data_sample.gt_semantic_seg_MSI_3chan.data = F.pad(
-                    gt_semantic_seg_MSI_3chan, padding_size, value=seg_pad_val)
-                pad_shape = data_sample.gt_semantic_seg_MSI_3chan.shape
+                data_sample.gt_semantic_seg_MSI_3chan.data = F.pad(gt_semantic_seg_MSI_3chan, padding_list[i], value=seg_pad_val)
+                pad_shape_MSI_3chan = data_sample.gt_semantic_seg_MSI_3chan.shape
 
             if 'gt_semantic_seg_MSI_4chan' in data_sample:
                 gt_semantic_seg_MSI_4chan = data_sample.gt_semantic_seg_MSI_4chan.data
                 del data_sample.gt_semantic_seg_MSI_4chan.data
-                data_sample.gt_semantic_seg_MSI_4chan.data = F.pad(
-                    gt_semantic_seg_MSI_4chan, padding_size, value=seg_pad_val)
-                pad_shape = data_sample.gt_semantic_seg_MSI_4chan.shape
+                data_sample.gt_semantic_seg_MSI_4chan.data = F.pad(gt_semantic_seg_MSI_4chan, padding_list[i+batch_size], value=seg_pad_val)
+                pad_shape_MSI_4chan = data_sample.gt_semantic_seg_MSI_4chan.shape
 
             if 'gt_semantic_seg_MSI_10chan' in data_sample:
                 gt_semantic_seg_MSI_10chan = data_sample.gt_semantic_seg_MSI_10chan.data
                 del data_sample.gt_semantic_seg_MSI_10chan.data
-                data_sample.gt_semantic_seg_MSI_10chan.data = F.pad(
-                    gt_semantic_seg_MSI_10chan, padding_size, value=seg_pad_val)
-                pad_shape = data_sample.gt_semantic_seg_MSI_10chan.shape
-
+                data_sample.gt_semantic_seg_MSI_10chan.data = F.pad(gt_semantic_seg_MSI_10chan, padding_list[i+2*batch_size], value=seg_pad_val)
+                pad_shape_MSI_10chan = data_sample.gt_semantic_seg_MSI_10chan.shape
 
             data_sample.set_metainfo({
-                'img_shape': tensor.shape[-2:],
-                'pad_shape': pad_shape,
-                'padding_size': padding_size
+
+                # 假的，不对 不准
+                'img_shape': inputs[i+batch_size].shape[-2:],
+                'pad_shape': pad_shape_MSI_4chan,
+                'padding_size': padding_list[i+batch_size],
+
+                # 准的
+                'img_shape_MSI_3chan': inputs[i].shape[-2:],
+                'pad_shape_MSI_3chan': pad_shape_MSI_3chan,
+                'padding_size_MSI_3chan': padding_list[i],
+
+                'img_shape_MSI_4chan': inputs[i+batch_size].shape[-2:],
+                'pad_shape_MSI_4chan': pad_shape_MSI_4chan,
+                'padding_size_MSI_4chan': padding_list[i+batch_size],
+
+                'img_shape_MSI_10chan': inputs[i+2*batch_size].shape[-2:],
+                'pad_shape_MSI_10chan': pad_shape_MSI_10chan,
+                'padding_size_MSI_10chan': padding_list[i+2*batch_size],
             })
             padded_samples.append(data_sample)
     else:
@@ -128,7 +149,8 @@ def multi_encoder_stack_batch(inputs: List[tuple],  # 这里规定输入的input
             dict(
                 img_padding_size=padding_size,
                 pad_shape=pad_img.shape[-2:]))
-        
+
+                                    # 这里有个问题，不能拼接，因为尺寸不一样，所以这里要给他弄成一样的尺寸
     batch_padded_inputs_MSI_3chan = torch.stack(padded_inputs[0:batch_size], dim=0)
     batch_padded_inputs_MSI_4chan = torch.stack(padded_inputs[batch_size:2*batch_size], dim=0)
     batch_padded_inputs_MSI_10chan = torch.stack(padded_inputs[2*batch_size:], dim=0)
@@ -241,7 +263,7 @@ def stack_batch(inputs: List[torch.Tensor],
     return torch.stack(padded_inputs, dim=0), padded_samples
 
 @MODELS.register_module()
-class ATL_SegDataPreProcessor(BaseDataPreprocessor):
+class ATL_SegDataPreProcessor_MultiModal(BaseDataPreprocessor):
     """Image pre-processor for segmentation tasks.
 
     Comparing with the :class:`mmengine.ImgDataPreprocessor`,
@@ -372,7 +394,7 @@ class ATL_SegDataPreProcessor(BaseDataPreprocessor):
                                               '`data_samples` must be define.')
             
             # 将多个输入变成一个patch
-            inputs, data_samples = multi_encoder_stack_batch(
+            inputs, data_samples = multimodal_stack_batch(
                 inputs=inputs,
                 data_samples=data_samples,
                 size=self.size,

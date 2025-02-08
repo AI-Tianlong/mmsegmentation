@@ -21,11 +21,13 @@ from mmseg.models.segmentors.encoder_decoder import EncoderDecoder
 from mmseg.models.segmentors.atl_hiera_37_encoder_decoder import ATL_Hiera_EncoderDecoder
 # SegDataPreProcessor
 from mmseg.models.data_preprocessor import SegDataPreProcessor
+from mmseg.models.data_preprocessor_atl import ATL_SegDataPreProcessor
 # Backbone
 from mmseg.models.backbones.mscan import MSCAN
 from mmseg.models.backbones.piip_2branch import PIIPTwoBranch
 from mmseg.models.backbones.piip_3branch import PIIPThreeBranch
 from mmseg.models.backbones.internvit_6b import InternViT6B
+from mmseg.models.backbones.piip_3branch_multimodal import PIIPThreeBranch_MultiModal
 # Neck
 from mmseg.models.necks.multilevel_neck import  MultiLevelNeck
 # DecodeHead
@@ -42,7 +44,7 @@ from mmseg.evaluation import IoUMetric
 
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class_224 import *
+    from ..._base_.datasets.a_atl_0_paper_multi_Google_GF2_S2_18class import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
@@ -54,23 +56,32 @@ num_classes = 18
 deepspeed = False
 deepspeed_config = 'configs_zero_deepspeed/adam_zero1_bf16.json'
 
-crop_size = (640, 640)
+crop_size = (2048, 2048)
 data_preprocessor = dict(
-    type=SegDataPreProcessor,
-    mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
-    std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
-    # bgr_to_rgb=True,
-    pad_val=0,
-    seg_pad_val=255,
-    size=crop_size,
-    test_cfg=dict(size_divisor=32))
+        type=ATL_SegDataPreProcessor,
+        mean = None,
+        std = None,
+        pad_val=0,
+        seg_pad_val=255,
+        size=crop_size)
+
+# crop_size = (640, 640)
+# data_preprocessor = dict(
+#     type=SegDataPreProcessor,
+#     mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
+#     std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
+#     # bgr_to_rgb=True,
+#     pad_val=0,
+#     seg_pad_val=255,
+#     size=crop_size,  # 这里需要size么，其实应该不需要啊？ 但是这里的size是用来做resize的，所以还是需要的
+#     test_cfg=dict(size_divisor=32))
 
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
     pretrained=None,
     backbone=dict(
-        type=PIIPThreeBranch,
+        type=PIIPThreeBranch_MultiModal,
         n_points=4,
         deform_num_heads=16,
         cffn_ratio=0.25,
@@ -80,10 +91,10 @@ model = dict(
         interaction_drop_path_rate=0.4,
         interaction_proj=False,
         norm_layer='none',
-        # ViT-large
+        # For S2 10 band ViT-large
         branch1=dict(
-            in_chans=4, 
-            real_size=384,
+            in_chans=10, 
+            real_size=224,
             pretrain_img_size=224,
             patch_size=16,
             pretrain_patch_size=16,
@@ -96,13 +107,13 @@ model = dict(
             init_scale=1.,
             with_fpn=False,
             interaction_indexes=[[0, 1], [2, 3], [4, 5], [6, 7], [8, 9], [10, 11], [12, 13], [14, 15], [16, 17], [18, 19], [20, 21], [22, 23]],
-            pretrained = "checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_large_224_21k.pth",
+            pretrained = "checkpoints/2-对比实验的权重/piip/deit/10chan/deit_10chan_large_224_21k.pth",
             use_flash_attn=True,
         ),
-        # ViT-base
+        # For GF2 4 band ViT-base
         branch2=dict(
             in_chans=4, 
-            real_size=512,
+            real_size=640,
             pretrain_img_size=224,
             patch_size=16,
             pretrain_patch_size=16,
@@ -118,10 +129,10 @@ model = dict(
             pretrained = "checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth",
             use_flash_attn=True,
         ),
-        # ViT-small
+        # For Google 3 band ViT-small
         branch3=dict(
-            in_chans=4, 
-            real_size=640,
+            in_chans=3, 
+            real_size=2048,
             pretrain_img_size=224,
             patch_size=16,
             pretrain_patch_size=16,
@@ -134,7 +145,7 @@ model = dict(
             init_scale=1.,
             with_fpn=False,
             interaction_indexes=[[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9], [10, 10], [11, 11]],
-            pretrained = "checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_small_224_21k.pth",
+            pretrained = "checkpoints/2-对比实验的权重/piip/deit/3chan/deit_3chan_small_224_21k.pth",
             use_flash_attn=True,
         ),
     ),
@@ -226,7 +237,7 @@ test_evaluator = dict(
     keep_results=True)
 
 if deepspeed:
-    checkpoint_config = dict(deepspeed=deepspeed, by_epoch=False, interval=2000, max_keep_ckpts=1)
+    checkpoint_config = dict(deepspeed=deepspeed, by_epoch=False, interval=2000, max_keep_ckpts=4000)
 else:
     checkpoint_config = dict(by_epoch=False, interval=2000, max_keep_ckpts=1)
 

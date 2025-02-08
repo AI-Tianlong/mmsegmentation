@@ -123,6 +123,7 @@ class LoadAnnotations(MMCV_LoadAnnotations):
             gt_semantic_seg_copy = gt_semantic_seg.copy()
             for old_id, new_id in results['label_map'].items():
                 gt_semantic_seg[gt_semantic_seg_copy == old_id] = new_id
+        
         results['gt_seg_map'] = gt_semantic_seg
         results['seg_fields'].append('gt_seg_map')
 
@@ -574,7 +575,7 @@ class LoadSingleRSImageFromFile_spectral_GPT(BaseTransform):
 
 
 @TRANSFORMS.register_module()
-class ATL_multi_embedding_LoadAnnotations(MMCV_LoadAnnotations):
+class ATL_MultiModal_LoadAnnotations(MMCV_LoadAnnotations):
     """Load annotations for semantic segmentation provided by dataset.
 
     The annotation format is as the following:
@@ -654,15 +655,15 @@ class ATL_multi_embedding_LoadAnnotations(MMCV_LoadAnnotations):
         img_bytes_MSI_4chan = fileio.get(results['seg_map_path_MSI_4chan'], backend_args=self.backend_args)
         img_bytes_MSI_10chan = fileio.get(results['seg_map_path_MSI_10chan'], backend_args=self.backend_args)
  
-        gt_semantic_seg_MSI_3chan = mmcv.imfrombytes(
-            img_bytes_MSI_3chan, flag='unchanged',
-            backend=self.imdecode_backend).squeeze().astype(np.uint8)
-        gt_semantic_seg_MSI_4chan = mmcv.imfrombytes(
-            img_bytes_MSI_4chan, flag='unchanged',
-            backend=self.imdecode_backend).squeeze().astype(np.uint8)
-        gt_semantic_seg_MSI_10chan = mmcv.imfrombytes(
-            img_bytes_MSI_10chan, flag='unchanged',
-            backend=self.imdecode_backend).squeeze().astype(np.uint8)
+        gt_semantic_seg_MSI_3chan = mmcv.imfrombytes(img_bytes_MSI_3chan,
+                                                     flag='unchanged',
+                                                     backend=self.imdecode_backend).squeeze().astype(np.uint8)
+        gt_semantic_seg_MSI_4chan = mmcv.imfrombytes(img_bytes_MSI_4chan, 
+                                                     flag='unchanged',
+                                                     backend=self.imdecode_backend).squeeze().astype(np.uint8)
+        gt_semantic_seg_MSI_10chan = mmcv.imfrombytes(img_bytes_MSI_10chan, 
+                                                      flag='unchanged',
+                                                      backend=self.imdecode_backend).squeeze().astype(np.uint8)
 
         # reduce zero_label
         if self.reduce_zero_label is None:
@@ -672,6 +673,7 @@ class ATL_multi_embedding_LoadAnnotations(MMCV_LoadAnnotations):
             'Initialize dataset with `reduce_zero_label` as ' \
             f'{results["reduce_zero_label"]} but when load annotation ' \
             f'the `reduce_zero_label` is {self.reduce_zero_label}'
+        
         if self.reduce_zero_label:
             # avoid using underflow conversion
             gt_semantic_seg_MSI_3chan[gt_semantic_seg_MSI_3chan == 0] = 255
@@ -694,6 +696,7 @@ class ATL_multi_embedding_LoadAnnotations(MMCV_LoadAnnotations):
         #     gt_semantic_seg_copy_ = gt_semantic_seg.copy()
         #     for old_id, new_id in results['label_map'].items():
         #         gt_semantic_seg[gt_semantic_seg_copy == old_id] = new_id
+        
         results['gt_semantic_seg_MSI_3chan'] = gt_semantic_seg_MSI_3chan
         results['gt_semantic_seg_MSI_4chan'] = gt_semantic_seg_MSI_4chan
         results['gt_semantic_seg_MSI_10chan'] = gt_semantic_seg_MSI_10chan
@@ -709,8 +712,9 @@ class ATL_multi_embedding_LoadAnnotations(MMCV_LoadAnnotations):
         repr_str += f'backend_args={self.backend_args})'
         return repr_str
 
+
 @TRANSFORMS.register_module()
-class LoadMultiRSImageFromFile_with_data_preproocess(BaseTransform):
+class LoadMultiRSImageFromFile_with_data_preproocess_piip_samename(BaseTransform):
     """Load a Remote Sensing mage from file.
 
     Required Keys:
@@ -751,6 +755,119 @@ class LoadMultiRSImageFromFile_with_data_preproocess(BaseTransform):
         filename_MSI_3chan = results['img_path_MSI_3chan']
         filename_MSI_4chan = results['img_path_MSI_4chan']
         filename_MSI_10chan = results['img_path_MSI_10chan']
+
+        ds_MSI_3chan = gdal.Open(filename_MSI_3chan)
+        ds_MSI_4chan = gdal.Open(filename_MSI_4chan)
+        ds_MSI_10chan = gdal.Open(filename_MSI_10chan)
+        # img_array = ds.ReadAsArray()
+        # print(f'【ATL-LOG-LoadSingleRSImageFromFile】filename:{filename} img_array.shape {img_array.shape}')
+        if ds_MSI_3chan is None:
+            raise Exception(f'Unable to open file: {ds_MSI_3chan}')
+        if ds_MSI_4chan is None:
+            raise Exception(f'Unable to open file: {ds_MSI_4chan}')
+        if ds_MSI_10chan is None:
+            raise Exception(f'Unable to open file: {ds_MSI_10chan}')
+        
+        img_MSI_3chan = np.einsum('ijk->jki', ds_MSI_3chan.ReadAsArray())  # (512, 512, 4)
+        img_MSI_4chan = np.einsum('ijk->jki', ds_MSI_4chan.ReadAsArray())  # (512, 512, 4)
+        img_MSI_10chan = np.einsum('ijk->jki', ds_MSI_10chan.ReadAsArray()) # (512, 512, 10)
+
+        if self.to_float32:
+            img_MSI_3chan = img_MSI_3chan.astype(np.float32)
+            img_MSI_4chan = img_MSI_4chan.astype(np.float32)
+            img_MSI_10chan = img_MSI_10chan.astype(np.float32)
+
+        img_MSI_3chan = np.nan_to_num(img_MSI_3chan, nan=0)
+        img_MSI_4chan = np.nan_to_num(img_MSI_4chan, nan=0)
+        img_MSI_10chan = np.nan_to_num(img_MSI_10chan, nan=0)
+
+
+        if self.normalization:
+            MSI_3chan_mean = [123.675, 116.28, 103.53]
+            MSI_3chan_std = [58.395, 57.12, 57.375]
+            
+            MSI_4chan_mean = [454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428]
+            MSI_4chan_std = [55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602]
+
+            MSI_10chan_mean = None
+            MSI_10chan_std = None
+
+            if img_MSI_3chan.shape[2] == 3:
+                img_MSI_3chan= (img_MSI_3chan- MSI_3chan_mean) / MSI_3chan_std
+
+            if img_MSI_4chan.shape[2] == 4:
+                img_MSI_4chan= (img_MSI_4chan- MSI_4chan_mean) / MSI_4chan_std
+           
+            if img_MSI_10chan.shape[2] == 10:
+                if MSI_10chan_mean!=None and MSI_10chan_std!=None:
+                    img_MSI_10chan= (img_MSI_10chan- MSI_10chan_mean) / MSI_10chan_std
+                else:
+                    img_MSI_10chan = img_MSI_10chan # S2 MSI 10通道的图像不需要归一化
+
+        results['img_MSI_3chan'] = img_MSI_3chan
+        results['img_MSI_4chan'] = img_MSI_4chan
+        results['img_MSI_10chan'] = img_MSI_10chan
+        results['img_shape_MSI_3chan'] = img_MSI_3chan.shape[:2]
+        results['img_shape_MSI_4chan'] = img_MSI_4chan.shape[:2]
+        results['img_shape_MSI_10chan'] = img_MSI_10chan.shape[:2]
+        
+        results['img_shape'] = img_MSI_4chan.shape[:2]
+        results['ori_shape'] = img_MSI_4chan.shape[:2]
+        # print(f"img.shape {results['img'].shape}")
+        return results
+
+    def __repr__(self):   # print(repr(dataset))会输出这些东西  # 对于开发展，清晰的看到当前对象的各个属性
+        repr_str = (f'{self.__class__.__name__}('
+                    f'to_float32={self.to_float32})',
+                    f'normalization={self.normalization}')
+        return repr_str
+
+
+@TRANSFORMS.register_module()
+class LoadMultiRSImageFromFile_with_data_preproocess(BaseTransform):
+    """Load a Remote Sensing mage from file.
+
+    Required Keys:
+
+    - img_path
+
+    Modified Keys:
+
+    - img
+    - img_shape
+    - ori_shape
+
+    Args:
+        to_float32 (bool): Whether to convert the loaded image to a float32
+            numpy array. If set to False, the loaded image is a float64 array.
+            Defaults to True.
+        normalization (bool): Whether to normalize the loaded image.
+    """
+
+    def __init__(self, to_float32: bool = True,
+                 normalization: bool = True):
+        self.to_float32 = to_float32
+        self.normalization = normalization
+
+        if gdal is None:
+            raise RuntimeError('gdal is not installed')
+        # import pdb;pdb.set_trace()
+
+    def transform(self, results: Dict) -> Dict:
+        """Functions to load image.
+
+        Args:
+            results (dict): Result dict from :obj:``mmcv.BaseDataset``.
+
+        Returns:
+            dict: The dict contains loaded image and meta information.
+        """
+        # print(results)
+        filename_MSI_3chan = results['img_path_MSI_3chan']
+        filename_MSI_4chan = results['img_path_MSI_4chan']
+        filename_MSI_10chan = results['img_path_MSI_10chan']
+
+        # import pdb;pdb.set_trace()
 
         ds_MSI_3chan = gdal.Open(filename_MSI_3chan)
         ds_MSI_4chan = gdal.Open(filename_MSI_4chan)
