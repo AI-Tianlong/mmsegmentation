@@ -82,6 +82,12 @@ def trigger_visualization_hook(cfg, args):
 def main():
     args = parse_args()
 
+    import os
+    os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"  # 或 ":16:8"
+
+    import torch
+    torch.use_deterministic_algorithms(True)
+
     # load config
     cfg = Config.fromfile(args.config)
     cfg.launcher = args.launcher

@@ -107,7 +107,7 @@ param_scheduler = [
         by_epoch=False)
 ]
 
-train_cfg = dict(type=IterBasedTrainLoop, max_iters=80000, val_interval=2000)
+train_cfg = dict(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
 val_cfg = dict(type=ValLoop)
 test_cfg = dict(type=TestLoop)
 

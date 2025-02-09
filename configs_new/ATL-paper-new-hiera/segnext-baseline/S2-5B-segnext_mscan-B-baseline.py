@@ -33,8 +33,10 @@ from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
 from mmseg.evaluation import IoUMetric
 
 
+
+# 测试18
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_s2_19class import *
+    from ..._base_.datasets.a_atl_0_paper_5b_s2_18class import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 

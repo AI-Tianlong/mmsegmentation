@@ -252,4 +252,6 @@ class LightHamHead(BaseDecodeHead):
         # apply a conv block to align feature map
         output = self.align(x)
         output = self.cls_seg(output)
+        # print(output)
+        # import pdb; pdb.set_trace()
         return output
