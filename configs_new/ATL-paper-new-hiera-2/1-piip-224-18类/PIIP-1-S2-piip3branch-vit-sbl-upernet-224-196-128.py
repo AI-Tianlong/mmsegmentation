@@ -26,7 +26,6 @@ from mmseg.models.backbones.mscan import MSCAN
 from mmseg.models.backbones.piip_2branch import PIIPTwoBranch
 from mmseg.models.backbones.piip_3branch import PIIPThreeBranch
 from mmseg.models.backbones.internvit_6b import InternViT6B
-from mmseg.models.backbones.deit import vit_models
 # Neck
 from mmseg.models.necks.multilevel_neck import  MultiLevelNeck
 # DecodeHead
@@ -43,7 +42,7 @@ from mmseg.evaluation import IoUMetric
 
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class_224 import *
+    from ..._base_.datasets.a_atl_0_paper_5b_s2_18class_224 import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
@@ -55,11 +54,11 @@ num_classes = 18
 deepspeed = False
 deepspeed_config = 'configs_zero_deepspeed/adam_zero1_bf16.json'
 
-crop_size = (640, 640)
+crop_size = (224, 224)
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
-    std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
+    mean = None,
+    std = None,
     # bgr_to_rgb=True,
     pad_val=0,
     seg_pad_val=255,
@@ -71,9 +70,20 @@ model = dict(
     data_preprocessor=data_preprocessor,
     pretrained=None,
     backbone=dict(
-        type=vit_models,
-            in_chans=4, 
-            img_size=640,
+        type=PIIPThreeBranch,
+        n_points=4,
+        deform_num_heads=16,
+        cffn_ratio=0.25,
+        deform_ratio=0.5,
+        with_cffn=True,
+        interact_attn_type='deform',
+        interaction_drop_path_rate=0.4,
+        interaction_proj=False,
+        norm_layer='none',
+        # ViT-large
+        branch1=dict(
+            in_chans=10, 
+            real_size=128,
             pretrain_img_size=224,
             patch_size=16,
             pretrain_patch_size=16,
@@ -85,15 +95,54 @@ model = dict(
             drop_path_rate=0.4,
             init_scale=1.,
             with_fpn=False,
-            out_indices=[7, 11, 15, 23], 
-            pretrained = "checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_large_224_21k.pth",
-            use_flash_attn=False,
+            interaction_indexes=[[0, 1], [2, 3], [4, 5], [6, 7], [8, 9], [10, 11], [12, 13], [14, 15], [16, 17], [18, 19], [20, 21], [22, 23]],
+            pretrained = "checkpoints/2-对比实验的权重/piip/deit/10chan/deit_10chan_large_224_21k.pth",
+            use_flash_attn=True,
+        ),
+        # ViT-base
+        branch2=dict(
+            in_chans=10, 
+            real_size=192,
+            pretrain_img_size=224,
+            patch_size=16,
+            pretrain_patch_size=16,
+            depth=12,
+            embed_dim=768,
+            num_heads=12,
+            mlp_ratio=4,
+            qkv_bias=True,
+            drop_path_rate=0.15,
+            init_scale=1.,
+            with_fpn=False,
+            interaction_indexes=[[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9], [10, 10], [11, 11]],
+            pretrained = "checkpoints/2-对比实验的权重/piip/deit/10chan/deit_10chan_base_224_21k.pth",
+            use_flash_attn=True,
+        ),
+        # ViT-small
+        branch3=dict(
+            in_chans=10, 
+            real_size=224,
+            pretrain_img_size=224,
+            patch_size=16,
+            pretrain_patch_size=16,
+            depth=12,
+            embed_dim=384,
+            num_heads=6,
+            mlp_ratio=4,
+            qkv_bias=True,
+            drop_path_rate=0.05,
+            init_scale=1.,
+            with_fpn=False,
+            interaction_indexes=[[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9], [10, 10], [11, 11]],
+            pretrained = "checkpoints/2-对比实验的权重/piip/deit/10chan/deit_10chan_small_224_21k.pth",
+            use_flash_attn=True,
+        ),
     ),
-    neck=dict(
-        type=MultiLevelNeck,
-        in_channels=[1024, 1024, 1024, 1024],
-        out_channels=1024,
-        scales=[4, 2, 1, 0.5]),
+    # neck=dict(
+    #     type=MultiLevelNeck,
+    #     in_channels=[1024, 1024, 1024, 1024],
+    #     out_channels=1024,
+    #     scales=[4, 2, 1, 0.5]),
 
     decode_head=dict(
         type=UPerHead,
@@ -177,7 +226,7 @@ test_evaluator = dict(
     keep_results=True)
 
 if deepspeed:
-    checkpoint_config = dict(deepspeed=deepspeed, by_epoch=False, interval=2000, max_keep_ckpts=1)
+    checkpoint_config = dict(deepspeed=deepspeed, by_epoch=False, interval=2000, max_keep_ckpts=4000)
 else:
     checkpoint_config = dict(by_epoch=False, interval=2000, max_keep_ckpts=1)
 

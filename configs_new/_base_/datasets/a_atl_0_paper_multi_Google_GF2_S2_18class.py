@@ -4,7 +4,10 @@ from mmcv.transforms.processing import (RandomFlip, RandomResize, Resize,
 from mmengine.dataset.sampler import DefaultSampler, InfiniteSampler
 
 
-from mmseg.datasets.transforms.formatting import PackSegInputs, ATL_3_embedding_PackSegInputs
+from mmseg.datasets.transforms.formatting import (PackSegInputs, 
+                                                  ATL_3_embedding_PackSegInputs, 
+                                                  ATL_MultiRSImage_PackSegInputs_PIIP_samename)
+
 from mmseg.datasets.transforms.loading import (LoadAnnotations,
                                                LoadSingleRSImageFromFile)
 from mmseg.datasets.transforms.transforms import (PhotoMetricDistortion,
@@ -14,7 +17,8 @@ from mmseg.evaluation import IoUMetric
 from mmseg.datasets.transforms.loading import (LoadSingleRSImageFromFile,
                                                ATL_MultiModal_LoadAnnotations,
                                                LoadSingleRSImageFromFile_with_data_preproocess,
-                                               LoadMultiRSImageFromFile_with_data_preproocess)
+                                               LoadMultiRSImageFromFile_with_data_preproocess,
+                                               LoadMultiRSImageFromFile_with_data_preproocess_piip_samename)
 
 from mmseg.datasets.atl_0_paper_new_5b_GF_Google_S2_19class import (ATL_5B_GF_Google_S2_Dataset_18class_train, 
                                                                     ATL_5B_GF_Google_S2_Dataset_18class_test)
@@ -22,7 +26,7 @@ from mmseg.datasets.atl_0_paper_new_5b_GF_Google_S2_19class import (ATL_5B_GF_Go
 
 from mmcv.transforms import (LoadImageFromFile, RandomChoice,
                              RandomChoiceResize, RandomFlip)
-from mmseg.datasets.transforms import (RandomCrop, ResizeShortestEdge)
+from mmseg.datasets.transforms import (RandomCrop, ResizeShortestEdge,MultiImg_MultiAnn_Resize)
 
 # dataset settings
 dataset_type_train = ATL_5B_GF_Google_S2_Dataset_18class_train
@@ -31,7 +35,8 @@ dataset_type_test = ATL_5B_GF_Google_S2_Dataset_18class_test
 # data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-seg-裁切好的训练图像_S2_GF2_Google_size512'
 data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-Google-GF2-S2-地理配准-dataset-base224'
 
-crop_size = (512, 512)
+# crop_size = (512, 512)  #这里怎么搞呢？每一个图像的尺寸都不一样，并且同一组数据里，crop_size也不一样
+                        # PIIP的处理，是先通过最大的尺寸读进来，然后在backbone的forward里去插值进行缩放处理。
 albu_train_transforms = [
     dict(type='HorizontalFlip', p=0.5),
     dict(type='VerticalFlip', p=0.5)
@@ -39,25 +44,28 @@ albu_train_transforms = [
 
 
 train_pipeline = [
-    dict(type=LoadMultiRSImageFromFile_with_data_preproocess),
+    dict(type=LoadMultiRSImageFromFile_with_data_preproocess_piip_samename),
     dict(type=ATL_MultiModal_LoadAnnotations),
+    dict(type=MultiImg_MultiAnn_Resize, 
+         scale=[2048,640,224], 
+         keep_ratio=True),
     # dict(
     #     type=RandomChoiceResize,
     #     scales=[int(x * 0.1 * 512) for x in range(5, 21)],
     #     resize_type=ResizeShortestEdge,
     #     max_size=2048),
-    # dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),
+    # dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),  #这里尺寸应该都一样，那就直接缩放吧，不然没办法拼接在一起。
     # dict(type=RandomFlip, prob=0.5),
     # # dict(type=PhotoMetricDistortion), # 多通道 不太能用这个, 就全不用了
-    dict(type=ATL_3_embedding_PackSegInputs)
+    dict(type=ATL_MultiRSImage_PackSegInputs_PIIP_samename)
 ]
 
 val_pipeline = [  #
-    dict(type=LoadSingleRSImageFromFile_with_data_preproocess),
-    dict(type=Resize, scale=crop_size, keep_ratio=True),
+    dict(type=LoadMultiRSImageFromFile_with_data_preproocess_piip_samename),
+    # dict(type=Resize, scale=crop_size, keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
-    dict(type=LoadAnnotations),
+    dict(type=ATL_MultiModal_LoadAnnotations),
     dict(type=PackSegInputs)
 ]
 
@@ -88,7 +96,7 @@ tta_pipeline = [
 ]
 
 train_dataloader = dict(
-    batch_size=2,
+    batch_size=3,
     num_workers=1,
     persistent_workers=True,
     sampler=dict(type=InfiniteSampler, shuffle=True),

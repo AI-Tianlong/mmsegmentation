@@ -599,8 +599,11 @@ class vit_models(BaseModule):
 
         self.num_features = self.embed_dim = embed_dim
 
-        self.patch_embed = PatchEmbed(
-                img_size=pretrain_img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim)
+        self.patch_embed = PatchEmbed(img_size=img_size, 
+                                    #   img_size=pretrain_img_size, 
+                                      patch_size=patch_size, 
+                                      in_chans=in_chans, 
+                                      embed_dim=embed_dim)
         num_patches = self.patch_embed.num_patches
 
         if use_cls_token:
@@ -614,11 +617,21 @@ class vit_models(BaseModule):
         dpr = [drop_path_rate for i in range(depth)]
         self.blocks = nn.ModuleList([
             block_layers(
-                dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                drop=0.0, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer,
-                act_layer=act_layer, Attention_block=Attention_block, Mlp_block=Mlp_block,init_values=init_scale, 
+                dim=embed_dim, 
+                num_heads=num_heads, 
+                mlp_ratio=mlp_ratio, 
+                qkv_bias=qkv_bias, 
+                qk_scale=qk_scale,
+                drop=0.0, 
+                attn_drop=attn_drop_rate, 
+                drop_path=dpr[i], 
+                norm_layer=norm_layer,
+                act_layer=act_layer, 
+                Attention_block=Attention_block, 
+                Mlp_block=Mlp_block,init_values=init_scale, 
                 window_size=window_size[i] if window_attn[i] is True else -1, 
-                use_flash_attn=use_flash_attn, with_cp=with_cp
+                use_flash_attn=use_flash_attn, 
+                with_cp=with_cp
                 )
             for i in range(depth)])
 
@@ -669,18 +682,21 @@ class vit_models(BaseModule):
             pos_embed = F.interpolate(pos_embed, size=(H, W), mode='bicubic', align_corners=False). \
                 reshape(1, -1, H * W).permute(0, 2, 1)
             return pos_embed
-
+    
         if isinstance(pretrained, str):
             # logger = get_root_logger()
             checkpoint = torch.load(pretrained, map_location='cpu')
             if 'model' in checkpoint:
                 checkpoint = checkpoint['model']
+            
+            # import pdb; pdb.set_trace()
             # resize pos_embed
-            pos_embed = checkpoint['pos_embed']
-            checkpoint['pos_embed'] = resize_pos_embed(
-                pos_embed, self.img_size // self.patch_size, self.img_size // self.patch_size)
+            pos_embed = checkpoint['pos_embed'] # [1, 196, 1024] --> [1, 1600, 1024]
+            checkpoint['pos_embed'] = resize_pos_embed(pos_embed, 
+                                                       self.img_size // self.patch_size, 
+                                                       self.img_size // self.patch_size)
             # resize patch_embed
-            patch_embed = checkpoint['patch_embed.proj.weight']
+            patch_embed = checkpoint['patch_embed.proj.weight'] # [1024, 4, 16, 16]
             checkpoint['patch_embed.proj.weight'] = F.interpolate(
                 patch_embed, size=(self.patch_size, self.patch_size),
                 mode='bicubic', align_corners=False)
@@ -718,6 +734,7 @@ class vit_models(BaseModule):
         outs = self.forward_features(x)
         if self.use_simple_fpn:
             outs = [outs[-1]]
+        
         if not self.with_fpn:
             return [item.contiguous().to(self.output_dtype) for item in outs]
         else:
