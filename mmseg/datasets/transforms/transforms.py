@@ -120,12 +120,13 @@ class MultiImg_MultiAnn_Resize(BaseTransform):
 
     def _resize_img(self, results: dict) -> None:
         """Resize images with ``results['scale']``."""
-        import pdb;pdb.set_trace()
+        # import pdb;pdb.set_trace()
         if results.get('img_MSI_3chan', None) is not None:
             if self.keep_ratio:
                 img, scale_factor = mmcv.imrescale(
                     results['img_MSI_3chan'],
-                    results['scale'],
+                    # results['scale'],
+                    scale=(self.scale[0], self.scale[0]), # [2048,2048]
                     interpolation=self.interpolation,
                     return_scale=True,
                     backend=self.backend)
@@ -139,7 +140,7 @@ class MultiImg_MultiAnn_Resize(BaseTransform):
                 pass
                 img, w_scale, h_scale = mmcv.imresize(
                     results['img_MSI_3chan'],
-                    results['scale'],
+                    scale=(self.scale[0], self.scale[0]), # [2048,2048]
                     interpolation=self.interpolation,
                     return_scale=True,
                     backend=self.backend)
@@ -152,7 +153,7 @@ class MultiImg_MultiAnn_Resize(BaseTransform):
             if self.keep_ratio:
                 img, scale_factor = mmcv.imrescale(
                     results['img_MSI_4chan'],
-                    results['scale'],
+                    scale=(self.scale[1], self.scale[1]), # [2048,2048]
                     interpolation=self.interpolation,
                     return_scale=True,
                     backend=self.backend)
@@ -166,7 +167,7 @@ class MultiImg_MultiAnn_Resize(BaseTransform):
                 pass
                 img, w_scale, h_scale = mmcv.imresize(
                     results['img_MSI_4chan'],
-                    results['scale'],
+                    scale=(self.scale[1], self.scale[1]), # [2048,2048]
                     interpolation=self.interpolation,
                     return_scale=True,
                     backend=self.backend)
@@ -180,7 +181,7 @@ class MultiImg_MultiAnn_Resize(BaseTransform):
             if self.keep_ratio:
                 img, scale_factor = mmcv.imrescale(
                     results['img_MSI_10chan'],
-                    results['scale'],
+                    scale=(self.scale[2], self.scale[2]), # [2048,2048]
                     interpolation=self.interpolation,
                     return_scale=True,
                     backend=self.backend)
@@ -194,7 +195,7 @@ class MultiImg_MultiAnn_Resize(BaseTransform):
                 pass
                 img, w_scale, h_scale = mmcv.imresize(
                     results['img_MSI_10chan'],
-                    results['scale'],
+                    scale=(self.scale[2], self.scale[2]), # [2048,2048]
                     interpolation=self.interpolation,
                     return_scale=True,
                     backend=self.backend)
@@ -208,19 +209,49 @@ class MultiImg_MultiAnn_Resize(BaseTransform):
         """Resize semantic segmentation map with ``results['scale']``."""
         for seg_key in results.get('seg_fields', []):
             if results.get(seg_key, None) is not None:
-                if self.keep_ratio:
-                    gt_seg = mmcv.imrescale(
-                        results[seg_key],
-                        results['scale'],
-                        interpolation='nearest',
-                        backend=self.backend)
-                else:
-                    gt_seg = mmcv.imresize(
-                        results[seg_key],
-                        results['scale'],
-                        interpolation='nearest',
-                        backend=self.backend)
-                results[seg_key] = gt_seg
+                if seg_key == 'gt_semantic_seg_MSI_3chan':
+                    if self.keep_ratio:
+                        gt_seg = mmcv.imrescale(
+                            results[seg_key],
+                            scale=(self.scale[0], self.scale[0]), # [2048,2048]
+                            interpolation='nearest',
+                            backend=self.backend)
+                    else:
+                        gt_seg = mmcv.imresize(
+                            results[seg_key],
+                            scale=(self.scale[0], self.scale[0]), # [2048,2048]
+                            interpolation='nearest',
+                            backend=self.backend)
+                    results[seg_key] = gt_seg
+                elif seg_key == 'gt_semantic_seg_MSI_4chan':
+                    if self.keep_ratio:
+                        gt_seg = mmcv.imrescale(
+                            results[seg_key],
+                            scale=(self.scale[1], self.scale[1]), # [2048,2048]
+                            interpolation='nearest',
+                            backend=self.backend)
+                    else:
+                        gt_seg = mmcv.imresize(
+                            results[seg_key],
+                            scale=(self.scale[1], self.scale[1]), # [2048,2048]
+                            interpolation='nearest',
+                            backend=self.backend)
+                    results[seg_key] = gt_seg
+
+                elif seg_key == 'gt_semantic_seg_MSI_10chan':
+                    if self.keep_ratio:
+                        gt_seg = mmcv.imrescale(
+                            results[seg_key],
+                            scale=(self.scale[2], self.scale[2]), # [2048,2048]
+                            interpolation='nearest',
+                            backend=self.backend)
+                    else:
+                        gt_seg = mmcv.imresize(
+                            results[seg_key],
+                            scale=(self.scale[2], self.scale[2]), # [2048,2048]
+                            interpolation='nearest',
+                            backend=self.backend)
+                    results[seg_key] = gt_seg
 
     def transform(self, results: dict) -> dict:
         """Transform function to resize images, bounding boxes, semantic
@@ -240,9 +271,36 @@ class MultiImg_MultiAnn_Resize(BaseTransform):
             img_shape = results['img_MSI_4chan'].shape[:2]
             results['scale'] = _scale_size(img_shape[::-1],
                                            self.scale_factor)  # type: ignore
+        
         self._resize_img(results)
         self._resize_seg(results)
         return results
+
+
+        # print('==============================================================')
+        # print(f'MultiImg——MultiAnn-Resize之前的图像尺寸')
+        # print(f'results["img_MSI_3chan"].shape: {results["img_MSI_3chan"].shape}')
+        # print(f'results["img_MSI_4chan"].shape: {results["img_MSI_4chan"].shape}')
+        # print(f'results["img_MSI_10chan"].shape: {results["img_MSI_10chan"].shape}')
+        # self._resize_img(results)
+        # print(f'MultiImg——MultiAnn-Resize之后的图像尺寸')
+        # print(f'results["img_MSI_3chan"].shape: {results["img_MSI_3chan"].shape}')
+        # print(f'results["img_MSI_4chan"].shape: {results["img_MSI_4chan"].shape}')
+        # print(f'results["img_MSI_10chan"].shape: {results["img_MSI_10chan"].shape}')
+        # print('==============================================================')
+        
+        # import pdb;pdb.set_trace()
+        # print('==============================================================')
+        # print(f'MultiImg——MultiAnn-Resize之前的标签尺寸')
+        # print(f'results["gt_semantic_seg_MSI_3chan"].shape: {results["gt_semantic_seg_MSI_3chan"].shape}')
+        # print(f'results["gt_semantic_seg_MSI_4chan"].shape: {results["gt_semantic_seg_MSI_4chan"].shape}')
+        # print(f'results["gt_semantic_seg_MSI_10chan"].shape: {results["gt_semantic_seg_MSI_10chan"].shape}')
+        # self._resize_seg(results)
+        # print(f'MultiImg——MultiAnn-Resize之后的标签尺寸')
+        # print(f'results["gt_semantic_seg_MSI_3chan"].shape: {results["gt_semantic_seg_MSI_3chan"].shape}')
+        # print(f'results["gt_semantic_seg_MSI_4chan"].shape: {results["gt_semantic_seg_MSI_4chan"].shape}')
+        # print(f'results["gt_semantic_seg_MSI_10chan"].shape: {results["gt_semantic_seg_MSI_10chan"].shape}')
+        # return results
 
 
 

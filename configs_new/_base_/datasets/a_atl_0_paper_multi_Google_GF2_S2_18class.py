@@ -66,7 +66,10 @@ val_pipeline = [  #
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
     dict(type=ATL_MultiModal_LoadAnnotations),
-    dict(type=PackSegInputs)
+    dict(type=MultiImg_MultiAnn_Resize, 
+         scale=[2048,640,224], 
+         keep_ratio=True),
+    dict(type=ATL_MultiRSImage_PackSegInputs_PIIP_samename)
 ]
 
 test_pipeline = [  #
@@ -96,7 +99,7 @@ tta_pipeline = [
 ]
 
 train_dataloader = dict(
-    batch_size=3,
+    batch_size=1,
     num_workers=1,
     persistent_workers=True,
     sampler=dict(type=InfiniteSampler, shuffle=True),

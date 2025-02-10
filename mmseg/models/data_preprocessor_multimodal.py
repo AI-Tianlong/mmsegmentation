@@ -91,13 +91,14 @@ def multimodal_stack_batch(inputs: List[tuple],  # 这里规定输入的inputs�
         # pad img
         pad_img = F.pad(tensor, padding_size, value=pad_val) # [3,2413,2413], 比512大，不pad,小才pad
         padded_inputs.append(pad_img)
-                                                       # batch_size = 2      # batch_size = 3  
+    # import pdb;pdb.set_trace()
     # 所以应该分开去padd和stack
     # len(data_samples) = 2 batch           #padding_list=[3chan,3chan,4chan,4chan,10chan,10chan]
     # data_samples 是 2                     #padding_list=[3chan,3chan,3chan,4chan,4chan,4chan,10chan,10chan,10chan]
     if data_samples is not None:            #data_samples[0] -> 3 4 10
-        import pdb;pdb.set_trace()
-        for i in range(len(padding_list)//batch_size): # 9/3=3  0 1 2
+       
+        for i in range(batch_size): # 9/3=3  0 1 2  
+            # import pdb;pdb.set_trace()
             data_sample = data_samples[i]
             pad_shape_MSI_3chan = None
             pad_shape_MSI_4chan = None
@@ -122,6 +123,8 @@ def multimodal_stack_batch(inputs: List[tuple],  # 这里规定输入的inputs�
                 del data_sample.gt_semantic_seg_MSI_10chan.data
                 data_sample.gt_semantic_seg_MSI_10chan.data = F.pad(gt_semantic_seg_MSI_10chan, padding_list[i+2*batch_size], value=seg_pad_val)
                 pad_shape_MSI_10chan = data_sample.gt_semantic_seg_MSI_10chan.shape
+
+
 
             data_sample.set_metainfo({
 
