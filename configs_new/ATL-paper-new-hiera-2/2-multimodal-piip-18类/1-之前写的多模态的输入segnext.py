@@ -130,21 +130,21 @@ model=dict(
         #         type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)),
         test_cfg=dict(mode='whole'))
 
-# dataset config
-train_pipeline = [
-    dict(type=LoadMultiRSImageFromFile_with_data_preproocess),
-    dict(type=ATL_MultiModal_LoadAnnotations),
-    # dict(
-    #     type=RandomChoiceResize,
-    #     scales=[int(x * 0.1 * 512) for x in range(5, 21)],
-    #     resize_type=ResizeShortestEdge,
-    #     max_size=2048),
-    # dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),
-    # dict(type=RandomFlip, prob=0.5),
-    # dict(type=PhotoMetricDistortion),
-    dict(type=ATL_3_embedding_PackSegInputs)
-]
-train_dataloader.update(dataset=dict(pipeline=train_pipeline))  # potsdam的变量
+# # dataset config
+# train_pipeline = [
+#     dict(type=LoadMultiRSImageFromFile_with_data_preproocess),
+#     dict(type=ATL_MultiModal_LoadAnnotations),
+#     # dict(
+#     #     type=RandomChoiceResize,
+#     #     scales=[int(x * 0.1 * 512) for x in range(5, 21)],
+#     #     resize_type=ResizeShortestEdge,
+#     #     max_size=2048),
+#     # dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),
+#     # dict(type=RandomFlip, prob=0.5),
+#     # dict(type=PhotoMetricDistortion),
+#     dict(type=ATL_3_embedding_PackSegInputs)
+# ]
+# train_dataloader.update(dataset=dict(pipeline=train_pipeline))  # potsdam的变量
 
 # optimizer
 optim_wrapper = dict(

@@ -17,17 +17,18 @@ data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-Google-GF
 
 # crop_size = (512, 512)
 # crop_size = (1547, 1547)
-crop_size = (640, 640)
+crop_size = (640, 640)   # 不要随机增强！！！！
 train_pipeline = [
     dict(type=LoadSingleRSImageFromFile),
     dict(type=LoadAnnotations),
-    dict(
-        type=RandomResize,
-        scale=crop_size,
-        ratio_range=(0.5, 2.0),
-        keep_ratio=True),
-    dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),
-    dict(type=RandomFlip, prob=0.5),
+    dict(type=Resize, scale=crop_size, keep_ratio=True),
+    # dict(
+    #     type=RandomResize,
+    #     scale=crop_size,
+    #     ratio_range=(0.5, 2.0),
+    #     keep_ratio=True),
+    # dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),
+    # dict(type=RandomFlip, prob=0.5),
     # dict(type=PhotoMetricDistortion), # 多通道 不太能用这个
     dict(type=PackSegInputs)
 ]
