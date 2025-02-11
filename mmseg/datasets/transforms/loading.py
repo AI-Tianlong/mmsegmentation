@@ -651,6 +651,7 @@ class ATL_MultiModal_LoadAnnotations(MMCV_LoadAnnotations):
         Returns:
             dict: The dict contains loaded semantic segmentation annotations.
         """
+       
         img_bytes_MSI_3chan = fileio.get(results['seg_map_path_MSI_3chan'], backend_args=self.backend_args)
         img_bytes_MSI_4chan = fileio.get(results['seg_map_path_MSI_4chan'], backend_args=self.backend_args)
         img_bytes_MSI_10chan = fileio.get(results['seg_map_path_MSI_10chan'], backend_args=self.backend_args)
@@ -697,9 +698,12 @@ class ATL_MultiModal_LoadAnnotations(MMCV_LoadAnnotations):
         #     for old_id, new_id in results['label_map'].items():
         #         gt_semantic_seg[gt_semantic_seg_copy == old_id] = new_id
         
+        results['gt_semantic_seg'] = gt_semantic_seg_MSI_4chan
+
         results['gt_semantic_seg_MSI_3chan'] = gt_semantic_seg_MSI_3chan
         results['gt_semantic_seg_MSI_4chan'] = gt_semantic_seg_MSI_4chan
         results['gt_semantic_seg_MSI_10chan'] = gt_semantic_seg_MSI_10chan
+        results['seg_fields'].append('gt_semantic_seg')
         results['seg_fields'].append('gt_semantic_seg_MSI_3chan')
         results['seg_fields'].append('gt_semantic_seg_MSI_4chan')
         results['seg_fields'].append('gt_semantic_seg_MSI_10chan')
@@ -811,8 +815,8 @@ class LoadMultiRSImageFromFile_with_data_preproocess_piip_samename(BaseTransform
         results['img_shape_MSI_4chan'] = img_MSI_4chan.shape[:2]
         results['img_shape_MSI_10chan'] = img_MSI_10chan.shape[:2]
         
-        results['img_shape'] = img_MSI_4chan.shape[:2]
-        results['ori_shape'] = img_MSI_4chan.shape[:2]
+        results['img_shape'] = img_MSI_4chan.shape[:2]  
+        results['ori_shape'] = img_MSI_4chan.shape[:2]  # 这里指定4chan图像的原始尺寸
         # print(f"img.shape {results['img'].shape}")
         return results
 

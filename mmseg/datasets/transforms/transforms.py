@@ -145,7 +145,8 @@ class MultiImg_MultiAnn_Resize(BaseTransform):
                     return_scale=True,
                     backend=self.backend)
             results['img_MSI_3chan'] = img
-            results['img_shape'] = img.shape[:2]
+            # results['img_shape'] = img.shape[:2]
+            results['img_shape_MSI_3chan'] = img.shape[:2]
             results['scale_factor'] = (w_scale, h_scale)
             results['keep_ratio'] = self.keep_ratio
 
@@ -172,7 +173,8 @@ class MultiImg_MultiAnn_Resize(BaseTransform):
                     return_scale=True,
                     backend=self.backend)
             results['img_MSI_4chan'] = img
-            results['img_shape'] = img.shape[:2]
+            # results['img_shape'] = img.shape[:2]
+            results['img_shape_MSI_4chan'] = img.shape[:2]
             results['scale_factor'] = (w_scale, h_scale)
             results['keep_ratio'] = self.keep_ratio
 
@@ -201,7 +203,8 @@ class MultiImg_MultiAnn_Resize(BaseTransform):
                     backend=self.backend)
 
             results['img_MSI_10chan'] = img
-            results['img_shape'] = img.shape[:2]
+            # results['img_shape'] = img.shape[:2]
+            results['img_shape_MSI_10chan'] = img.shape[:2]
             results['scale_factor'] = (w_scale, h_scale)
             results['keep_ratio'] = self.keep_ratio
 
@@ -224,6 +227,7 @@ class MultiImg_MultiAnn_Resize(BaseTransform):
                             backend=self.backend)
                     results[seg_key] = gt_seg
                 elif seg_key == 'gt_semantic_seg_MSI_4chan':
+                    # results['gt_semantic_seg_MSI_4chan_ori_shape'] = results[seg_key]  # 原始的，未经过resize的标签
                     if self.keep_ratio:
                         gt_seg = mmcv.imrescale(
                             results[seg_key],
@@ -237,6 +241,7 @@ class MultiImg_MultiAnn_Resize(BaseTransform):
                             interpolation='nearest',
                             backend=self.backend)
                     results[seg_key] = gt_seg
+                    
 
                 elif seg_key == 'gt_semantic_seg_MSI_10chan':
                     if self.keep_ratio:

@@ -110,13 +110,13 @@ class PIIPThreeBranch_MultiModal(nn.Module):
         assert len(self.branch1_interaction_indexes) == len(self.branch2_interaction_indexes) == len(self.branch3_interaction_indexes)
         self.interactions = nn.Sequential(*[
             ThreeBranchInteractionBlock(
-                branch1_dim=self.branch1.embed_dim,
-                branch2_dim=self.branch2.embed_dim,
-                branch3_dim=self.branch3.embed_dim, 
+                branch1_dim=self.branch1.embed_dim, #1024
+                branch2_dim=self.branch2.embed_dim, #768
+                branch3_dim=self.branch3.embed_dim, #384
 
-                branch1_img_size=self.branch1.pretrain_img_size,
-                branch2_img_size=self.branch2.pretrain_img_size,
-                branch3_img_size=self.branch3.pretrain_img_size, 
+                branch1_img_size=self.branch1.pretrain_img_size,  # 224 ？
+                branch2_img_size=self.branch2.pretrain_img_size,  # 224 ？
+                branch3_img_size=self.branch3.pretrain_img_size,  # 224 ？
 
                 num_heads=deform_num_heads, 
                 n_points=n_points,
@@ -131,9 +131,9 @@ class PIIPThreeBranch_MultiModal(nn.Module):
             for _ in range(len(self.branch1_interaction_indexes))
         ])
         
-        dim1 = self.branch1.embed_dim  # branch1的维度, 最大
-        dim2 = self.branch2.embed_dim  # branch2的维度, 中等
-        dim3 = self.branch3.embed_dim  # branch3的维度, 最小
+        dim1 = self.branch1.embed_dim  # branch1的维度, 最大 1024
+        dim2 = self.branch2.embed_dim  # branch2的维度, 中等 768
+        dim3 = self.branch3.embed_dim  # branch3的维度, 最小 384
         assert dim1 >= dim2 >= dim3
         
         # 将branch1的维度变到dim1
@@ -250,11 +250,14 @@ class PIIPThreeBranch_MultiModal(nn.Module):
         # 最后的特征维度，和branch1相同 ---> 特征的维度最大
         # 最后的特征大小，和branch2相同 ---> 不太大 不太小
                                                         # 要不在降采样到1024啊？ 也合理
-        # 传的是个张量列表，[2,10,224,244],[2,4,640,640],[2,3,2048,2048]
-        x1, x2, x3 = x[0], x[1], x[2]
-        # x1 = F.interpolate(x1, size=(224,224), mode='bilinear', align_corners=False)
-        # x2 = F.interpolate(x1, size=(640,640), mode='bilinear', align_corners=False)
-        # x3 = F.interpolate(x1, size=(2048,2048), mode='bilinear', align_corners=False)
+        # 传的是个张量列表，[2,10,2048,2048], [2,4,640,640], [2,10,224,224]
+        # import pdb; pdb.set_trace()
+        x1, x2, x3 = x[2], x[1], x[0] # [2,10,224,224],[2, 4, 640, 640],[2, 3, 2048, 2048]]
+
+
+        # x1 = F.interpolate(x1, size=(224,  224),  mode='bilinear',   align_corners=False)
+        # x2 = F.interpolate(x1, size=(640,  640),  mode='bilinear',   align_corners=False)
+        # x3 = F.interpolate(x1, size=(2048, 2048), mode='bilinear',   align_corners=False)
 
 
         x1 = x1.type(self.dtype)
@@ -263,7 +266,7 @@ class PIIPThreeBranch_MultiModal(nn.Module):
 
         deform_inputs = {}
         if self.interact_attn_type == "deform":
-            deform_inputs["2to1"] = deform_inputs_1_vit(x1, x2)  # 1和2的deform输入
+            deform_inputs["2to1"] = deform_inputs_1_vit(x1, x2)  # 1和2的deform输入 # [1, 196, 1, 2]
             deform_inputs["1to2"] = deform_inputs_2_vit(x2, x1)  # 2和1的deform输入
             deform_inputs["3to2"] = deform_inputs_1_vit(x2, x3)  # 2和3的deform输入
             deform_inputs["2to3"] = deform_inputs_2_vit(x3, x2)  # 3和2的deform输入
@@ -279,10 +282,10 @@ class PIIPThreeBranch_MultiModal(nn.Module):
             x1, H1, W1 = self.branch1.visual_embed(x1)
             bs1, n1, dim1 = x1.shape
         else:
-            x1, H1, W1 = self.branch1.patch_embed(x1) # [2, 576, 1024],24,24  (384/16)^2=24^2=576
-            bs1, n1, dim1 = x1.shape # 2, 576, 1024
+            x1, H1, W1 = self.branch1.patch_embed(x1) # [2, 196, 1024],14,14
+            bs1, n1, dim1 = x1.shape # 2, 196, 1024
             if self.branch1.pos_embed is not None:
-                pos_embed1 = self.branch1.pos_embed if not self.branch1_w_cls_token else self.branch1.pos_embed[:, 1:]
+                pos_embed1 = self.branch1.pos_embed if not self.branch1_w_cls_token else self.branch1.pos_embed[:, 1:] # 如果有cls_token 则195维度
                 pos_embed1 = self._get_pos_embed(pos_embed1.float(), (self.branch1.pretrain_img_size, self.branch1.pretrain_img_size),  
                                                 (self.branch1.patch_size, self.branch1.patch_size), H1, W1) 
                 x1 = x1 + pos_embed1
@@ -292,7 +295,7 @@ class PIIPThreeBranch_MultiModal(nn.Module):
             x2, H2, W2 = self.branch2.visual_embed(x2)
             bs2, n2, dim2 = x2.shapes
         else:
-            x2, H2, W2 = self.branch2.patch_embed(x2) # [2, 1024, 768], 32,32 512/16=32 
+            x2, H2, W2 = self.branch2.patch_embed(x2) # [2, 1600, 768] 40 40
             bs2, n2, dim2 = x2.shape
             if self.branch2.pos_embed is not None:
                 pos_embed2 = self.branch2.pos_embed if not self.branch2_w_cls_token else self.branch2.pos_embed[:, 1:]
@@ -305,7 +308,7 @@ class PIIPThreeBranch_MultiModal(nn.Module):
             x3, H3, W3 = self.branch3.visual_embed(x3)
             bs3, n3, dim3 = x3.shape
         else:
-            x3, H3, W3 = self.branch3.patch_embed(x3) # [2,1600,384],40,40 640/16=40
+            x3, H3, W3 = self.branch3.patch_embed(x3) # [2, 16384, 384], 128, 128
             bs3, n3, dim3 = x3.shape
             if self.branch3.pos_embed is not None:
                 pos_embed3 = self.branch3.pos_embed if not self.branch3_w_cls_token else self.branch3.pos_embed[:, 1:]
@@ -317,38 +320,41 @@ class PIIPThreeBranch_MultiModal(nn.Module):
 
         # Blocks and interactions
         for i, layer in enumerate(self.interactions):
-            indexes1 = self.branch1_interaction_indexes[i]
+            indexes1 = self.branch1_interaction_indexes[i] # [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9], [10, 11], [12, 13], [14, 15], [16, 17], [18, 19], [20, 21], [22, 23]]
             branch1_blocks = self.branch1.blocks[indexes1[0]:indexes1[-1] + 1]\
                 if 'perceiver' not in self.branch1.pretrained else self.branch1.layers[indexes1[0]:indexes1[-1] + 1]
-            indexes2 = self.branch2_interaction_indexes[i]
+            indexes2 = self.branch2_interaction_indexes[i] # [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9], [10, 10], [11, 11]]
             branch2_blocks = self.branch2.blocks[indexes2[0]:indexes2[-1] + 1]\
                 if 'perceiver' not in self.branch2.pretrained else self.branch2.layers[indexes2[0]:indexes2[-1] + 1]
-            indexes3 = self.branch3_interaction_indexes[i]
+            indexes3 = self.branch3_interaction_indexes[i] # [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9], [10, 10], [11, 11]]
             branch3_blocks = self.branch3.blocks[indexes3[0]:indexes3[-1] + 1]\
                 if 'perceiver' not in self.branch3.pretrained else self.branch3.layers[indexes3[0]:indexes3[-1] + 1]
 
             x1, x2, x3, _, _, _ = layer(x1, x2, x3,
-                        branch1_blocks, branch2_blocks, branch3_blocks,
-                        H1=H1, W1=W1, H2=H2, W2=W2, H3=H3, W3=W3,
-                        cls1=None, cls2=None, cls3=None,
-                        deform_inputs=deform_inputs)
+                                        branch1_blocks, branch2_blocks, branch3_blocks,
+                                        H1=H1, W1=W1, H2=H2, W2=W2, H3=H3, W3=W3,
+                                        cls1=None, cls2=None, cls3=None,
+                                        deform_inputs=deform_inputs)
 
         # Branch merging
-        x1 = x1.transpose(1, 2).view(bs1, dim1, H1, W1) # [2, 576, 1024] --> [2, 1024, 24, 24]
-        x1 = self.merge_branch1(x1)   # 特征图维度变到branch1的 [2, 1024, 24, 24]->[2, 1024, 24, 24]            
+        x1 = x1.transpose(1, 2).view(bs1, dim1, H1, W1) # [2, 196, 1024] --> [2, 1024, 14, 14]
+        x1 = self.merge_branch1(x1)   # 特征图维度变到branch1的 [2, 1024, 14, 14]->[2, 1024, 14, 14]            
         x1 = x1.type(torch.float32) 
-        x1 = F.interpolate(x1, size=(H2, W2), mode='bilinear', align_corners=False)  # 特征图尺寸变到branch2的
-        x1 = x1.type(self.dtype) # [2, 1024, 24, 24]->[2, 1024, 40, 40]
+        x1 = F.interpolate(x1, size=(H2, W2), mode='bilinear', align_corners=False)  # 特征图尺寸变到branch2的 # [2, 1024, 14, 14] -> [2, 1024, 40, 40]
+        x1 = x1.type(self.dtype) 
 
-        x2 = x2.transpose(1, 2).view(bs2, dim2, H2, W2) # [2, 1024, 768] -> [2, 768, 32, 32]
-        x2 = self.merge_branch2(x2)  # 特征图维度变到branch1的 [2, 768, 32, 32]->[2, 1024, 32, 32]
+        x2 = x2.transpose(1, 2).view(bs2, dim2, H2, W2) # [2, 1600, 768] -> [2, 768, 40, 40]
+        x2 = self.merge_branch2(x2)  # 特征图维度变到branch1的 [2, 768, 40, 40]->[2, 1024, 40, 40]
         x2 = x2.type(torch.float32)
         x2 = F.interpolate(x2, size=(H2, W2), mode='bilinear', align_corners=False) # 特征图尺寸变到branch2的
-        x2 = x2.type(self.dtype) # [2, 1024, 32, 32]->[2, 1024, 40, 40]
+        x2 = x2.type(self.dtype) # [2, 1024, 40, 40]->[2, 1024, 40, 40]
         
-        x3 = x3.transpose(1, 2).view(bs3, dim3, H3, W3) # [2,1600,384] -> [2, 384, 40, 40]
-        x3 = self.merge_branch3(x3)  # 特征图维度变到branch2的 
-        
+        x3 = x3.transpose(1, 2).view(bs3, dim3, H3, W3) # [2, 16384, 384] -> [2, 384, 128, 128]
+        x3 = self.merge_branch3(x3)  # 特征图维度变到branch1的  [2, 384, 128, 128]-->[2,1024,128,128]
+        x3 = x3.type(torch.float32)
+        x3 = F.interpolate(x3, size=(H2, W2), mode='bilinear', align_corners=False) # 特征图尺寸变到branch2的
+        x3 = x3.type(self.dtype) # [2,1024,128,128]->[2, 1024, 40, 40]
+
         out = x1 * self.w1 + x2 * self.w2 + x3 * self.w3  # 最终的输出
              
         

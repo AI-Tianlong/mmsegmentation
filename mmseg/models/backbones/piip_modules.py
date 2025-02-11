@@ -55,7 +55,7 @@ def deform_inputs_1_vit(x1, x2, patch_size1=16, patch_size2=16):
                                      dtype=torch.long, device=x1.device)
     level_start_index = torch.cat((spatial_shapes.new_zeros(
         (1,)), spatial_shapes.prod(1).cumsum(0)[:-1]))
-    reference_points = get_reference_points([(h1 // patch_size1, w1 // patch_size1)], x1.device)
+    reference_points = get_reference_points([(h1 // patch_size1, w1 // patch_size1)], x1.device) #参考点
     deform_inputs1 = [reference_points, spatial_shapes, level_start_index]
     
     return deform_inputs1
@@ -154,9 +154,19 @@ class CrossAttention(nn.Module):
 
 
 class Injector(nn.Module):
-    def __init__(self, dim, num_heads=6, n_points=4, n_levels=1, deform_ratio=1.0,
+    def __init__(self, 
+                 dim, 
+                 num_heads=6, 
+                 n_points=4, 
+                 n_levels=1, 
+                 deform_ratio=1.0,
                  norm_layer=partial(nn.LayerNorm, eps=1e-6), 
-                 with_cp=False, with_cffn=False, cffn_ratio=0.25, drop=0., drop_path=0., attn_type='normal',
+                 with_cp=False, 
+                 with_cffn=False, 
+                 cffn_ratio=0.25, 
+                 drop=0., 
+                 drop_path=0., 
+                 attn_type='normal',
                  dim_feat=None):
         super().__init__()
         self.with_cp = with_cp
@@ -224,10 +234,21 @@ class Injector(nn.Module):
 
 
 class BidirectionalInteractionUnit(nn.Module):
-    def __init__(self, branch1_dim, branch2_dim, branch1_img_size, branch2_img_size, 
-                 num_heads=6, n_points=4, norm_layer=partial(nn.LayerNorm, eps=1e-6),
-                 drop=0., drop_path=0., with_cffn=False, cffn_ratio=0.25, 
-                 deform_ratio=1.0, with_cp=False, attn_type='normal', 
+    def __init__(self, 
+                 branch1_dim, 
+                 branch2_dim, 
+                 branch1_img_size, 
+                 branch2_img_size, 
+                 num_heads=6, 
+                 n_points=4, 
+                 norm_layer=partial(nn.LayerNorm, eps=1e-6),
+                 drop=0., 
+                 drop_path=0., 
+                 with_cffn=False, 
+                 cffn_ratio=0.25, 
+                 deform_ratio=1.0, 
+                 with_cp=False, 
+                 attn_type='normal', 
                  with_proj=True):
         super().__init__()
         self.attn_type = attn_type
@@ -243,17 +264,27 @@ class BidirectionalInteractionUnit(nn.Module):
             self.branch1to2_proj = nn.Linear(branch1_dim, branch2_dim)
             
         self.branch2to1_injector = Injector(dim=branch1_dim,
-                                                num_heads=num_heads,
-                                                n_points=n_points, norm_layer=norm_layer, deform_ratio=deform_ratio,
-                                                with_cp=with_cp, with_cffn=with_cffn, cffn_ratio=cffn_ratio, drop=drop, 
-                                                drop_path=drop_path,
-                                                attn_type=attn_type,
-                                                dim_feat=branch1_dim if with_proj else branch2_dim)
+                                            num_heads=num_heads,
+                                            n_points=n_points, 
+                                            norm_layer=norm_layer, 
+                                            deform_ratio=deform_ratio,
+                                            with_cp=with_cp, 
+                                            with_cffn=with_cffn, 
+                                            cffn_ratio=cffn_ratio, 
+                                            drop=drop, 
+                                            drop_path=drop_path,
+                                            attn_type=attn_type,
+                                            dim_feat=branch1_dim if with_proj else branch2_dim)
         
         self.branch1to2_injector = Injector(dim=branch2_dim,
                                                 num_heads=num_heads,
-                                                n_points=n_points, norm_layer=norm_layer, deform_ratio=deform_ratio,
-                                                with_cp=with_cp, with_cffn=with_cffn, cffn_ratio=cffn_ratio, drop=drop, 
+                                                n_points=n_points, 
+                                                norm_layer=norm_layer, 
+                                                deform_ratio=deform_ratio,
+                                                with_cp=with_cp, 
+                                                with_cffn=with_cffn, 
+                                                cffn_ratio=cffn_ratio, 
+                                                drop=drop, 
                                                 drop_path=drop_path,
                                                 attn_type=attn_type,
                                                 dim_feat=branch2_dim if with_proj else branch1_dim)
@@ -269,12 +300,21 @@ class BidirectionalInteractionUnit(nn.Module):
             x1_branch1to2_proj = x1
             x2_branch2to1_proj = x2
             
-        x1 = self.branch2to1_injector(query=x1, reference_points=deform_inputs1[0],
-                                    feat=x2_branch2to1_proj, spatial_shapes=deform_inputs1[1],
-                                    level_start_index=deform_inputs1[2], H=H1, W=W1)
-        x2 = self.branch1to2_injector(query=x2, reference_points=deform_inputs2[0],
-                                    feat=x1_branch1to2_proj, spatial_shapes=deform_inputs2[1],
-                                    level_start_index=deform_inputs2[2], H=H2, W=W2) 
+        x1 = self.branch2to1_injector(query=x1, 
+                                      reference_points=deform_inputs1[0],
+                                      feat=x2_branch2to1_proj, 
+                                      spatial_shapes=deform_inputs1[1],
+                                      level_start_index=deform_inputs1[2], 
+                                      H=H1, 
+                                      W=W1)
+        
+        x2 = self.branch1to2_injector(query=x2, 
+                                      reference_points=deform_inputs2[0],
+                                      feat=x1_branch1to2_proj, 
+                                      spatial_shapes=deform_inputs2[1],
+                                      level_start_index=deform_inputs2[2], 
+                                      H=H2, 
+                                      W=W2) 
         return x1, x2
         
         
@@ -328,8 +368,14 @@ class FourBranchInteractionBlock(nn.Module):
 
 
 class ThreeBranchInteractionBlock(nn.Module):
-    def __init__(self, branch1_dim, branch2_dim, branch3_dim, 
-                 branch1_img_size, branch2_img_size, branch3_img_size, 
+    def __init__(self, 
+                 branch1_dim, 
+                 branch2_dim, 
+                 branch3_dim, 
+
+                 branch1_img_size, 
+                 branch2_img_size, 
+                 branch3_img_size, 
                  attn_type='deform', **kwargs):
         super().__init__()
         self.attn_type = attn_type
