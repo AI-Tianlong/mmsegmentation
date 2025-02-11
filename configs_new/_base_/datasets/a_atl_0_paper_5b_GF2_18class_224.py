@@ -21,7 +21,7 @@ crop_size = (640, 640)   # 不要随机增强！！！！
 train_pipeline = [
     dict(type=LoadSingleRSImageFromFile),
     dict(type=LoadAnnotations),
-    dict(type=Resize, scale=crop_size, keep_ratio=True),
+    dict(type=Resize, scale=crop_size, keep_ratio=True),  # 只是全部resize成640
     # dict(
     #     type=RandomResize,
     #     scale=crop_size,
