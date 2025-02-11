@@ -81,7 +81,7 @@ class PackSegInputs(BaseTransform):
         data_sample = SegDataSample()
         if 'gt_seg_map' in results:
             if len(results['gt_seg_map'].shape) == 2:
-                data = to_tensor(results['gt_seg_map'][None,
+                data = to_tensor(results['gt_seg_map'][None,   # 2通道变三通道的秘密！！！
                                                        ...].astype(np.int64))
             else:
                 warnings.warn('Please pay attention your ground truth '
@@ -211,31 +211,41 @@ class ATL_MultiRSImage_PackSegInputs_PIIP_samename(BaseTransform):
                 img_MSI_10chan = img_MSI_10chan.transpose(2, 0, 1)
                 img_MSI_10chan = to_tensor(img_MSI_10chan).contiguous()
 
+        # 关键语句！！！
         packed_results['inputs']=[img_MSI_3chan, img_MSI_4chan, img_MSI_10chan] # 为什么，这个里面，[0][0] [0][1]是四通道的？
 
         data_sample = SegDataSample()
         if 'gt_semantic_seg_MSI_3chan' in results:
-            data=to_tensor(results['gt_semantic_seg_MSI_3chan'].astype(np.int64))
-            gt_sem_seg_MSI_3chan_data = dict(data=data)
+            data=to_tensor(results['gt_semantic_seg_MSI_3chan'][None].astype(np.int64))  # [None]-->[512,512]->[1,512,512]
+            gt_sem_seg_MSI_3chan_data = dict(data=data),
             data_sample.set_data(dict(gt_semantic_seg_MSI_3chan=PixelData(**gt_sem_seg_MSI_3chan_data)))
         
+        if 'gt_semantic_seg' in results:
+            data=to_tensor(results['gt_semantic_seg'][None].astype(np.int64))
+            gt_semantic_seg =dict(data=data)
+            data_sample.set_data(dict(gt_semantic_seg=PixelData(**gt_semantic_seg)))
+``
         if 'gt_semantic_seg_MSI_4chan' in results:
-            data=to_tensor(results['gt_semantic_seg_MSI_4chan'].astype(np.int64))
+            data=to_tensor(results['gt_semantic_seg_MSI_4chan'][None].astype(np.int64))
             gt_sem_seg_MSI_4chan_data =dict(data=data)
             data_sample.set_data(dict(gt_semantic_seg_MSI_4chan=PixelData(**gt_sem_seg_MSI_4chan_data)))
 
         if 'gt_semantic_seg_MSI_10chan' in results:
-            data=to_tensor(results['gt_semantic_seg_MSI_10chan'].astype(np.int64))
+            data=to_tensor(results['gt_semantic_seg_MSI_10chan'][None].astype(np.int64))
             gt_sem_seg_MSI_10chan_data = dict(data=data)
             data_sample.set_data(dict(gt_semantic_seg_MSI_10chan=PixelData(**gt_sem_seg_MSI_10chan_data)))
 
         img_meta = {}
+
+        # print(results)
+
+        # import pdb;pdb.set_trace()
         for key in self.meta_keys:
             if key in results:
                 img_meta[key] = results[key]
         data_sample.set_metainfo(img_meta)
         packed_results['data_samples'] = data_sample
-
+    
         # print(packed_results)
         # import pdb;pdb.set_trace()
         return packed_results
