@@ -217,7 +217,7 @@ class ATL_MultiRSImage_PackSegInputs_PIIP_samename(BaseTransform):
         data_sample = SegDataSample()
         if 'gt_semantic_seg_MSI_3chan' in results:
             data=to_tensor(results['gt_semantic_seg_MSI_3chan'][None].astype(np.int64))  # [None]-->[512,512]->[1,512,512]
-            gt_sem_seg_MSI_3chan_data = dict(data=data),
+            gt_sem_seg_MSI_3chan_data = dict(data=data)
             data_sample.set_data(dict(gt_semantic_seg_MSI_3chan=PixelData(**gt_sem_seg_MSI_3chan_data)))
         
         if 'gt_semantic_seg' in results:
