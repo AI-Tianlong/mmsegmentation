@@ -16,6 +16,7 @@ from timm.models.vision_transformer import Mlp
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 
 from mmengine.model import BaseModule
+from mmengine.runner.checkpoint import load_state_dict
 from mmseg.registry import MODELS
 from mmengine.logging import print_log
 
@@ -569,7 +570,9 @@ class vit_models(BaseModule):
             assert FusedMLP is not None
             class FusedMLPWrapper(FusedMLP):
                 def __init__(self, in_features, hidden_features, act_layer, drop):
-                    super().__init__(in_features=in_features, hidden_features=hidden_features, activation="gelu_approx")
+                    super().__init__(in_features=in_features, 
+                                     hidden_features=hidden_features, 
+                                     activation="gelu_approx")
             Mlp_block = FusedMLPWrapper
         
         if window_attn is None:
@@ -598,9 +601,10 @@ class vit_models(BaseModule):
             raise NotImplementedError
 
         self.num_features = self.embed_dim = embed_dim
-
-        self.patch_embed = PatchEmbed(img_size=img_size, 
-                                    #   img_size=pretrain_img_size, 
+                                      # 原始文章中是这样的
+        self.patch_embed = PatchEmbed(
+                                      img_size=pretrain_img_size,  # 这里算num_patch, 用于posembedding,并在piip3branch中的forward去插值posembeding 
+                                    #   img_size=img_size,  # classification是这样，但是mmdet是上面这个
                                       patch_size=patch_size, 
                                       in_chans=in_chans, 
                                       embed_dim=embed_dim)
@@ -691,21 +695,27 @@ class vit_models(BaseModule):
             
             # import pdb; pdb.set_trace()
             # resize pos_embed
-            pos_embed = checkpoint['pos_embed'] # [1, 196, 1024] --> [1, 1600, 1024]
-            checkpoint['pos_embed'] = resize_pos_embed(pos_embed, 
+            # import pdb; pdb.set_trace()
+            pos_embed = checkpoint['pos_embed'] # [1, 196, 1024]
+            checkpoint['pos_embed'] = resize_pos_embed(pos_embed,  # 权重中的pos_embed修改
                                                        self.img_size // self.patch_size, 
-                                                       self.img_size // self.patch_size)
+                                                       self.img_size // self.patch_size) # [1,196,1024]-->[1,576,1024]
+            
+            # self.pos_embed = [1, 196, 1024], 由于是在forward中插值，所以这里不需要resize
+            
             # resize patch_embed
-            patch_embed = checkpoint['patch_embed.proj.weight'] # [1024, 4, 16, 16]
-            checkpoint['patch_embed.proj.weight'] = F.interpolate(
-                patch_embed, size=(self.patch_size, self.patch_size),
-                mode='bicubic', align_corners=False)
-            message = self.load_state_dict(checkpoint, strict=False)
+            patch_embed = checkpoint['patch_embed.proj.weight'] # [1024, 4, 16, 16] -->  
+            checkpoint['patch_embed.proj.weight'] = F.interpolate(patch_embed, 
+                                                                  size=(self.patch_size, self.patch_size), 
+                                                                  mode='bicubic', 
+                                                                  align_corners=False)
+            message = load_state_dict(self, checkpoint, strict=False, logger='current')
             print_log(message)
 
     def _get_pos_embed(self, pos_embed, H, W):
         pos_embed = pos_embed.reshape(
-            1, self.img_size // self.patch_size, self.img_size // self.patch_size, -1).permute(0, 3, 1, 2)
+            1, self.img_size // self.patch_size, 
+            self.img_size // self.patch_size, -1).permute(0, 3, 1, 2)
         pos_embed = F.interpolate(pos_embed.float(), size=(H, W), mode='bicubic', align_corners=False).\
             reshape(1, -1, H * W).permute(0, 2, 1).to(pos_embed.dtype)
         return pos_embed
@@ -716,7 +726,7 @@ class vit_models(BaseModule):
     
     def forward_features(self, x):
         x, H, W = self.patch_embed(x.type(self.dtype))
-        # pos_embed = self._get_pos_embed(self.pos_embed, H, W)
+        # pos_embed = self._get_pos_embed(self.pos_embed, H, W) # 计算flops需要把这里解开
         x = self.pos_drop(x + self.pos_embed)
         
         outs = list() 

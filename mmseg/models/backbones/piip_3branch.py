@@ -225,9 +225,11 @@ class PIIPThreeBranch(nn.Module):
             message = self.load_state_dict(checkpoint, strict=False)
             print_log(message)
 
-    def _get_pos_embed(self, pos_embed, pretrain_size, patch_size, H, W):
-        pos_embed = pos_embed.reshape(
-            1, pretrain_size[0] // patch_size[0], pretrain_size[1] // patch_size[1], -1).permute(0, 3, 1, 2)
+    def _get_pos_embed(self, pos_embed, pretrain_size, patch_size, H, W):  # [1, 576, 1024], 24, 24  
+        # import pdb; pdb.set_trace()
+        # [1,196,1024]-->[1,14,14,1024]-->[1,1024,14,14]--[1,1024,24,24] 理想的，但是vit_models那里,如果patchembedding设置成
+        pos_embed = pos_embed.reshape(1, pretrain_size[0] // patch_size[0], pretrain_size[1] // patch_size[1], -1).permute(0, 3, 1, 2)
+        
         pos_embed = F.interpolate(pos_embed, size=(H, W), mode='bicubic', align_corners=False).\
             reshape(1, -1, H * W).permute(0, 2, 1)
         return pos_embed.type(self.dtype)
@@ -280,7 +282,7 @@ class PIIPThreeBranch(nn.Module):
             x1, H1, W1 = self.branch1.patch_embed(x1) # [2, 576, 1024],24,24  (384/16)^2=24^2=576
             bs1, n1, dim1 = x1.shape # 2, 576, 1024
             if self.branch1.pos_embed is not None:
-                pos_embed1 = self.branch1.pos_embed if not self.branch1_w_cls_token else self.branch1.pos_embed[:, 1:]
+                pos_embed1 = self.branch1.pos_embed if not self.branch1_w_cls_token else self.branch1.pos_embed[:, 1:]  # [1, 576, 1024]
                 pos_embed1 = self._get_pos_embed(pos_embed1.float(), (self.branch1.pretrain_img_size, self.branch1.pretrain_img_size),  
                                                 (self.branch1.patch_size, self.branch1.patch_size), H1, W1) 
                 x1 = x1 + pos_embed1

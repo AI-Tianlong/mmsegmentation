@@ -74,7 +74,9 @@ def get_sa_flops(module, input_shape):
 
 
 def get_backbone_flops_vit(model, input_shape, model_config):
-    with torch.cuda.amp.autocast():
+    # import pdb; pdb.set_trace()
+    # with torch.cuda.amp.autocast():
+    with torch.amp.autocast('cuda'):
         flops, params = get_model_complexity_info(model, input_shape, as_strings=False)
     
 
@@ -148,8 +150,9 @@ def get_backbone_flops_vit(model, input_shape, model_config):
     return flops_to_string(flops, precision=1), params_to_string(params, precision=1)
 
 def main(config_name, out_file=None):
-    config_backbone, shape, model_cls = read_config(config_name)
-    
+    config_backbone, shape, model_cls = read_config(config_name) # shappe:640 model_cls:PIIPThreeBranch 
+    # import pdb; pdb.set_trace()
+
     if "mlp_type" in config_backbone:
         config_backbone["mlp_type"] = "regular"
     
@@ -159,19 +162,22 @@ def main(config_name, out_file=None):
                 config_backbone[branch]["mlp_type"] = "regular"
                 
     
-    model = model_cls(**config_backbone, num_classes=1000)
-    
+    # model = model_cls(**config_backbone, num_classes=1000)
+    # import pdb; pdb.set_trace()
+    model = model_cls(**config_backbone)
     assert torch.cuda.is_available()
     model.cuda()
     model.eval()
     
+
     if shape is None:
         shape = 224
     h = w = shape
-    input_shape = (3, h, w)
+    input_shape = (4, h, w) # 这里应该用 3 代替 4 4波段 640 640
     
     branch1_params = branch2_params = branch3_params = branch4_params = interaction_params = None
-    
+    # import pdb; pdb.set_trace()
+
     if hasattr(model, "branch1"):
         if hasattr(model.branch1, "pos_embed") and model.branch1.pos_embed is None:
             branch1_params = n_params(model.branch1.blocks, model.branch1.patch_embed)
@@ -219,18 +225,20 @@ if __name__ == "__main__":
         # "piip_3branch_sbl_384-192-128_cls_token_augreg_fusedmlp_wo-proj_wo-norm.py"
     ]
     
-    os.makedirs("configs/mmdet/", exist_ok=True)
-    os.makedirs("configs/mmseg/", exist_ok=True)
+    os.makedirs("configs/", exist_ok=True)
+    # os.makedirs("configs/mmdet/", exist_ok=True)
+    # os.makedirs("configs/mmseg/", exist_ok=True)
     new_config_list = []
     for pattern in config_list:
         if "mmdetection" in pattern:
-            for file in glob.glob(pattern):
-                os.system(f"cp {file} configs/mmdet/")
-                new_config_list.append(f"configs/mmdet/{os.path.basename(file)}")
+            # for file in glob.glob(pattern):
+            #     os.system(f"cp {file} configs/")
+            #     new_config_list.append(f"configs/{os.path.basename(file)}")
+            pass
         elif "mmsegmentation" in pattern:
             for file in glob.glob(pattern):
-                os.system(f"cp {file} configs/mmseg/")
-                new_config_list.append(f"configs/mmseg/{os.path.basename(file)}")
+                os.system(f"cp {file} configs/")
+                new_config_list.append(f"configs/{os.path.basename(file)}")
         else:
             for file in glob.glob("configs/" + pattern):
                 new_config_list.append(file)
@@ -246,7 +254,7 @@ if __name__ == "__main__":
                 continue
             
             try:
-                main(config.split("configs/")[1], out_file=f)
+                main(config, out_file=f)
             except:
                 print("ERR CONFIG", config)
                 raise
