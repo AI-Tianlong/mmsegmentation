@@ -15,10 +15,11 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <torch/torch.h>
 
 
 at::Tensor ms_deform_attn_cuda_forward(
-    const at::Tensor &value,
+    const at::Tensor &value, 
     const at::Tensor &spatial_shapes,
     const at::Tensor &level_start_index,
     const at::Tensor &sampling_loc,
@@ -50,7 +51,7 @@ at::Tensor ms_deform_attn_cuda_forward(
     const int im2col_step_ = std::min(batch, im2col_step);
 
     AT_ASSERTM(batch % im2col_step_ == 0, "batch(%d) must divide im2col_step(%d)", batch, im2col_step_);
-
+    
     auto output = at::zeros({batch, num_query, num_heads, channels}, value.options()); // 初始化一个output
 
     const int batch_n = im2col_step_;
@@ -61,7 +62,7 @@ at::Tensor ms_deform_attn_cuda_forward(
     for (int n = 0; n < batch/im2col_step_; ++n)
     {
         auto columns = output_n.select(0, n);
-        AT_DISPATCH_FLOATING_TYPES(value.type(), "ms_deform_attn_forward_cuda", ([&] {
+         AT_DISPATCH_FLOATING_TYPES_AND_HALF(value.type(), "ms_deform_attn_forward_cuda", ([&] {
             ms_deformable_im2col_cuda(at::cuda::getCurrentCUDAStream(),
                 value.data<scalar_t>() + n * im2col_step_ * per_value_size,
                 spatial_shapes.data<int64_t>(),
@@ -81,7 +82,7 @@ at::Tensor ms_deform_attn_cuda_forward(
 
 
 std::vector<at::Tensor> ms_deform_attn_cuda_backward(
-    const at::Tensor &value,
+    const at::Tensor &value, 
     const at::Tensor &spatial_shapes,
     const at::Tensor &level_start_index,
     const at::Tensor &sampling_loc,
@@ -118,20 +119,25 @@ std::vector<at::Tensor> ms_deform_attn_cuda_backward(
 
     AT_ASSERTM(batch % im2col_step_ == 0, "batch(%d) must divide im2col_step(%d)", batch, im2col_step_);
 
-    auto grad_value = at::zeros_like(value); // value的梯度
-    auto grad_sampling_loc = at::zeros_like(sampling_loc); // sampling loc的梯度
-    auto grad_attn_weight = at::zeros_like(attn_weight); // attn weight的梯度
+    auto dtype = value.dtype();
+    if(dtype == at::kHalf){
+        dtype = at::kFloat;
+    }
+
+    auto grad_value = at::zeros_like(value, dtype); // value的梯度
+    auto grad_sampling_loc = at::zeros_like(sampling_loc, dtype); // sampling loc的梯度
+    auto grad_attn_weight = at::zeros_like(attn_weight, dtype); // attn weight的梯度
 
     const int batch_n = im2col_step_;
     auto per_value_size = spatial_size * num_heads * channels; // 每个value的大小
     auto per_sample_loc_size = num_query * num_heads * num_levels * num_point * 2; //每个sample loc的大小
     auto per_attn_weight_size = num_query * num_heads * num_levels * num_point; // 每个attn weight的大小
     auto grad_output_n = grad_output.view({batch/im2col_step_, batch_n, num_query, num_heads, channels});
-
+    
     for (int n = 0; n < batch/im2col_step_; ++n) // col2im
     {
         auto grad_output_g = grad_output_n.select(0, n);
-        AT_DISPATCH_FLOATING_TYPES(value.type(), "ms_deform_attn_backward_cuda", ([&] {
+         AT_DISPATCH_FLOATING_TYPES_AND_HALF(value.type(), "ms_deform_attn_backward_cuda", ([&] {
             ms_deformable_col2im_cuda(at::cuda::getCurrentCUDAStream(),
                                     grad_output_g.data<scalar_t>(),
                                     value.data<scalar_t>() + n * im2col_step_ * per_value_size,
@@ -140,14 +146,21 @@ std::vector<at::Tensor> ms_deform_attn_cuda_backward(
                                     sampling_loc.data<scalar_t>() + n * im2col_step_ * per_sample_loc_size,
                                     attn_weight.data<scalar_t>() + n * im2col_step_ * per_attn_weight_size,
                                     batch_n, spatial_size, num_heads, channels, num_levels, num_query, num_point,
-                                    grad_value.data<scalar_t>() +  n * im2col_step_ * per_value_size,
-                                    grad_sampling_loc.data<scalar_t>() + n * im2col_step_ * per_sample_loc_size,
-                                    grad_attn_weight.data<scalar_t>() + n * im2col_step_ * per_attn_weight_size);
+                                    grad_value.data<opmath_t>() +  n * im2col_step_ * per_value_size,
+                                    grad_sampling_loc.data<opmath_t>() + n * im2col_step_ * per_sample_loc_size,
+                                    grad_attn_weight.data<opmath_t>() + n * im2col_step_ * per_attn_weight_size);
 
         }));
     }
 
-    return {
-        grad_value, grad_sampling_loc, grad_attn_weight
-    };
+    if(value.dtype() == torch::kHalf){
+        return {
+            grad_value.to(torch::kHalf), grad_sampling_loc.to(torch::kHalf), grad_attn_weight.to(torch::kHalf)
+        };
+    }
+    else{
+        return {
+            grad_value, grad_sampling_loc, grad_attn_weight
+        };
+    }
 }

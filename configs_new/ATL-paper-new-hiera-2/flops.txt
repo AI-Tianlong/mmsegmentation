@@ -1,0 +1,1 @@
+PIIP-1-GF2-piip3branch-vit-sbl-upernet-640_512_384-消融PIIP效果-不要数据增强 FLOPs 488.6 GFLOPs Params 520.9 M Shape 640 Branch1  303.6 M Branch2  86.0 M Branch3  21.8 M Branch4 None Interaction  48.5 M Merge  48.4 M

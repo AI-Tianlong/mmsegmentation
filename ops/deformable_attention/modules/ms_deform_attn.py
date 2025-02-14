@@ -16,7 +16,7 @@ import torch.nn.functional as F
 from torch import nn
 from torch.nn.init import constant_, xavier_uniform_
 
-from ..functions import MSDeformAttnFunction
+from ..functions import MSDeformAttnFunction, MSDeformAttnFunctionOptimized
 
 
 def _is_power_of_2(n):
@@ -26,7 +26,7 @@ def _is_power_of_2(n):
 
 
 class MSDeformAttn(nn.Module):
-    def __init__(self, d_model=256, n_levels=4, n_heads=8, n_points=4, ratio=1.0):
+    def __init__(self, d_model=256, n_levels=4, n_heads=8, n_points=4, ratio=1.0, d_feat=None):
         """Multi-Scale Deformable Attention Module.
 
         :param d_model      hidden dimension
@@ -56,8 +56,11 @@ class MSDeformAttn(nn.Module):
         self.ratio = ratio
         self.sampling_offsets = nn.Linear(d_model, n_heads * n_levels * n_points * 2)
         self.attention_weights = nn.Linear(d_model, n_heads * n_levels * n_points)
-        self.value_proj = nn.Linear(d_model, int(d_model * ratio))
         self.output_proj = nn.Linear(int(d_model * ratio), d_model)
+        
+        if d_feat is None:
+            d_feat = d_model
+        self.value_proj = nn.Linear(d_feat, int(d_model * ratio))
 
         self._reset_parameters()
 
@@ -96,8 +99,8 @@ class MSDeformAttn(nn.Module):
 
         N, Len_q, _ = query.shape
         N, Len_in, _ = input_flatten.shape
-        assert (input_spatial_shapes[:, 0] *
-                input_spatial_shapes[:, 1]).sum() == Len_in
+        # assert (input_spatial_shapes[:, 0] *
+        #         input_spatial_shapes[:, 1]).sum() == Len_in
 
         value = self.value_proj(input_flatten)
         if input_padding_mask is not None:
@@ -111,7 +114,6 @@ class MSDeformAttn(nn.Module):
             N, Len_q, self.n_heads, self.n_levels * self.n_points)
         attention_weights = F.softmax(attention_weights, -1).\
             view(N, Len_q, self.n_heads, self.n_levels, self.n_points)
-
         if reference_points.shape[-1] == 2:
             offset_normalizer = torch.stack(
                 [input_spatial_shapes[..., 1], input_spatial_shapes[..., 0]], -1)
@@ -124,7 +126,11 @@ class MSDeformAttn(nn.Module):
             raise ValueError(
                 'Last dim of reference_points must be 2 or 4, but get {} instead.'
                 .format(reference_points.shape[-1]))
+        sampling_locations = sampling_locations.to(value.dtype)
+        attention_weights = attention_weights.to(value.dtype)
         output = MSDeformAttnFunction.apply(value, input_spatial_shapes, input_level_start_index,
                                             sampling_locations, attention_weights, self.im2col_step)
+        # output = MSDeformAttnFunctionOptimized.apply(value, input_spatial_shapes, input_level_start_index,
+        #                                     sampling_locations, attention_weights, self.im2col_step)
         output = self.output_proj(output)
         return output
