@@ -36,13 +36,13 @@ from torch.optim.sgd import SGD
 from mmseg.evaluation import IoUMetric
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class_224 import *
-    from ..._base_.default_runtime import *
-    from ..._base_.schedules.schedule_80k import *
+    from .._base_.datasets.a_atl_0_paper_5b_GF2_18class_224 import *
+    from .._base_.default_runtime import *
+    from .._base_.schedules.schedule_80k import *
 
 crop_size = (512, 512)
 num_classes = 19
-pretrained = 'checkpoints/2-对比实验的权重/deeplabv3plus/resnet101_v1c-4channel_BGR.pth'
+pretrained = None
 
 
 # model settings
@@ -134,12 +134,3 @@ default_hooks.update(
     sampler_seed=dict(type=DistSamplerSeedHook),
     visualization=dict(type=SegVisualizationHook)))
 
-
-
-val_evaluator = dict(
-    type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
-test_evaluator = dict(
-    type=IoUMetric,
-    iou_metrics=['mIoU', 'mFscore'],
-    # format_only=True,
-    keep_results=True)

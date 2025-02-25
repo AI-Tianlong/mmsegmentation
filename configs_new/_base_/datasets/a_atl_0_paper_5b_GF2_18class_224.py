@@ -44,11 +44,11 @@ val_pipeline = [  #
 
 test_pipeline = [  #
     dict(type=LoadSingleRSImageFromFile),
-    # dict(type=Resize, scale=(512, 512), keep_ratio=True),   # 不 Resize 按原图尺寸推理
+    dict(type=Resize, scale=(512,512), keep_ratio=True),   # 不 Resize 按原图尺寸推理
+    # dict(type=LoadAnnotations),  # 不需要验证，不用添加 Annotations
     # dict(type=Resize, scale=(6800, 7200), keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
-    dict(type=LoadAnnotations),  # 不需要验证，不用添加 Annotations
     dict(type=PackSegInputs)
 ]
 
@@ -101,10 +101,11 @@ test_dataloader = dict(
     sampler=dict(type=DefaultSampler, shuffle=False),
     dataset=dict(
         type=dataset_type,
-        data_root=data_root,
+        data_root=None,
         data_prefix=dict(
-            img_path='img_dir/val/GF2-5B-18-base224',
-            seg_map_path='ann_dir/val/GF2-5B-18-base224'),
+            img_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/2-多领域地物覆盖基础/小样本数据集推理/img_dir'),
+            # img_path='img_dir/val/GF2-5B-18-base224',
+            # seg_map_path='ann_dir/val/GF2-5B-18-base224'),
         pipeline=test_pipeline))
 
 val_evaluator = dict(
@@ -112,5 +113,5 @@ val_evaluator = dict(
 test_evaluator = dict(
     type=IoUMetric,
     iou_metrics=['mIoU', 'mFscore'],
-    # format_only=True,
+    format_only=True,
     keep_results=True)

@@ -1,0 +1,9 @@
+PIIP-1-baseline-deit-B-upernet-3x1024*1024.py FLOPs: 463.4 GFLOPs Params: 85.8 M Shape: (3, 1024, 1024) Branch1: None Branch2: None Branch3: None Branch4: None Interaction: None Merge: None
+PIIP-1-baseline-deit-L-upernet-3x1024*1024.py FLOPs: 1541.8 GFLOPs Params: 303.3 M Shape: (3, 1024, 1024) Branch1: None Branch2: None Branch3: None Branch4: None Interaction: None Merge: None
+PIIP-1-baseline-deit-S-upernet-3x1024*1024.py FLOPs: 144.7 GFLOPs Params: 21.7 M Shape: (3, 1024, 1024) Branch1: None Branch2: None Branch3: None Branch4: None Interaction: None Merge: None
+
+
+
+# S: 3*1024*1024  145  GFLOPs  22M
+# B: 3*1024*1024  463  GFLOPs  86M
+# L: 3*1024*1024  1542 GFLOPs  303M

@@ -17,7 +17,7 @@ from mmseg.models.backbones.internvit_6b import InternViT6B
 
 def convert_mmdet_config(cfg, config_name):
     # for flops calculation
-    cfg.pop("pretrained", None)
+    # cfg.pop("pretrained", None)
     cfg.pop("start_level", None)
     cfg.pop("_delete_", None)
     branch_pop_keys = ["with_fpn", "img_norm_cfg", "layerscale_force_fp32"]

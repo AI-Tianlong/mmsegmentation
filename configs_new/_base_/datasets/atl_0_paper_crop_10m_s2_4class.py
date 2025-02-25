@@ -14,7 +14,7 @@ from mmseg.evaluation import IoUMetric
 
 # dataset settings
 dataset_type = ATL_S2_Crop10m_Dataset_4class
-data_root = 'data/0-atl-paper-s2/1-crop_10m_东北三省_512/'
+data_root = 'data/1-paper-segmentation/1-crop_10m_东北三省_512'
 
 crop_size = (512, 512)
 train_pipeline = [
@@ -22,7 +22,7 @@ train_pipeline = [
     dict(type=LoadAnnotations),
     dict(
         type=RandomResize,
-        scale=(512, 512),
+        scale=crop_size,
         ratio_range=(0.5, 2.0),
         keep_ratio=True),
     dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),
@@ -33,7 +33,7 @@ train_pipeline = [
 
 val_pipeline = [  #
     dict(type=LoadSingleRSImageFromFile),
-    dict(type=Resize, scale=(512, 512), keep_ratio=True),
+    dict(type=Resize, scale=crop_size, keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
     dict(type=LoadAnnotations),
