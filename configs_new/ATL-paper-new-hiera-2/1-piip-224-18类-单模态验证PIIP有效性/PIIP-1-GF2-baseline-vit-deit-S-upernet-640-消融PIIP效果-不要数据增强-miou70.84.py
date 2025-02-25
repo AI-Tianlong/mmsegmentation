@@ -64,40 +64,31 @@ data_preprocessor = dict(
     pad_val=0,
     seg_pad_val=255,
     size=crop_size,
-    test_cfg=dict(size_divisor=32))
-
-# pretrained='checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
-pretrained = '/data/AI-Tianlong/openmmlab/mmsegmentation/checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
+    test_cfg=dict(size_divisor=32)
+    )
 
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
+    pretrained='checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_small_224_21k.pth',
     backbone=dict(
         type=vit_models,
-        in_chans=4, # 3/4
-        img_size=640, # 640 
+        in_chans=4, 
+        img_size=640,
         pretrain_img_size=224,
         patch_size=16,
         pretrain_patch_size=16,
         depth=12,
-        embed_dim=768,
-        num_heads=12,
+        embed_dim=384,
+        num_heads=6,
         mlp_ratio=4,
         qkv_bias=True,
-        drop_path_rate=0.15,
+        drop_path_rate=0.05,
         init_scale=1.,
         with_fpn=True,
         # interaction_indexes=[[0, 1], [2, 3], [4, 5], [6, 7], [8, 9], [10, 11], [12, 13], [14, 15], [16, 17], [18, 19], [20, 21], [22, 23]],
-        pretrained = pretrained,
-        use_flash_attn=True,    # 用上这个后，显著降低了计算量啊！！！！
-        # window_attn=[True, True, False,
-        #             True, True, False,
-        #             True, True, False,
-        #             True, True, False,],
-        # window_size=[14, 14, -1,
-        #             14, 14, -1,
-        #             14, 14, -1,
-        #             14, 14, -1],
+        # pretrained = "checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_large_224_21k.pth",
+        use_flash_attn=True,
         ),
     # neck=dict(
     #     type=MultiLevelNeck,
@@ -107,10 +98,10 @@ model = dict(
 
     decode_head=dict(
         type=UPerHead,
-        in_channels=[768, 768, 768, 768],
+        in_channels=[384, 384, 384, 384],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
-        channels=768,
+        channels=384,
         dropout_ratio=0.1,
         num_classes=num_classes,
         norm_cfg=norm_cfg,
@@ -121,7 +112,7 @@ model = dict(
   
     auxiliary_head=dict(
         type=FCNHead,
-        in_channels=768,
+        in_channels=384,
         in_index=3,
         channels=256,
         num_convs=1,
@@ -134,8 +125,8 @@ model = dict(
             type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)
     ),
 
-    # test_cfg=dict(mode='whole')
-    test_cfg=dict(mode='slide', crop_size=(640, 640), stride=(384, 384))
+    test_cfg=dict(mode='whole')                                         # 69.10
+    # test_cfg=dict(mode='slide', crop_size=(640, 640), stride=(384, 384))  # 69.61
 )
 
 optimizer = dict(

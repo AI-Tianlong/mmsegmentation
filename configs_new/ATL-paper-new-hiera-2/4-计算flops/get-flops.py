@@ -18,6 +18,8 @@ try:
 except ImportError:
     raise ImportError('Please upgrade mmcv to >0.6.2')
 
+from mmseg.models.backbones.deit import vit_models
+from mmseg.models.backbones.piip_3branch import PIIPThreeBranch
 
 
 
@@ -173,8 +175,15 @@ def main(config_name, out_file=None):
     if shape is None:
         shape = 224
     h = w = shape
-    input_shape = (4, h, w) # 这里应该用 3 代替 4 4波段 640 640
-    
+    # import pdb; pdb.set_trace()
+    if model_cls == vit_models and hasattr(config_backbone,'in_chans'):
+        input_shape = (config_backbone.in_chans, h, w) # 这里应该用 3 代替 4 4波段 640 640
+    elif model_cls == PIIPThreeBranch and hasattr(config_backbone.branch1,'in_chans'):
+        input_shape = (config_backbone.branch1.in_chans, h, w) # 这里应该用 3 代替 4 4波段 640 640
+    else:
+        input_shape = (3, h, w) # 这里应该用 3 代替 4 4波段 640 640
+        
+
     branch1_params = branch2_params = branch3_params = branch4_params = interaction_params = None
     # import pdb; pdb.set_trace()
 
@@ -212,17 +221,19 @@ def main(config_name, out_file=None):
         merge_params = n_params(model.merge_branch1, model.merge_branch2)
     
     
-    print(os.path.basename(config), "FLOPs", flops, "Params", params, "Shape", h)
+    print(os.path.basename(config), "FLOPs:", flops, "Params:", params, "Shape:", input_shape)
     if out_file is not None:
-        print(os.path.basename(config).replace(".py", "").ljust(60), "FLOPs", flops, "Params", params, "Shape", h, 
-              "Branch1", branch1_params, "Branch2", branch2_params, "Branch3", branch3_params, "Branch4", branch4_params, "Interaction", interaction_params, "Merge", merge_params, file=out_file, flush=True)
+        print(os.path.basename(config), "FLOPs:", flops, "Params:", params, "Shape:", input_shape,
+              "Branch1:", branch1_params, "Branch2:", branch2_params, "Branch3:", branch3_params, "Branch4:", branch4_params, "Interaction:", interaction_params, "Merge:", merge_params, file=out_file, flush=True)
        
 
 
 if __name__ == "__main__":
     config_list = [
-        "/opt/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-2/1-piip-224-18类-单模态验证PIIP有效性/PIIP-1-GF2-piip3branch-vit-sbl-upernet-640_512_384-消融PIIP效果-不要数据增强.py",
-        # "piip_3branch_sbl_384-192-128_cls_token_augreg_fusedmlp_wo-proj_wo-norm.py"
+        # './PIIP-1-baseline-deit-S-upernet-3x1024*1024.py',
+        # './PIIP-1-baseline-deit-B-upernet-3x1024*1024.py',
+        './PIIP-1-baseline-deit-L-upernet-3x1024*1024.py',
+        # './PIIP-1-piip3branch-deit-sbl-upernet-1568_896_672.py',
     ]
     
     os.makedirs("configs/", exist_ok=True)
@@ -230,19 +241,8 @@ if __name__ == "__main__":
     # os.makedirs("configs/mmseg/", exist_ok=True)
     new_config_list = []
     for pattern in config_list:
-        if "mmdetection" in pattern:
-            # for file in glob.glob(pattern):
-            #     os.system(f"cp {file} configs/")
-            #     new_config_list.append(f"configs/{os.path.basename(file)}")
-            pass
-        elif "mmsegmentation" in pattern:
-            for file in glob.glob(pattern):
-                os.system(f"cp {file} configs/")
-                new_config_list.append(f"configs/{os.path.basename(file)}")
-        else:
-            for file in glob.glob("configs/" + pattern):
-                new_config_list.append(file)
-    config_list = sorted(new_config_list)
+        new_config_list.append(pattern)
+    # config_list = sorted(new_config_list) 别排序了，就按照原来的顺序
     
     os.environ["USE_FLASH_ATTN"] = "False"
     os.environ["STATE_DICT_STRICT"] = "False"

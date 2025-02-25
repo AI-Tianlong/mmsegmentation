@@ -43,61 +43,52 @@ from mmseg.evaluation import IoUMetric
 
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class_224 import *
+    from ..._base_.datasets.atl_0_paper_crop_10m_s2_4class import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
 
 norm_cfg = dict(type=SyncBN, requires_grad=True)
-num_classes = 18
+num_classes = 4
 
 # deepspeed = True
 deepspeed = False
 deepspeed_config = 'configs_zero_deepspeed/adam_zero1_bf16.json'
 
-crop_size = (640, 640)
+crop_size = (512, 513)
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
-    std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
+    mean = None,
+    std = None,
     # bgr_to_rgb=True,
     pad_val=0,
     seg_pad_val=255,
     size=crop_size,
-    test_cfg=dict(size_divisor=32))
-
-# pretrained='checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
-pretrained = '/data/AI-Tianlong/openmmlab/mmsegmentation/checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
+    test_cfg=dict(size_divisor=32)
+    )
 
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
+    pretrained='checkpoints/2-对比实验的权重/piip/deit/10chan/deit_10chan_small_224_21k.pth',
     backbone=dict(
         type=vit_models,
-        in_chans=4, # 3/4
-        img_size=640, # 640 
+        in_chans=10, 
+        img_size=512,
         pretrain_img_size=224,
         patch_size=16,
         pretrain_patch_size=16,
         depth=12,
-        embed_dim=768,
-        num_heads=12,
+        embed_dim=384,
+        num_heads=6,
         mlp_ratio=4,
         qkv_bias=True,
-        drop_path_rate=0.15,
+        drop_path_rate=0.05,
         init_scale=1.,
         with_fpn=True,
         # interaction_indexes=[[0, 1], [2, 3], [4, 5], [6, 7], [8, 9], [10, 11], [12, 13], [14, 15], [16, 17], [18, 19], [20, 21], [22, 23]],
-        pretrained = pretrained,
-        use_flash_attn=True,    # 用上这个后，显著降低了计算量啊！！！！
-        # window_attn=[True, True, False,
-        #             True, True, False,
-        #             True, True, False,
-        #             True, True, False,],
-        # window_size=[14, 14, -1,
-        #             14, 14, -1,
-        #             14, 14, -1,
-        #             14, 14, -1],
+        # pretrained = "checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_large_224_21k.pth",
+        use_flash_attn=True,
         ),
     # neck=dict(
     #     type=MultiLevelNeck,
@@ -107,10 +98,10 @@ model = dict(
 
     decode_head=dict(
         type=UPerHead,
-        in_channels=[768, 768, 768, 768],
+        in_channels=[384, 384, 384, 384],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
-        channels=768,
+        channels=384,
         dropout_ratio=0.1,
         num_classes=num_classes,
         norm_cfg=norm_cfg,
@@ -121,7 +112,7 @@ model = dict(
   
     auxiliary_head=dict(
         type=FCNHead,
-        in_channels=768,
+        in_channels=384,
         in_index=3,
         channels=256,
         num_convs=1,
@@ -134,8 +125,8 @@ model = dict(
             type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)
     ),
 
-    # test_cfg=dict(mode='whole')
-    test_cfg=dict(mode='slide', crop_size=(640, 640), stride=(384, 384))
+    test_cfg=dict(mode='whole')                                         # 69.10
+    # test_cfg=dict(mode='slide', crop_size=(640, 640), stride=(384, 384))  # 69.61
 )
 
 optimizer = dict(
@@ -166,7 +157,7 @@ param_scheduler = [
 
 
 # training schedule for 80k
-train_cfg = dict(type=IterBasedTrainLoop, max_iters=80000, val_interval=4000)
+train_cfg = dict(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
 val_cfg = dict(type=ValLoop)
 test_cfg = dict(type=TestLoop)
 
