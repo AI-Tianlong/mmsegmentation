@@ -17,20 +17,19 @@ from .utils import get_class_weight, weight_reduce_loss
 
 # reduce_zero_label 后的值 
 
-L1_L2map = [[0,1,2],[3],[4,5,6,7],[8],[9]]
-L1_L3map = [[0,1,2,3,4],[5,6,7],[8,9,10,11,12,13,14,15,16],[17],[18]]
-L2_L3map = [[0,1],[2],[3,4],[5,6,7],[8],[9,10],[11,12],[13,14,15,16],[17],[18]]
-L3_L3map = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]
+L1_L2map = [[0,1,2],[3],[4,5,6,7],[8]]
+L1_L3map = [[0,1,2,3,4],[5,6,7],[8,9,10,11,12,13,14,15,16],[17]]
+L2_L3map = [[0,1],[2],[3,4],[5,6,7],[8],[9,10],[11,12],[13,14,15,16],[17]]
+L3_L3map = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]
 
-FiveBillion_19Classes_HieraMap_nobackground = dict(
+FiveBillion_18Classes_HieraMap_nobackground = dict(
     # class_L1_{L1中的标签号}_{L1中的标签名称}=[L3级标签的值]
     Classes_Map_L1=dict(
         class_L1_0_Vegetation=[0, 1, 2, 3, 4],
         class_L1_1_Water=[5,6,7],
         class_L1_2_Artificial_surface=[8,9,10,11,12,13,14,15,16],
         class_L1_3_Bare_land=[17],
-        class_L1_4_Ice_snow=[18],
-    ),
+        ),
     # class_L2_{L1级标签中的标签值}_{L2级标签中的标签值}_{L2级标签中的标签名称}=[L3级标签中的值]
     Classes_Map_L2=dict(
         class_L2_0_Crop_land=[0, 1],
@@ -42,8 +41,7 @@ FiveBillion_19Classes_HieraMap_nobackground = dict(
         class_L2_6_Public_area=[11,12],
         class_L2_7_Transportation_infrastructure=[13,14,15,16],
         class_L2_8_Bare_land=[17],
-        class_L2_9_Ice_snow=[18],
-    ),
+        ),
     # class_L3_{L1级标签中的标签值}_{L2级标签中的标签值}_{L3级标签中的标签值}_{L3级标签中的标签名称}
     Classes_Map_L3=dict(
         class_L3_0_Paddy_field=[0],
@@ -63,8 +61,9 @@ FiveBillion_19Classes_HieraMap_nobackground = dict(
         class_L3_14_Overpass=[14],
         class_L3_15_Railway_station=[15],
         class_L3_16_Airport=[16],
-        class_L3_17_Bare_land=[17],
-        class_L3_18_ice_snow=[18]))
+        class_L3_17_Bare_land=[17]
+        )
+    )
 
 
 def convert_low_level_label_to_High_level(label, classes_map):
@@ -551,7 +550,7 @@ class ATL_Hiera_Loss_convseg(nn.Module):
         self.loss_weight = loss_weight
         self.ignore_index = ignore_index  # 应该都是255了
         # self.tree_triplet_loss = TreeTripletLoss(ignore_index = self.ignore_index)
-        self.tree_triplet_loss = Focal_Tree_Min_Loss(ignore_index = self.ignore_index)
+        # self.tree_triplet_loss = Focal_Tree_Min_Loss(ignore_index = self.ignore_index)
         self.cross_entropy_loss = CrossEntropyLoss(loss_name='loss_hiera_ce')
 
         self._loss_name = loss_name
@@ -568,67 +567,74 @@ class ATL_Hiera_Loss_convseg(nn.Module):
 
         if isinstance(pred_seg_logits, list) and len(pred_seg_logits) == 3:
             pred_seg_logits = pred_seg_logits
-        elif isinstance(pred_seg_logits, torch.Tensor):
-            assert isinstance(pred_seg_logits, list), f'pred_seg_logits should be a list, \
-                but got a Tensor {pred_seg_logits.shape}, please check decode_head.loss_by_feat()' 
-            pred_seg_logits = pred_seg_logits
-    
-        hiera_label_list = convert_low_level_label_to_High_level(label, FiveBillion_19Classes_HieraMap_nobackground)
+        
+        else:   
+            raise TypeError(f'pred_seg_logits 应该是个 list, 但却得到了{type(pred_seg_logits)}')
+        
+        # 将L3级的标签，转换为L1、L2、L3 用来计算 loss 值
+        hiera_label_list = convert_low_level_label_to_High_level(label, FiveBillion_18Classes_HieraMap_nobackground)
 
         # Focal Tree-Min Loss                # [list]
         # tree_min_loss = Tree_Min_Loss(pred_seg_logits, hiera_label_list, self.num_classes, ignore_index=self.ignore_index)  # 10.9371
 
         ce_loss_L1 = self.cross_entropy_loss(pred_seg_logits[0],
-                                                hiera_label_list[0],
-                                                weight=None,
-                                                ignore_index=self.ignore_index)
+                                             hiera_label_list[0],
+                                             weight=None,
+                                             ignore_index=self.ignore_index)
 
         ce_loss_L2 = self.cross_entropy_loss(pred_seg_logits[1],
-                                                hiera_label_list[1],
-                                                weight=None,
-                                                ignore_index=self.ignore_index)
+                                             hiera_label_list[1],
+                                             weight=None,
+                                             ignore_index=self.ignore_index)
 
         ce_loss_L3 = self.cross_entropy_loss(pred_seg_logits[2],
                                              hiera_label_list[2],
                                              weight=None,
                                              ignore_index=self.ignore_index)
-      
-        # loss = tree_min_loss + ce_loss_L1 + ce_loss_L2 + ce_loss_L3
+
+        # ====================== 2025 年 2 月 25 日的新实验 ====================
         
-        # loss = ce_loss_L1 + ce_loss_L3                 # 消融 L1 L3
-        # loss = ce_loss_L2 + ce_loss_L3               # 消融 L2 L3
-        # loss = 1 * ce_loss_L1 + 1 * ce_loss_L2 +  1* ce_loss_L3  # 64.54的性能
-        # loss = 0.3 * ce_loss_L1 + 0.3 * ce_loss_L2 +  ce_loss_L3  # 64.54的性能
-        # loss = (5 * ce_loss_L1 + 10 * ce_loss_L2 + 19 * ce_loss_L3)/(5+10+19)  # 消融 L1 L2 L3  5:10:19 = 0.147:0.294:0.553
-        # loss += tree_min_loss   
-        # loss = ce_loss_L3   
+        loss = ce_loss_L1 + ce_loss_L2 + ce_loss_L3  
+        return loss*self.loss_weight 
 
-         
-        loss_triplet, class_count = self.tree_triplet_loss(embedding, label)
-        class_counts = [torch.ones_like(class_count) for _ in range(torch.distributed.get_world_size())]
-        torch.distributed.all_gather(class_counts, class_count, async_op=False)
-        class_counts = torch.cat(class_counts, dim=0)
 
-        if torch.distributed.get_world_size()==torch.nonzero(class_counts, as_tuple=False).size(0):
-            factor = 1/4*(1+torch.cos(torch.tensor((step.item()-80000)/80000*math.pi))) if step.item()<80000 else 0.5
+
+        # # loss = tree_min_loss + ce_loss_L1 + ce_loss_L2 + ce_loss_L3
+        
+        # # loss = ce_loss_L1 + ce_loss_L3                 # 消融 L1 L3
+        # # loss = ce_loss_L2 + ce_loss_L3               # 消融 L2 L3
+        # # loss = 1 * ce_loss_L1 + 1 * ce_loss_L2 +  1* ce_loss_L3  # 64.54的性能
+        # # loss = 0.3 * ce_loss_L1 + 0.3 * ce_loss_L2 +  ce_loss_L3  # 64.54的性能
+        # # loss = (5 * ce_loss_L1 + 10 * ce_loss_L2 + 19 * ce_loss_L3)/(5+10+19)  # 消融 L1 L2 L3  5:10:19 = 0.147:0.294:0.553
+        # # loss += tree_min_loss   
+        # # loss = ce_loss_L3   
+
+        # # ================================= loss_triplet 
+        # # 计算  loss_triple
+        # # loss_triplet, class_count = self.tree_triplet_loss(embedding, label)
+        # # class_counts = [torch.ones_like(class_count) for _ in range(torch.distributed.get_world_size())]
+        # # torch.distributed.all_gather(class_counts, class_count, async_op=False)
+        # # class_counts = torch.cat(class_counts, dim=0)
+
+        # # if torch.distributed.get_world_size()==torch.nonzero(class_counts, as_tuple=False).size(0):
+        # #     factor = 1/4*(1+torch.cos(torch.tensor((step.item()-80000)/80000*math.pi))) if step.item()<80000 else 0.5
        
-        # ===================================  segnext 实验 ==========================
-        # 实验1：只要celoss L3
-        # loss = ce_loss_L3
+        # # ===================================  segnext 实验 ==========================
+        # # 实验1：只要celoss L3
+        # # loss = ce_loss_L3
 
-        # 消融1、2、3：L1 + L2 + L3 
+        # # 消融1、2、3：L1 + L2 + L3 
+        # # loss = ce_loss_L1 + ce_loss_L2 + ce_loss_L3
+
+        # # 消融4：L1 + L2 + L3 + Tree-Triplet Loss
         # loss = ce_loss_L1 + ce_loss_L2 + ce_loss_L3
+        # # # 实验4：(5*L1 + 10*L2 + 19*L3)/34  (attentation 分割头)
+        # # loss = (5*ce_loss_L1 + 10*ce_loss_L2 + 19*ce_loss_L3)/(5+10+19)
 
-        # 消融4：L1 + L2 + L3 + Tree-Triplet Loss
-        loss = ce_loss_L1 + ce_loss_L2 + ce_loss_L3 + loss_triplet
+        # # 实验5：(5*L1 + 10*L2 + 19*L3)/34  (attentation 分割头)
+        # # loss = (5*ce_loss_L1 + 10*ce_loss_L2 + 19*ce_loss_L3)/(5+10+19)
 
-        # # 实验4：(5*L1 + 10*L2 + 19*L3)/34  (attentation 分割头)
-        # loss = (5*ce_loss_L1 + 10*ce_loss_L2 + 19*ce_loss_L3)/(5+10+19)
-
-        # 实验5：(5*L1 + 10*L2 + 19*L3)/34  (attentation 分割头)
-        # loss = (5*ce_loss_L1 + 10*ce_loss_L2 + 19*ce_loss_L3)/(5+10+19)
-
-        return loss*self.loss_weight
+        
 
     @property
     def loss_name(self):

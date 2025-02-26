@@ -31,7 +31,7 @@ from mmseg.models.backbones.deit import vit_models
 from mmseg.models.necks.multilevel_neck import  MultiLevelNeck
 # DecodeHead
 from mmseg.models.decode_heads.uper_head import UPerHead
-from mmseg.models.decode_heads.atl_hiera_37_uper_head_multi_convseg import ATL_hiera_UPerHead_Multi_convseg
+from mmseg.models.decode_heads.uper_head_hiera import UPerHead_Hiera
 from mmseg.models.decode_heads.fcn_head import FCNHead
 # Loss
 from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
@@ -72,7 +72,7 @@ data_preprocessor = dict(
     test_cfg=dict(size_divisor=32))
 
 # pretrained='checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
-pretrained = '/data/AI-Tianlong/openmmlab/mmsegmentation/checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
+pretrained = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
 
 model = dict(
     type=EncoderDecoder,
@@ -111,33 +111,43 @@ model = dict(
     #     scales=[4, 2, 1, 0.5]),
 
     decode_head=dict(
-        type=UPerHead,
+        # 改动的
+        type=UPerHead_Hiera,
+        num_classes_level_list = [L1_num_classes, L2_num_classes, L3_num_classes],
+        results_merge_hiera = True,
+        hiera_mode = 'xiaorong4',
+        loss_decode=dict(
+            type=ATL_Hiera_Loss_convseg,
+            num_classes=[L1_num_classes, L2_num_classes, L3_num_classes],
+            loss_weight=1.0),
+
+        # 原始的
+        # type=UPerHead,
         in_channels=[768, 768, 768, 768],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
         channels=768,
         dropout_ratio=0.1,
-        num_classes=num_classes,
+        # num_classes=num_classes,
         norm_cfg=norm_cfg,
         align_corners=False,
-        loss_decode=dict(
-            type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)
+        # loss_decode=dict(
+        #     type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)
     ),
   
-    auxiliary_head=dict(
-        type=FCNHead,
-        in_channels=768,
-        in_index=3,
-        channels=256,
-        num_convs=1,
-        concat_input=False,
-        dropout_ratio=0.1,
-        num_classes=num_classes,
-        norm_cfg=norm_cfg,
-        align_corners=False,
-        loss_decode=dict(
-            type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)
-    ),
+    # auxiliary_head=dict(
+    #     type=FCNHead,
+    #     in_channels=768,
+    #     in_index=3,
+    #     channels=256,
+    #     num_convs=1,
+    #     concat_input=False,
+    #     dropout_ratio=0.1,
+    #     num_classes=num_classes,
+    #     norm_cfg=norm_cfg,
+    #     align_corners=False,
+    #     loss_decode=dict(
+    #         type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)),
 
     # test_cfg=dict(mode='whole')
     test_cfg=dict(mode='slide', crop_size=(640, 640), stride=(384, 384))
@@ -171,7 +181,7 @@ param_scheduler = [
 
 
 # training schedule for 80k
-train_cfg = dict(type=IterBasedTrainLoop, max_iters=80000, val_interval=4000)
+train_cfg = dict(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
 val_cfg = dict(type=ValLoop)
 test_cfg = dict(type=TestLoop)
 
