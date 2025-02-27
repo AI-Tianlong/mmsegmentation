@@ -123,8 +123,38 @@ class UPerHead_Hiera(BaseDecodeHead):
                 self.conv_seg_L3 = self.conv_seg #(1024-->12)
 
             elif self.hiera_mode == 'xiaorong4':
-                pass
-                # 空间注意力方式:
+                self.sigmoid=nn.Sigmoid()
+                
+                # L1
+                self.conv_seg_L1 = nn.Conv2d(self.channels, num_classes_level_list[0], kernel_size=1) #[2,1024,128,128]->[2,4,128,128]
+                # L1 channel_attentation
+                self.max_pool_L1 = nn.AdaptiveMaxPool2d(output_size=1) # [2,4,128,128]-->[2,4,1,1]  
+                self.avg_pool_L1 = nn.AdaptiveAvgPool2d(output_size=1) # [2,4,128,128]-->[2,4,1,1]  
+                self.mlp_L1=nn.Sequential(
+                    nn.Linear(in_features=num_classes_level_list[0],out_features=self.channels,bias=False), # [2,4,1,1]-->[2,1024,1,1]
+                    nn.ReLU())
+                # L1 spatial_attentation
+                self.conv_L1=nn.Conv2d(in_channels=2, out_channels=1, 
+                    kernel_size=7 ,
+                    stride=1,
+                    padding=7//2,bias=False)
+                
+                # L2
+                self.conv_seg_L2 = nn.Conv2d(self.channels, num_classes_level_list[1], kernel_size=1)
+                # L2 channel_attentation
+                self.max_pool_L2 = nn.AdaptiveMaxPool2d(output_size=1) # [2,9,128,128]-->[2,9,1,1]  
+                self.avg_pool_L2 = nn.AdaptiveAvgPool2d(output_size=1) # [2,9,128,128]-->[2,9,1,1]  
+                self.mlp_L2=nn.Sequential(
+                    nn.Linear(in_features=num_classes_level_list[1],out_features=self.channels,bias=False), # [2,4,1,1]-->[2,1024,1,1]
+                    nn.ReLU())
+                # L2 spatial_attentation
+                self.conv_L2=nn.Conv2d(in_channels=2, out_channels=1, 
+                    kernel_size=7 ,
+                    stride=1,
+                    padding=7//2,bias=False)
+
+                self.conv_seg_L3 = self.conv_seg #(1024-->12)
+
 
             else:
                 raise ValueError(f'不支持的 hiera_mode: {self.hiera_mode}, 请检查消融实验配置')
@@ -274,18 +304,18 @@ class UPerHead_Hiera(BaseDecodeHead):
         embedding = self.proj_head(inputs[-1])  # For TreeTriplet Loss
 
         if self.hiera_mode == 'xiaorong1':
-            output_L1 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L1)
-            output_L2 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L2)
-            output_L3 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L3)
+            output_L1 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L1) # [2,1024,128,128]->[2,4,128,128]
+            output_L2 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L2) # [2,1024,128,128]->[2,9,128,128]
+            output_L3 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L3) # [2,1024,128,128]->[2,18,128,128]
             output_list = [output_L1, output_L2, output_L3]
             
             self.step += 1
             return output_list, embedding
 
         elif self.hiera_mode == 'xiaorong2':
-            output_L1 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L1)
-            output_L2 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L2)
-            output_L3 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L3)
+            output_L1 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L1) # [2,1024,128,128]->[2,4,128,128]
+            output_L2 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L2) # [2,1024+4,128,128]->[2,9,128,128]
+            output_L3 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L3) # [2,1024+4+9,128,128]->[2,18,128,128]
             output_list = [output_L1, output_L2, output_L3]
             
             self.step += 1
@@ -293,23 +323,56 @@ class UPerHead_Hiera(BaseDecodeHead):
         
         elif self.hiera_mode == 'xiaorong3':
             
-            output_L1 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L1)
-            output_L1_attn = self.conv_attention_L1(output_L1)
+            output_L1 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L1)  # [2,1024,128,128]->[2,4,128,128]
+            output_L1_attn = self.conv_attention_L1(output_L1)                     # [2,4,128,128]->[2,1,128,128]
             decode_head_outputs = decode_head_outputs + output_L1_attn # 加还是×啊？
             
-            output_L2 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L2)
-            output_L2_attn = self.conv_attention_L2(output_L2)
-            decode_head_outputs = decode_head_outputs + output_L2_attn
+            output_L2 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L2)  # [2,1024,128,128]->[2,9,128,128]
+            output_L2_attn = self.conv_attention_L2(output_L2)                     # [2,9,128,128]->[2,1,128,128]
+            decode_head_outputs = decode_head_outputs + output_L2_attn    
 
-            output_L3 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L3)
+            output_L3 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L3)  # [2,1024,128,128]->[2,18,128,128]
             output_list = [output_L1, output_L2, output_L3]
             
             self.step += 1
             return output_list, embedding
 
         elif self.hiera_mode == 'xiaorong4':
-            pass 
+            # import pdb; pdb.set_trace()
+            output_L1 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L1)  # [2,1024,128,128]->[2,4,128,128] 
+            maxout_L1 = self.max_pool_L1(output_L1) # [2,4,128,128]-->[2,4,1,1]
+            maxout_L1 = self.mlp_L1(maxout_L1.view(maxout_L1.size(0),-1))  # [2,1024]
+            avgout_L1 = self.avg_pool_L1(output_L1) # [2,4,128,128]-->[2,4,1,1]
+            avgout_L1 = self.mlp_L1(avgout_L1.view(avgout_L1.size(0),-1)) # [2,4,1,1]-->[2,768]
+            channel_out_L1 = self.sigmoid(maxout_L1+avgout_L1) # [2,1024]
+            channel_out_L1 = channel_out_L1.view(decode_head_outputs.size(0),decode_head_outputs.size(1),1,1) # [2, 1024,1,1] 
+            channel_out_L1 = channel_out_L1*decode_head_outputs  #广播机制 # [2, 1024,128,128] 
+            max_out_L1,_ = torch.max(output_L1,dim=1,keepdim=True) # [2,1,128,128]
+            mean_out_L1 = torch.mean(output_L1,dim=1,keepdim=True) # [2,1,128,128]
+            spatial_out_L1 = torch.cat((max_out_L1,mean_out_L1),dim=1) #[2,2,128,128]
+            spatial_out_L1 = self.sigmoid(self.conv_L1(spatial_out_L1)) #[2,1,128,128]
+            decode_head_outputs=spatial_out_L1*channel_out_L1 # 然后再乘上系数。[2,1,128,128]*[2,1024,128,128]
 
+
+            output_L2 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L2)  # [2,1024,128,128]->[2,9,128,128] 
+            maxout_L2 = self.max_pool_L2(output_L2) # [2,9,128,128]-->[2,9,1,1]
+            maxout_L2 = self.mlp_L2(maxout_L2.view(maxout_L2.size(0),-1))  #[2,1024]
+            avgout_L2 = self.avg_pool_L2(output_L2) # [2,4,128,128]-->[2,9,1,1]
+            avgout_L2 = self.mlp_L2(avgout_L2.view(avgout_L2.size(0),-1)) # [2,4,1,1]-->[2,1024,1,1]
+            channel_out_L2 = self.sigmoid(maxout_L2+avgout_L2) # [2,1024]
+            channel_out_L2 = channel_out_L2.view(decode_head_outputs.size(0),decode_head_outputs.size(1),1,1) # [2, 1024,1,1] 
+            channel_out_L2 = channel_out_L2*decode_head_outputs  #广播机制
+            max_out_L2,_ = torch.max(output_L2,dim=1,keepdim=True)
+            mean_out_L2 = torch.mean(output_L2,dim=1,keepdim=True) 
+            spatial_out_L2 = torch.cat((max_out_L2,mean_out_L2),dim=1)
+            spatial_out_L2 = self.sigmoid(self.conv_L2(spatial_out_L2))
+            decode_head_outputs=spatial_out_L2*channel_out_L2 # 然后再乘上系数。
+        
+            output_L3 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L3)
+            output_list = [output_L1, output_L2, output_L3]
+            self.step += 1
+            
+            return output_list, embedding
         else:
             raise ValueError(f'不支持的 hiera_mode: {self.hiera_mode}, 请检查消融实验配置')
 
