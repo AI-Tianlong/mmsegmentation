@@ -307,6 +307,11 @@ class UPerHead_Hiera(BaseDecodeHead):
             self.step += 1
             return output_list, embedding
 
+        elif self.hiera_mode == 'xiaorong4':
+            pass 
+
+        else:
+            raise ValueError(f'不支持的 hiera_mode: {self.hiera_mode}, 请检查消融实验配置')
 
     def forward(self, inputs):
         """Forward function."""
