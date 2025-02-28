@@ -22,6 +22,7 @@ train_pipeline = [
     dict(type=LoadSingleRSImageFromFile),
     dict(type=LoadAnnotations),
     dict(type=Resize, scale=crop_size, keep_ratio=True),  # 只是全部resize成640
+    # dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),
     # dict(
     #     type=RandomResize,
     #     scale=crop_size,
@@ -44,7 +45,7 @@ val_pipeline = [  #
 
 test_pipeline = [  #
     dict(type=LoadSingleRSImageFromFile),
-    # dict(type=Resize, scale=crop_size, keep_ratio=True),
+    dict(type=Resize, scale=crop_size, keep_ratio=True),
     dict(type=LoadAnnotations),  # 不需要验证，不用添加 Annotations
     # dict(type=Resize, scale=(6800, 7200), keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth

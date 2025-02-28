@@ -31,11 +31,9 @@ from mmseg.models.backbones.deit import vit_models
 from mmseg.models.necks.multilevel_neck import  MultiLevelNeck
 # DecodeHead
 from mmseg.models.decode_heads.uper_head import UPerHead
-from mmseg.models.decode_heads.uper_head_hiera import UPerHead_Hiera
 from mmseg.models.decode_heads.fcn_head import FCNHead
 # Loss
 from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
-from mmseg.models.losses.atl_hiera_37_loss import ATL_Hiera_Loss
 from mmseg.models.losses.atl_hiera_37_loss_convseg import ATL_Hiera_Loss_convseg
 #optimizer
 from mmseg.engine.optimizers.piip_layer_decay_optimizer_constructor import CustomLayerDecayOptimizerConstructor
@@ -49,12 +47,9 @@ with read_base():
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
-find_unused_parameters = True
-norm_cfg = dict(type=SyncBN, requires_grad=True)
 
-L1_num_classes = 4  # number of L1 Level label   # 5
-L2_num_classes = 9  # number of L1 Level label  # 11  5+11+21=37类
-L3_num_classes = 18  # number of L1 Level label  # 21
+norm_cfg = dict(type=SyncBN, requires_grad=True)
+num_classes = 18
 
 # deepspeed = True
 deepspeed = False
@@ -69,17 +64,15 @@ data_preprocessor = dict(
     pad_val=0,
     seg_pad_val=255,
     size=crop_size,
-    test_cfg=dict(size_divisor=32))
-
-# pretrained='checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
-pretrained = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_small_224_21k.pth'
+    test_cfg=dict(size_divisor=32)
+    )
 
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
+    pretrained='checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_small_224_21k.pth',
     backbone=dict(
         type=vit_models,
-        pretrained = pretrained,
         in_chans=4, 
         img_size=640,
         pretrain_img_size=224,
@@ -94,6 +87,7 @@ model = dict(
         init_scale=1.,
         with_fpn=True,
         # interaction_indexes=[[0, 1], [2, 3], [4, 5], [6, 7], [8, 9], [10, 11], [12, 13], [14, 15], [16, 17], [18, 19], [20, 21], [22, 23]],
+        # pretrained = "checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_large_224_21k.pth",
         use_flash_attn=True,
         window_attn=[True, True, True,
                      True, True, True,
@@ -111,46 +105,36 @@ model = dict(
     #     scales=[4, 2, 1, 0.5]),
 
     decode_head=dict(
-        # 改动的
-        type=UPerHead_Hiera,
-        num_classes_level_list = [L1_num_classes, L2_num_classes, L3_num_classes],
-        results_merge_hiera = True,
-        hiera_mode = 'xiaorong4',
-        loss_decode=dict(
-            type=ATL_Hiera_Loss_convseg,
-            num_classes=[L1_num_classes, L2_num_classes, L3_num_classes],
-            loss_weight=1.0),
-
-        # 原始的
-        # type=UPerHead,
+        type=UPerHead,
         in_channels=[384, 384, 384, 384],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
         channels=384,
         dropout_ratio=0.1,
-        # num_classes=num_classes,
+        num_classes=num_classes,
         norm_cfg=norm_cfg,
         align_corners=False,
-        # loss_decode=dict(
-        #     type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)
+        loss_decode=dict(
+            type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)
     ),
   
-    # auxiliary_head=dict(
-    #     type=FCNHead,
-    #     in_channels=768,
-    #     in_index=3,
-    #     channels=256,
-    #     num_convs=1,
-    #     concat_input=False,
-    #     dropout_ratio=0.1,
-    #     num_classes=num_classes,
-    #     norm_cfg=norm_cfg,
-    #     align_corners=False,
-    #     loss_decode=dict(
-    #         type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)),
+    auxiliary_head=dict(
+        type=FCNHead,
+        in_channels=384,
+        in_index=3,
+        channels=256,
+        num_convs=1,
+        concat_input=False,
+        dropout_ratio=0.1,
+        num_classes=num_classes,
+        norm_cfg=norm_cfg,
+        align_corners=False,
+        loss_decode=dict(
+            type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)
+    ),
 
-    test_cfg=dict(mode='whole')
-    # test_cfg=dict(mode='slide', crop_size=(640, 640), stride=(384, 384))
+    test_cfg=dict(mode='whole')                                         # 69.10
+    # test_cfg=dict(mode='slide', crop_size=(640, 640), stride=(384, 384))  # 69.61
 )
 
 optimizer = dict(
