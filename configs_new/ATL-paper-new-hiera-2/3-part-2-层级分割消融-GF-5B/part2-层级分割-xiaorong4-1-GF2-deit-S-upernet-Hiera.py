@@ -72,13 +72,14 @@ data_preprocessor = dict(
     test_cfg=dict(size_divisor=32))
 
 # pretrained='checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
-pretrained = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
+pretrained = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_small_224_21k.pth'
 
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type=vit_models,
+        pretrained = pretrained,
         in_chans=4, 
         img_size=640,
         pretrain_img_size=224,
@@ -93,7 +94,6 @@ model = dict(
         init_scale=1.,
         with_fpn=True,
         # interaction_indexes=[[0, 1], [2, 3], [4, 5], [6, 7], [8, 9], [10, 11], [12, 13], [14, 15], [16, 17], [18, 19], [20, 21], [22, 23]],
-        pretrained = pretrained,
         use_flash_attn=True,
         window_attn=[True, True, True,
                      True, True, True,
@@ -181,7 +181,7 @@ param_scheduler = [
 
 
 # training schedule for 80k
-train_cfg = dict(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
+train_cfg = dict(type=IterBasedTrainLoop, max_iters=80000, val_interval=4000)
 val_cfg = dict(type=ValLoop)
 test_cfg = dict(type=TestLoop)
 
