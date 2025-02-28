@@ -93,7 +93,7 @@ model = dict(
         init_scale=1.,
         with_fpn=True,
         # interaction_indexes=[[0, 1], [2, 3], [4, 5], [6, 7], [8, 9], [10, 11], [12, 13], [14, 15], [16, 17], [18, 19], [20, 21], [22, 23]],
-        # pretrained = "checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_large_224_21k.pth",
+        pretrained = pretrained,
         use_flash_attn=True,
         window_attn=[True, True, True,
                      True, True, True,

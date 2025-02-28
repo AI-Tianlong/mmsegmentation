@@ -1,10 +1,3 @@
-# --------------------------------------------------------
-# InternVL
-# Copyright (c) 2023 OpenGVLab
-# Licensed under The MIT License [see LICENSE for details]
-# --------------------------------------------------------
-
-
 from mmengine.config import read_base
 from mmengine.optim.optimizer import OptimWrapper
 from mmengine.optim.scheduler.lr_scheduler import LinearLR, PolyLR
@@ -45,7 +38,6 @@ from mmseg.engine.optimizers.piip_layer_decay_optimizer_constructor import Custo
 from mmseg.evaluation import IoUMetric
 from mmseg.evaluation.metrics.iou_metric_MultiModal import IoUMetric_MultiModal
 
-
 with read_base():
     from ..._base_.datasets.a_atl_0_paper_multi_Google_GF2_S2_18class import *
     from ..._base_.default_runtime import *
@@ -65,7 +57,7 @@ crop_size = (2048, 640, 224)
 pretrained_large_branch1_10chan = 'checkpoints/2-对比实验的权重/piip/deit/10chan/deit_10chan_large_224_21k.pth'
 pretrained_base_branch2_4chan   = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
 pretrained_small_branch3_3chan  = 'checkpoints/2-对比实验的权重/piip/deit/3chan/deit_3chan_small_224_21k.pth'
-
+pretrained_tiny_branch3_3chan = 
 
 data_preprocessor = dict(
         type=ATL_SegDataPreProcessor_MultiModal,
