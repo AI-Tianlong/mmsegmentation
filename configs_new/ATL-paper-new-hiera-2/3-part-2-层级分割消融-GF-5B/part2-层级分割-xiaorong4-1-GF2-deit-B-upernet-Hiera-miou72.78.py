@@ -49,7 +49,7 @@ with read_base():
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
-
+find_unused_parameters = True
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
 L1_num_classes = 4  # number of L1 Level label   # 5
