@@ -72,7 +72,7 @@ data_preprocessor = dict(
     test_cfg=dict(size_divisor=32))
 
 # pretrained='checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
-pretrained = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
+pretrained = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_small_224_21k.pth'
 
 model = dict(
     type=EncoderDecoder,
