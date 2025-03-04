@@ -544,7 +544,8 @@ class ATL_Hiera_Loss_convseg(nn.Module):
                  use_sigmoid=False,
                  loss_name = 'loss_hiera',
                  loss_weight=1.0,
-                 ignore_index=255):
+                 ignore_index=255,
+                 mode='xiaorong1'):
         super().__init__()
         self.num_classes = num_classes
         self.loss_weight = loss_weight
@@ -554,7 +555,7 @@ class ATL_Hiera_Loss_convseg(nn.Module):
         self.cross_entropy_loss = CrossEntropyLoss(loss_name='loss_hiera_ce')
 
         self._loss_name = loss_name
-
+        self.mode = mode
     def forward(self,
                 step,
                 embedding,         # [2,256,64,64]
@@ -594,10 +595,13 @@ class ATL_Hiera_Loss_convseg(nn.Module):
 
         # ====================== 2025 年 2 月 25 日的新实验 ====================
         
-        loss = ce_loss_L1 + ce_loss_L2 + ce_loss_L3  
+        # loss 消融1
+        if self.mode == 'xiaorong1':
+            loss = ce_loss_L1 + ce_loss_L2 + ce_loss_L3  
+        # loss 消融2 
+        elif self.mode == 'xiaorong2':
+            loss = 0.3*ce_loss_L1 + 0.3*ce_loss_L2 + 0.4*ce_loss_L3  
         return loss*self.loss_weight 
-
-
 
         # # loss = tree_min_loss + ce_loss_L1 + ce_loss_L2 + ce_loss_L3
         

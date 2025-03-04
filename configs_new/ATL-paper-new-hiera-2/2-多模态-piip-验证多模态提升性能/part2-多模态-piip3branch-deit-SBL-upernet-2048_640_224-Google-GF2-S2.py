@@ -57,7 +57,7 @@ crop_size = (2048, 640, 224)
 pretrained_large_branch1_10chan = 'checkpoints/2-对比实验的权重/piip/deit/10chan/deit_10chan_large_224_21k.pth'
 pretrained_base_branch2_4chan   = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
 pretrained_small_branch3_3chan  = 'checkpoints/2-对比实验的权重/piip/deit/3chan/deit_3chan_small_224_21k.pth'
-pretrained_tiny_branch3_3chan = 
+
 
 data_preprocessor = dict(
         type=ATL_SegDataPreProcessor_MultiModal,
