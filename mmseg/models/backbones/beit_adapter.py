@@ -763,8 +763,8 @@ class HybridEmbed(nn.Module):
         x = x.flatten(2).transpose(1, 2)
         x = self.proj(x)
         return x
-
-
+    
+    
 class RelativePositionBias(nn.Module):
 
     def __init__(self, window_size, num_heads):

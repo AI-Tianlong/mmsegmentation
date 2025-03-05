@@ -72,7 +72,7 @@ class UPerHead_Hiera(BaseDecodeHead):
 
     def __init__(self, 
                  pool_scales=(1, 2, 3, 6), 
-
+                 test_output_level: str = 'L3',  # 推理时输出的层级，训练时该参数无效
                  num_classes_level_list: List[int] = [4,9,18],    # 层级的类别
                  results_merge_hiera: bool = True,   # 输出结果，融合hiera的输出
                  hiera_mode:str = 'xiaorong1',       # 用来修改消融实验的结构的
@@ -87,6 +87,7 @@ class UPerHead_Hiera(BaseDecodeHead):
                          **kwargs)
         
         #============= 创建Hiera需要用到的模块。=======================
+        self.test_output_level = test_output_level  # 测试推理时输出的层级
         self.results_merge_hiera = results_merge_hiera
         self.hiera_mode = hiera_mode
         if isinstance(num_classes_level_list, list):
@@ -518,6 +519,9 @@ class UPerHead_Hiera(BaseDecodeHead):
         Returns:
             Tensor: Outputs segmentation logits map.
         """
+        if self.test_output_level is None:
+            self.test_output_level = 'L3'
+
         if isinstance(seg_logits, tuple):
             if len(seg_logits) == 2:
                 seg_logits, embedding = seg_logits  #推理只需要 seg_logits
@@ -527,9 +531,19 @@ class UPerHead_Hiera(BaseDecodeHead):
                     # 合并L1 L2 L3 级的推理结果
                     if self.results_merge_hiera:
                         seg_logits = self.merge_hiera_results(seg_logits)
-                        seg_logits = seg_logits[2] # 仅输出融合后L3的特征图
+                        if self.test_output_level == 'L3':
+                            seg_logits = seg_logits[2] # 仅输出融合后L3的特征图
+                        elif self.test_output_level == 'L2':
+                            seg_logits = seg_logits[1]
+                        elif self.test_output_level == 'L1':
+                            seg_logits = seg_logits[0]
                     else:   
-                        seg_logits = seg_logits[2] # 直接输出L3的特征图
+                        if self.test_output_level == 'L3':
+                            seg_logits = seg_logits[2] # 仅输出融合后L3的特征图
+                        elif self.test_output_level == 'L2':
+                            seg_logits = seg_logits[1]
+                        elif self.test_output_level == 'L1':
+                            seg_logits = seg_logits[0]
             else:
                 raise TypeError(f'seg_logits 应该是个 tuple',f'但是得到了个 {type(seg_logits)}')
 

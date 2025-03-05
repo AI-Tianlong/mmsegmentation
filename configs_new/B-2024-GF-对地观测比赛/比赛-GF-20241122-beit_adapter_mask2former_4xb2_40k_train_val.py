@@ -40,7 +40,7 @@ data_preprocessor.update(
         std=[317.36181350835, 406.4103774175, 546.77043273976, 501.33003719076],
         # mean=None,
         # std=None,
-        bgr_to_rgb=True,
+        # bgr_to_rgb=True,
         pad_val=0,
         seg_pad_val=255,
         size=crop_size))
