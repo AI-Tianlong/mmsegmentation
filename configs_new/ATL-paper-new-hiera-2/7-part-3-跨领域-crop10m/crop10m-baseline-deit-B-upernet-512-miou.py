@@ -66,28 +66,38 @@ data_preprocessor = dict(
     size=crop_size,
     test_cfg=dict(size_divisor=32))
 
+# pretrained='checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
+pretrained = 'checkpoints/2-对比实验的权重/piip/deit/10chan/deit_10chan_base_224_21k.pth'
+
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
-    pretrained='checkpoints/2-对比实验的权重/piip/deit/10chan/deit_10chan_large_224_21k.pth',
     backbone=dict(
         type=vit_models,
-        in_chans=10, 
-        img_size=512,
+        in_chans=10, # 3/4
+        img_size=512, # 640 
         pretrain_img_size=224,
         patch_size=16,
         pretrain_patch_size=16,
-        depth=24,
-        embed_dim=1024,
-        num_heads=16,
+        depth=12,
+        embed_dim=768,
+        num_heads=12,
         mlp_ratio=4,
         qkv_bias=True,
-        drop_path_rate=0.4,
+        drop_path_rate=0.15,
         init_scale=1.,
         with_fpn=True,
         # interaction_indexes=[[0, 1], [2, 3], [4, 5], [6, 7], [8, 9], [10, 11], [12, 13], [14, 15], [16, 17], [18, 19], [20, 21], [22, 23]],
-        # pretrained = "checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_large_224_21k.pth",
-        use_flash_attn=True,
+        pretrained = pretrained,
+        use_flash_attn=True,    # 用上这个后，显著降低了计算量啊！！！！
+        window_attn=[True, True, True,
+                     True, True, True,
+                     True, True, True,
+                     True, True, True,],
+        window_size=[28, 28, 28,
+                     28, 28, 28,
+                     28, 28, 28,
+                     28, 28, 28],
         ),
     # neck=dict(
     #     type=MultiLevelNeck,
@@ -97,10 +107,10 @@ model = dict(
 
     decode_head=dict(
         type=UPerHead,
-        in_channels=[1024, 1024, 1024, 1024],
+        in_channels=[768, 768, 768, 768],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
-        channels=1024,
+        channels=768,
         dropout_ratio=0.1,
         num_classes=num_classes,
         norm_cfg=norm_cfg,
@@ -109,22 +119,23 @@ model = dict(
             type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)
     ),
   
-    auxiliary_head=dict(
-        type=FCNHead,
-        in_channels=1024,
-        in_index=3,
-        channels=256,
-        num_convs=1,
-        concat_input=False,
-        dropout_ratio=0.1,
-        num_classes=num_classes,
-        norm_cfg=norm_cfg,
-        align_corners=False,
-        loss_decode=dict(
-            type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)
-    ),
+    # auxiliary_head=dict(
+    #     type=FCNHead,
+    #     in_channels=768,
+    #     in_index=3,
+    #     channels=256,
+    #     num_convs=1,
+    #     concat_input=False,
+    #     dropout_ratio=0.1,
+    #     num_classes=num_classes,
+    #     norm_cfg=norm_cfg,
+    #     align_corners=False,
+    #     loss_decode=dict(
+    #         type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)
+    # ),
 
     test_cfg=dict(mode='whole')
+    # test_cfg=dict(mode='slide', crop_size=(640, 640), stride=(384, 384))
 )
 
 optimizer = dict(
@@ -138,7 +149,7 @@ optim_wrapper = dict(
     type=OptimWrapper,
     optimizer=optimizer,
     constructor=CustomLayerDecayOptimizerConstructor,
-    paramwise_cfg=dict(num_layers=24, layer_decay_rate=0.85, skip_stride=[2, 2]))
+    paramwise_cfg=dict(num_layers=12, layer_decay_rate=0.85, skip_stride=[2, 2]))
 
 param_scheduler = [
     dict(
