@@ -50,8 +50,8 @@ with read_base():
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
-# 训好的权重：/opt/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-1-2025年结果/part2-层级分割-xiaorong4-1-GF2-deit-S-upernet-Hiera-miou70.91/iter_80000.pth
-test_output_level = 'L3' # 输出L3, 验证L3的精度
+# 训好的权重：/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-GF2-deit-S-upernet-Hiera-miou70.16/iter_80000.pth
+test_output_level = 'L1' # 输出L3, 验证L3的精度
 
 
 find_unused_parameters = True
