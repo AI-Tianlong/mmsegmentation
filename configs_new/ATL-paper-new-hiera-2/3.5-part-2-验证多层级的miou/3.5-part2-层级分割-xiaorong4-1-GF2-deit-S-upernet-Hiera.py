@@ -50,7 +50,7 @@ with read_base():
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
-# 训好的权重：/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-GF2-deit-S-upernet-Hiera-miou70.16/iter_80000.pth
+# 训好的权重：/opt/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-1-2025年结果/part2-层级分割-xiaorong4-1-GF2-deit-S-upernet-Hiera-miou70.91/iter_80000.pth
 test_output_level = 'L3' # 输出L3, 验证L3的精度
 
 
@@ -120,7 +120,7 @@ model = dict(
         type=UPerHead_Hiera,
         test_output_level=test_output_level, #最终输出的层级
         num_classes_level_list = [L1_num_classes, L2_num_classes, L3_num_classes],
-        results_merge_hiera = True,
+        results_merge_hiera = False,
         hiera_mode = 'xiaorong4',
         loss_decode=dict(
             type=ATL_Hiera_Loss_convseg,

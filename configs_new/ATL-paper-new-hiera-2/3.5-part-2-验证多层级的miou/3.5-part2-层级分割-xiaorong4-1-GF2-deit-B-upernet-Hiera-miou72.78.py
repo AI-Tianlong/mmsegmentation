@@ -52,7 +52,7 @@ with read_base():
 
 # 训好的权重：/opt/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-1-2025年结果/part2-层级分割-xiaorong4-1-GF2-deit-B-upernet-Hiera-miou72.78/iter_80000.pth
 test_output_level = 'L3' # 输出L3, 验证L3的精度
-
+results_merge_hiera = True
 
 find_unused_parameters = True
 norm_cfg = dict(type=SyncBN, requires_grad=True)
@@ -120,7 +120,7 @@ model = dict(
         type=UPerHead_Hiera,
         test_output_level=test_output_level, #最终输出的层级
         num_classes_level_list = [L1_num_classes, L2_num_classes, L3_num_classes],
-        results_merge_hiera = True,
+        results_merge_hiera = results_merge_hiera,
         hiera_mode = 'xiaorong4',
         loss_decode=dict(
             type=ATL_Hiera_Loss_convseg,
@@ -155,8 +155,8 @@ model = dict(
     #     loss_decode=dict(
     #         type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)),
 
-    # test_cfg=dict(mode='whole')
-    test_cfg=dict(mode='slide', crop_size=(640, 640), stride=(384, 384))
+    test_cfg=dict(mode='whole')
+    # test_cfg=dict(mode='slide', crop_size=(640, 640), stride=(384, 384))
 )
 
 optimizer = dict(
@@ -207,7 +207,7 @@ test_evaluator = dict(
     test_output_level = test_output_level,
     num_classes_list = [4,9,18],
     iou_metrics=['mIoU', 'mFscore'],
-    # format_only=True,
+    format_only=True,
     keep_results=True)
 
 
