@@ -635,9 +635,8 @@ class ATL_Hiera_Loss_convseg(nn.Module):
         # # 实验4：(5*L1 + 10*L2 + 19*L3)/34  (attentation 分割头)
         # loss = (5*ce_loss_L1 + 10*ce_loss_L2 + 19*ce_loss_L3)/(5+10+19)
 
-        # 实验5：(5*L1 + 10*L2 + 19*L3)/34  (attentation 分割头)
-        loss = (5*ce_loss_L1 + 10*ce_loss_L2 + 19*ce_loss_L3)/(5+10+19)
-
+        # 实验5：0.4*L1 + 0.4*L2 + 1*L3  (attentation 分割头)
+        loss = 0.4*ce_loss_L1 + 0.4*ce_loss_L2 + 1*ce_loss_L3
         return loss*self.loss_weight
 
     @property
