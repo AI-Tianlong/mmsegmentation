@@ -142,7 +142,7 @@ class BaseSegmentor(BaseModel, metaclass=ABCMeta):
             - ``seg_logits``(PixelData): Predicted logits of semantic
                 segmentation before normalization.
         """
-        batch_size, C, H, W = seg_logits.shape
+        batch_size, C, H, W = seg_logits.shape  # [1,18,224,224]
 
         if data_samples is None:
             data_samples = [SegDataSample() for _ in range(batch_size)]
@@ -150,6 +150,7 @@ class BaseSegmentor(BaseModel, metaclass=ABCMeta):
         else:
             only_prediction = False
 
+        # import pdb; pdb.set_trace()
         for i in range(batch_size):
             if not only_prediction:
                 img_meta = data_samples[i].metainfo
@@ -163,7 +164,7 @@ class BaseSegmentor(BaseModel, metaclass=ABCMeta):
                 # i_seg_logits shape is 1, C, H, W after remove padding
                 i_seg_logits = seg_logits[i:i + 1, :,
                                           padding_top:H - padding_bottom,
-                                          padding_left:W - padding_right]
+                                          padding_left:W - padding_right] # torch.Size([1, 18, 224, 224])
 
                 flip = img_meta.get('flip', None)
                 if flip:
@@ -177,7 +178,7 @@ class BaseSegmentor(BaseModel, metaclass=ABCMeta):
                 # resize as original shape
                 i_seg_logits = resize(
                     i_seg_logits,
-                    size=img_meta['ori_shape'],
+                    size=img_meta['ori_shape'],          # 将预测的结果resize到原图大小
                     mode='bilinear',
                     align_corners=self.align_corners,
                     warning=False).squeeze(0)
@@ -193,9 +194,9 @@ class BaseSegmentor(BaseModel, metaclass=ABCMeta):
                               self.decode_head.threshold).to(i_seg_logits)
             data_samples[i].set_data({
                 'seg_logits':
-                PixelData(**{'data': i_seg_logits}),
+                PixelData(**{'data': i_seg_logits}),   # torch.Size([18, 594, 594])
                 'pred_sem_seg':
-                PixelData(**{'data': i_seg_pred})
+                PixelData(**{'data': i_seg_pred})      # torch.Size([1, 594, 594])
             })
 
         return data_samples

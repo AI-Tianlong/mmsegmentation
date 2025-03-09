@@ -179,7 +179,7 @@ default_hooks.update(
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
-    type=IoUMetric,
+    type=IoUMetric, 
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)

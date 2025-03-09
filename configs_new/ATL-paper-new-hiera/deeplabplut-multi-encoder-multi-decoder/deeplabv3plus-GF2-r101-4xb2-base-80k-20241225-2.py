@@ -29,14 +29,14 @@ from mmseg.models.backbones.resnet import ResNetV1c
 from mmseg.models.decode_heads.sep_aspp_head import DepthwiseSeparableASPPHead
 from mmseg.models.decode_heads.fcn_head import FCNHead
  
-from mmseg.models.decode_heads.atl_uper_head import ATL_UPerHead, ATL_UPerHead_fenkai
-from mmseg.models.losses.atl_loss import ATL_Loss, S2_5B_Dataset_21Classes_Map_nobackground
+# from mmseg.models.decode_heads.atl_uper_head import ATL_UPerHead, ATL_UPerHead_fenkai
+# from mmseg.models.losses.atl_loss import ATL_Loss, S2_5B_Dataset_21Classes_Map_nobackground
 from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
 from torch.optim.sgd import SGD
 from mmseg.evaluation import IoUMetric
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_GF2_19class import *
+    from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class_224 import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
@@ -101,7 +101,9 @@ model = dict(
             type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)),
     # model training and testing settings
     train_cfg=dict(),
-    test_cfg=dict(mode='slide', crop_size=(512, 512), stride=(341, 341)))
+    test_cfg = dict(mode='whole')
+    # test_cfg=dict(mode='slide', crop_size=(512, 512), stride=(341, 341)),
+    )
 
 
 

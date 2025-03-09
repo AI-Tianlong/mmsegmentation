@@ -12,12 +12,12 @@ from mmseg.datasets.transforms.transforms import (PhotoMetricDistortion,
 from mmseg.evaluation import IoUMetric
 
 from mmseg.datasets.transforms.loading import (LoadSingleRSImageFromFile,
-                                               ATL_multi_embedding_LoadAnnotations,
+                                               ATL_MultiModal_LoadAnnotations,
                                                LoadSingleRSImageFromFile_with_data_preproocess,
                                                LoadMultiRSImageFromFile_with_data_preproocess)
 
-from mmseg.datasets.atl_0_paper_new_5b_GF_Google_S2_19class import (ATL_5B_GF_Google_S2_Dataset_19class_train, 
-                                                                    ATL_5B_GF_Google_S2_Dataset_19class_test)
+from mmseg.datasets.atl_0_paper_new_5b_GF_Google_S2_19class import (ATL_5B_GF_Google_S2_Dataset_18class_train, 
+                                                                    ATL_5B_GF_Google_S2_Dataset_18class_test)
 
 
 from mmcv.transforms import (LoadImageFromFile, RandomChoice,
@@ -25,10 +25,11 @@ from mmcv.transforms import (LoadImageFromFile, RandomChoice,
 from mmseg.datasets.transforms import (RandomCrop, ResizeShortestEdge)
 
 # dataset settings
-dataset_type_train = ATL_5B_GF_Google_S2_Dataset_19class_train
-dataset_type_test = ATL_5B_GF_Google_S2_Dataset_19class_test
+dataset_type_train = ATL_5B_GF_Google_S2_Dataset_18class_train
+dataset_type_test = ATL_5B_GF_Google_S2_Dataset_18class_test
 
-data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-seg-裁切好的训练图像_S2_GF2_Google_size512'
+# data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-seg-裁切好的训练图像_S2_GF2_Google_size512'
+data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-Google-GF2-S2-地理配准-dataset-base224'
 
 crop_size = (512, 512)
 albu_train_transforms = [
@@ -39,7 +40,7 @@ albu_train_transforms = [
 
 train_pipeline = [
     dict(type=LoadMultiRSImageFromFile_with_data_preproocess),
-    dict(type=ATL_multi_embedding_LoadAnnotations),
+    dict(type=ATL_MultiModal_LoadAnnotations),
     # dict(
     #     type=RandomChoiceResize,
     #     scales=[int(x * 0.1 * 512) for x in range(5, 21)],
@@ -82,13 +83,13 @@ tta_pipeline = [
                     [
                         dict(type=RandomFlip, prob=0., direction='horizontal'),
                         dict(type=RandomFlip, prob=1., direction='horizontal')
-                    ], [dict(type=ATL_multi_embedding_LoadAnnotations)],
+                    ], [dict(type=ATL_MultiModal_LoadAnnotations)],
                     [dict(type=PackSegInputs)]])
 ]
 
 train_dataloader = dict(
-    batch_size=4,
-    num_workers=8,
+    batch_size=2,
+    num_workers=1,
     persistent_workers=True,
     sampler=dict(type=InfiniteSampler, shuffle=True),
     dataset=dict(
@@ -96,13 +97,13 @@ train_dataloader = dict(
         data_root=data_root,
         data_prefix=dict(
             # img_path='img_dir/train/Google_5B_19类_size512', seg_map_path='ann_dir/train/Google_5B_19类_size512'), # 3chan
-            img_path_MSI_3chan='img_dir/train/Google_5B_19类_size512',
-            img_path_MSI_4chan='img_dir/train/GF2_5B_19类_size512',         # 4chan GF2
-            img_path_MSI_10chan='img_dir/train/S2_5B_19类_包含雪_size512',   # 10chan S2
+            img_path_MSI_3chan='img_dir/train/Google-5B-18-base224',
+            img_path_MSI_4chan='img_dir/train/GF2-5B-18-base224',         # 4chan GF2
+            img_path_MSI_10chan='img_dir/train/S2-5B-18-base224',   # 10chan S2
             
-            seg_map_path_MSI_3chan='ann_dir/train/Google_5B_19类_size512',
-            seg_map_path_MSI_4chan='ann_dir/train/GF2_5B_19类_size512',     # 4chan
-            seg_map_path_MSI_10chan='ann_dir/train/S2_5B_19类_包含雪_size512'),    # 10chan
+            seg_map_path_MSI_3chan='ann_dir/train/Google-5B-18-base224',
+            seg_map_path_MSI_4chan='ann_dir/train/GF2-5B-18-base224',     # 4chan
+            seg_map_path_MSI_10chan='ann_dir/train/S2-5B-18-base224'),    # 10chan
             
             # seg_map_path_MSI_10chan='ann_dir/train/S2_5B_19类_包含雪_size512'),    # 10chan
             # img_path='img_dir/train/S2_5B_19类_包含雪_size512', seg_map_path='ann_dir/train/S2_5B_19类_包含雪_size512'), # 10chan
@@ -117,8 +118,8 @@ val_dataloader = dict(
         type=dataset_type_test,
         data_root=data_root,
         data_prefix=dict(
-            img_path='img_dir/val/GF2_5B_19类_size512',         # 4chan GF2
-            seg_map_path='ann_dir/val/GF2_5B_19类_size512'),    # 10chan
+            img_path='img_dir/train/GF2-5B-18-base224',         # 4chan GF2
+            seg_map_path='ann_dir/train/GF2-5B-18-base224'),    # 10chan
         pipeline=val_pipeline))
 # 想用大图去推理
 test_dataloader = dict(
@@ -130,9 +131,9 @@ test_dataloader = dict(
         type=dataset_type_test,
         data_root=data_root,
         data_prefix=dict(
-            # img_path='img_dir/val/Google_5B_19类_size512', seg_map_path='ann_dir/val/Google_5B_19类_size512'), # 3chan
-            # img_path='img_dir/val/GF2_5B_19类_size512', seg_map_path='ann_dir/val/GF2_5B_19类_size512'),    # 4chan
-            img_path='img_dir/val/S2_5B_19类_包含雪_size512', seg_map_path='ann_dir/val/S2_5B_19类_包含雪_size512'),    # 10chan
+            # img_path='img_dir/val/Google-5B-18-base224', seg_map_path='ann_dir/val/Google-5B-18-base224'), # 3chan
+            # img_path='img_dir/val/GF2-5B-18-base224', seg_map_path='ann_dir/val/GF2-5B-18-base224'),    # 4chan
+            img_path='img_dir/val/S2-5B-18-base224', seg_map_path='ann_dir/val/S2-5B-18-base224'),    # 10chan
         pipeline=test_pipeline))
 
 val_evaluator = dict(

@@ -97,7 +97,7 @@ test_dataloader = dict(
         data_root=None,
         data_prefix=dict(
             img_path=
-            '/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/论文画图/figure3-S2/img/median-2/',
+            '/opt/AI-Tianlong/Datasets/2025国家重点研发素材图-GDY/img_s2',
             # seg_map_path=''
         ),
         # ann_file='',

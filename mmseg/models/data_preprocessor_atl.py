@@ -246,16 +246,25 @@ class ATL_SegDataPreProcessor(BaseDataPreprocessor):
 
     Comparing with the :class:`mmengine.ImgDataPreprocessor`,
 
-    1. It won't do normalization if ``mean`` is not specified.
-    2. It does normalization and color space conversion after stacking batch.
-    3. It supports batch augmentations like mixup and cutmix.
+    1.  如果没有指定mean, 则不会进行归一化。
+    2.  堆叠批量后进行归一化和色彩空间转换
+    3.  它支持批量增强方法, 如mixup和cutmix。
 
+    1. It won't do normalization if ``mean`` is not specified. # 如果没有指定mean, 则不会进行归一化。
+    2. It does normalization and color space conversion after stacking batch. # 堆叠批量后进行归一化和色彩空间转换
+    3. It supports batch augmentations like mixup and cutmix.  # 它支持批量增强方法, 如mixup和cutmix。
 
     It provides the data pre-processing as follows
+    - 合并数据并将其移动到目标设备。
+    - 将输入填充到指定的输入大小, 使用定义的pad_val, 并使用定义的seg_pad_val填充分割图。
+    - 将输入堆叠到batch_inputs中。
+    - 如果输入的形状是 (3, H, W)，则将输入从 BGR 转换为 RGB。
+    - 使用定义的标准差(std)和均值(mean)对图像进行归一化。
+    - 在训练期间进行批量增强，如Mixup和Cutmix。
 
-    - Collate and move data to the target device.
+    - Collate and move data to the target device.  
     - Pad inputs to the input size with defined ``pad_val``, and pad seg map
-        with defined ``seg_pad_val``.
+        with defined ``seg_pad_val``.  
     - Stack inputs to batch_inputs.
     - Convert inputs from bgr to rgb if the shape of input is (3, H, W).
     - Normalize image with defined std and mean.
@@ -266,8 +275,8 @@ class ATL_SegDataPreProcessor(BaseDataPreprocessor):
             Defaults to None.
         std (Sequence[Number], optional): The pixel standard deviation of
             R, G, B channels. Defaults to None.
-        size (tuple, optional): Fixed padding size.
-        size_divisor (int, optional): The divisor of padded size.
+        size (tuple, optional): Fixed padding size.  固定填充大小。
+        size_divisor (int, optional): The divisor of padded size. 填充大小的因子。
         pad_val (float, optional): Padding value. Default: 0.
         seg_pad_val (float, optional): Padding value of segmentation map.
             Default: 255.
@@ -278,7 +287,7 @@ class ATL_SegDataPreProcessor(BaseDataPreprocessor):
             Defaults to False.
         rgb_to_bgr (bool): whether to convert image from RGB to RGB.
             Defaults to False.
-        batch_augments (list[dict], optional): Batch-level augmentations
+        batch_augments (list[dict], optional): Batch-level augmentations # batch级别的数据增强！！
         test_cfg (dict, optional): The padding size config in testing, if not
             specify, will use `size` and `size_divisor` params as default.
             Defaults to None, only supports keys `size` or `size_divisor`.
@@ -337,7 +346,6 @@ class ATL_SegDataPreProcessor(BaseDataPreprocessor):
         Returns:
             Dict: Data in the same format as the model 1 input.
         """
-        # import pdb;pdb.set_trace()
         # import pdb;pdb.set_trace()
         data = self.cast_data(data)  # type: ignore
         inputs = data['inputs']

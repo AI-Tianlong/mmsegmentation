@@ -28,11 +28,20 @@ from .vpd import VPD
 from .atl_vit_adapter import ViTAdapter
 from .atl_vit_adapter_multi_embedding import ViTAdapter_multi_embedding
 
+
+from .deit import vit_models
+from .internvit_6b import InternViT6B
+from .piip_2branch import PIIPTwoBranch
+# from .piip_3branch import PIIPThreeBranch
+
+
+
 __all__ = [
     'ResNet', 'ResNetV1c', 'ResNetV1d', 'ResNeXt', 'HRNet', 'FastSCNN',
     'ResNeSt', 'MobileNetV2', 'UNet', 'CGNet', 'MobileNetV3',
     'VisionTransformer', 'SwinTransformer', 'MixVisionTransformer',
     'BiSeNetV1', 'BiSeNetV2', 'ICNet', 'TIMMBackbone', 'ERFNet', 'PCPVT',
     'SVT', 'STDCNet', 'STDCContextPathNet', 'BEiT', 'MAE', 'PIDNet', 'MSCAN',
-    'DDRNet', 'VPD', 'BEiTAdapter','ViTAdapter','ViTAdapter_multi_embedding'
+    'DDRNet', 'VPD', 'BEiTAdapter','ViTAdapter','ViTAdapter_multi_embedding',
+    'vit_models','InternViT6B','PIIPTwoBranch',
 ]

@@ -285,7 +285,7 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
 
     def _stack_batch_gt(self, batch_data_samples: SampleList) -> Tensor:
         gt_semantic_segs = [
-            data_sample.gt_sem_seg.data for data_sample in batch_data_samples
+            data_sample.gt_sem_seg.data for data_sample in batch_data_samples # 这里的 gt_sem_seg, 用来去坐loss损失
         ]
         # [2,1,512,512]
         return torch.stack(gt_semantic_segs, dim=0)

@@ -181,8 +181,8 @@ class IoUMetric(BaseMetric):
             torch.Tensor: The prediction histogram on all classes.
             torch.Tensor: The ground truth histogram on all classes.
         """
-        # 临时关闭deterministic模式
-        torch.use_deterministic_algorithms(False)
+        # # 临时关闭deterministic模式
+        # torch.use_deterministic_algorithms(False)
 
         mask = (label != ignore_index)
         pred_label = pred_label[mask]
@@ -200,8 +200,8 @@ class IoUMetric(BaseMetric):
             max=num_classes - 1).cpu()
         area_union = area_pred_label + area_label - area_intersect
         
-        # 临时关闭deterministic模式
-        torch.use_deterministic_algorithms(True)
+        # # 临时关闭deterministic模式
+        # torch.use_deterministic_algorithms(True)
         return area_intersect, area_union, area_pred_label, area_label
 
     @staticmethod

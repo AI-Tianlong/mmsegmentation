@@ -1,0 +1,327 @@
+# Copyright (c) OpenMMLab. All rights reserved.
+from numbers import Number
+from typing import Any, Dict, List, Optional, Sequence
+
+import torch
+from mmengine.model import BaseDataPreprocessor
+from numbers import Number
+from typing import Any, Dict, List, Optional, Sequence, Union
+from mmseg.utils.typing_utils import SampleList
+
+from mmseg.registry import MODELS
+import numpy as np
+import torch.nn.functional as F
+# from mmseg.utils import stack_batch
+
+def multimodal_stack_batch(inputs: List[tuple],  # 这里规定输入的inputs是一个list，里面的元素是每一个图像的tensor。因为我是一个大list，里面套两个list, 然后里面还是一个
+                           data_samples: Optional[SampleList] = None,
+                           size: Optional[tuple] = None, #(2048, 640, 224)
+                           size_divisor: Optional[int] = None,
+                           pad_val: Union[int, float] = 0,
+                           seg_pad_val: Union[int, float] = 255) -> torch.Tensor:
+    """Stack multiple inputs to form a batch and pad the images and gt_sem_segs
+    to the max shape use the right bottom padding mode.
+
+    Args:
+        inputs (List[Tensor]): The input multiple tensors. each is a
+            CHW 3D-tensor.
+        data_samples (list[:obj:`SegDataSample`]): The list of data samples.
+            It usually includes information such as `gt_sem_seg`.
+        size (tuple, optional): Fixed padding size.
+        size_divisor (int, optional): The divisor of padded size.
+        pad_val (int, float): The padding value. Defaults to 0
+        seg_pad_val (int, float): The padding value. Defaults to 255
+
+    Returns:
+       Tensor: The 4D-tensor.
+       List[:obj:`SegDataSample`]: After the padding of the gt_seg_map.
+    """
+
+
+    # assert isinstance(inputs, list), \
+    #     f'Expected input type to be list, but got {type(inputs)}'
+    # assert len({tensor.ndim for tensor in inputs}) == 1, \
+    #     f'Expected the dimensions of all inputs must be the same, ' \
+    #     f'but got {[tensor.ndim for tensor in inputs]}'
+    # assert inputs[0].ndim == 3, f'Expected tensor dimension to be 3, ' \
+    #     f'but got {inputs[0].ndim}'
+    # assert len({tensor.shape[0] for tensor in inputs}) == 1, \
+    #     f'Expected the channels of all inputs must be the same, ' \
+    #     f'but got {[tensor.shape[0] for tensor in inputs]}'
+
+    # only one of size and size_divisor should be valid
+    assert (size is not None) ^ (size_divisor is not None), \
+        'only one of size and size_divisor should be valid'
+
+    padded_inputs = []
+    padded_samples = []
+    batch_size = len(inputs[0])# 2 3 4 
+    # inputs = 6？？？  我设置的batch是2，2*3是5 那为什么len(inputs)是6呢
+    # import pdb;pdb.set_trace()
+    inputs = [input_MSI_xchan_.float()  for inputs_MSI_xchan in inputs for input_MSI_xchan_ in inputs_MSI_xchan]
+    
+    # [(2413, 2413), (2377, 2377), (647, 647), (655, 655), (224, 224), (224, 224)]
+    inputs_sizes = [(img.shape[-2], img.shape[-1]) for img in inputs]
+    
+    max_size = np.stack(inputs_sizes).max(0)
+    if size_divisor is not None and size_divisor > 1:
+        # the last two dims are H,W, both subject to divisibility requirement
+        max_size = (max_size +(size_divisor - 1)) // size_divisor * size_divisor
+
+
+    size_list = [value for value in size for _ in range(batch_size)]
+    padding_list = []
+    # 开始拼接多个 tensor 为一个 4D 的batch
+    for i in range(len(inputs)):  #inputs 是6， data_samples 是2
+                                  # inputs: [3,3,3,4,4,4,10,10,10]
+                                  # size:(2048,640,224)
+        tensor = inputs[i]
+        if size_list is not None:
+            width = max(size_list[i] - tensor.shape[-1], 0)  #max(512-2413,0)
+            height = max(size_list[i] - tensor.shape[-2], 0) #max(512-2413,0)
+            # (padding_left, padding_right, padding_top, padding_bottom)
+            padding_size = (0, width, 0, height)
+        elif size_divisor is not None:
+            width = max(max_size[-1] - tensor.shape[-1], 0)
+            height = max(max_size[-2] - tensor.shape[-2], 0)
+            padding_size = (0, width, 0, height)
+        else:
+            padding_size = [0, 0, 0, 0]
+        padding_list.append(padding_size)
+        # pad img
+        pad_img = F.pad(tensor, padding_size, value=pad_val) # [3,2413,2413], 比512大，不pad,小才pad
+        padded_inputs.append(pad_img)
+    # import pdb;pdb.set_trace()
+    # 所以应该分开去padd和stack
+    # len(data_samples) = 2 batch           #padding_list=[3chan,3chan,4chan,4chan,10chan,10chan]
+    # data_samples 是 2                     #padding_list=[3chan,3chan,3chan,4chan,4chan,4chan,10chan,10chan,10chan]
+    if data_samples is not None:            #data_samples[0] -> 3 4 10
+       
+        for i in range(batch_size): # 9/3=3  0 1 2  
+            # import pdb;pdb.set_trace()
+            data_sample = data_samples[i]
+            pad_shape_MSI_3chan = None
+            pad_shape_MSI_4chan = None
+            pad_shape_MSI_10chan = None
+
+            # 看ATL_3_packSegInputs的代码，这里是把gt_sem_seg, gt_edge_map, gt_depth_map都pad了
+
+            if 'gt_semantic_seg_MSI_3chan' in data_sample:
+                gt_semantic_seg_MSI_3chan = data_sample.gt_semantic_seg_MSI_3chan.data
+                del data_sample.gt_semantic_seg_MSI_3chan.data
+                data_sample.gt_semantic_seg_MSI_3chan.data = F.pad(gt_semantic_seg_MSI_3chan, padding_list[i], value=seg_pad_val)
+                pad_shape_MSI_3chan = data_sample.gt_semantic_seg_MSI_3chan.shape
+
+            if 'gt_semantic_seg_MSI_4chan' in data_sample:
+                gt_semantic_seg_MSI_4chan = data_sample.gt_semantic_seg_MSI_4chan.data
+                del data_sample.gt_semantic_seg_MSI_4chan.data
+                data_sample.gt_semantic_seg_MSI_4chan.data = F.pad(gt_semantic_seg_MSI_4chan, padding_list[i+batch_size], value=seg_pad_val)
+                pad_shape_MSI_4chan = data_sample.gt_semantic_seg_MSI_4chan.shape
+
+            if 'gt_semantic_seg_MSI_10chan' in data_sample:
+                gt_semantic_seg_MSI_10chan = data_sample.gt_semantic_seg_MSI_10chan.data
+                del data_sample.gt_semantic_seg_MSI_10chan.data
+                data_sample.gt_semantic_seg_MSI_10chan.data = F.pad(gt_semantic_seg_MSI_10chan, padding_list[i+2*batch_size], value=seg_pad_val)
+                pad_shape_MSI_10chan = data_sample.gt_semantic_seg_MSI_10chan.shape
+
+
+
+            data_sample.set_metainfo({
+
+                # 假的，不对 不准
+                'img_shape': inputs[i+batch_size].shape[-2:],
+                'pad_shape': pad_shape_MSI_4chan,
+                'padding_size': padding_list[i+batch_size],
+
+                # 准的
+                'img_shape_MSI_3chan': inputs[i].shape[-2:],
+                'pad_shape_MSI_3chan': pad_shape_MSI_3chan,
+                'padding_size_MSI_3chan': padding_list[i],
+
+                'img_shape_MSI_4chan': inputs[i+batch_size].shape[-2:],
+                'pad_shape_MSI_4chan': pad_shape_MSI_4chan,
+                'padding_size_MSI_4chan': padding_list[i+batch_size],
+
+                'img_shape_MSI_10chan': inputs[i+2*batch_size].shape[-2:],
+                'pad_shape_MSI_10chan': pad_shape_MSI_10chan,
+                'padding_size_MSI_10chan': padding_list[i+2*batch_size],
+            })
+            padded_samples.append(data_sample)
+    else:
+        padded_samples.append(
+            dict(
+                img_padding_size=padding_size,
+                pad_shape=pad_img.shape[-2:]))
+
+                                    # 这里有个问题，不能拼接，因为尺寸不一样，所以这里要给他弄成一样的尺寸
+    batch_padded_inputs_MSI_3chan = torch.stack(padded_inputs[0:batch_size], dim=0)
+    batch_padded_inputs_MSI_4chan = torch.stack(padded_inputs[batch_size:2*batch_size], dim=0)
+    batch_padded_inputs_MSI_10chan = torch.stack(padded_inputs[2*batch_size:], dim=0)
+
+
+    return [batch_padded_inputs_MSI_3chan, batch_padded_inputs_MSI_4chan, batch_padded_inputs_MSI_10chan], padded_samples
+
+
+@MODELS.register_module()
+class ATL_SegDataPreProcessor_MultiModal(BaseDataPreprocessor):
+    """Image pre-processor for segmentation tasks.
+
+    Comparing with the :class:`mmengine.ImgDataPreprocessor`,
+
+    1.  如果没有指定mean, 则不会进行归一化。
+    2.  堆叠批量后进行归一化和色彩空间转换
+    3.  它支持批量增强方法, 如mixup和cutmix。
+
+    1. It won't do normalization if ``mean`` is not specified. # 如果没有指定mean, 则不会进行归一化。
+    2. It does normalization and color space conversion after stacking batch. # 堆叠批量后进行归一化和色彩空间转换
+    3. It supports batch augmentations like mixup and cutmix.  # 它支持批量增强方法, 如mixup和cutmix。
+
+    It provides the data pre-processing as follows
+    - 合并数据并将其移动到目标设备。
+    - 将输入填充到指定的输入大小, 使用定义的pad_val, 并使用定义的seg_pad_val填充分割图。
+    - 将输入堆叠到batch_inputs中。
+    - 如果输入的形状是 (3, H, W)，则将输入从 BGR 转换为 RGB。
+    - 使用定义的标准差(std)和均值(mean)对图像进行归一化。
+    - 在训练期间进行批量增强，如Mixup和Cutmix。
+
+    - Collate and move data to the target device.  
+    - Pad inputs to the input size with defined ``pad_val``, and pad seg map
+        with defined ``seg_pad_val``.  
+    - Stack inputs to batch_inputs.
+    - Convert inputs from bgr to rgb if the shape of input is (3, H, W).
+    - Normalize image with defined std and mean.
+    - Do batch augmentations like Mixup and Cutmix during training.
+
+    Args:
+        mean (Sequence[Number], optional): The pixel mean of R, G, B channels.
+            Defaults to None.
+        std (Sequence[Number], optional): The pixel standard deviation of
+            R, G, B channels. Defaults to None.
+        size (tuple, optional): Fixed padding size.  固定填充大小。
+        size_divisor (int, optional): The divisor of padded size. 填充大小的因子。
+        pad_val (float, optional): Padding value. Default: 0.
+        seg_pad_val (float, optional): Padding value of segmentation map.
+            Default: 255.
+        padding_mode (str): Type of padding. Default: constant.
+            - constant: pads with a constant value, this value is specified
+              with pad_val.
+        bgr_to_rgb (bool): whether to convert image from BGR to RGB.
+            Defaults to False.
+        rgb_to_bgr (bool): whether to convert image from RGB to RGB.
+            Defaults to False.
+        batch_augments (list[dict], optional): Batch-level augmentations # batch级别的数据增强！！
+        test_cfg (dict, optional): The padding size config in testing, if not
+            specify, will use `size` and `size_divisor` params as default.
+            Defaults to None, only supports keys `size` or `size_divisor`.
+    """
+
+    def __init__(
+        self,
+        mean: Sequence[Number] = None,
+        std: Sequence[Number] = None,
+        size: Optional[tuple] = None,
+        size_divisor: Optional[int] = None,
+        pad_val: Number = 0,
+        seg_pad_val: Number = 255,
+        bgr_to_rgb: bool = False,
+        rgb_to_bgr: bool = False,
+        batch_augments: Optional[List[dict]] = None,
+        test_cfg: dict = None,
+    ):
+        super().__init__()
+        self.size = size
+        self.size_divisor = size_divisor
+        self.pad_val = pad_val
+        self.seg_pad_val = seg_pad_val
+
+        assert not (bgr_to_rgb and rgb_to_bgr), (
+            '`bgr2rgb` and `rgb2bgr` cannot be set to True at the same time')
+        self.channel_conversion = rgb_to_bgr or bgr_to_rgb
+
+        if mean is not None:
+            assert std is not None, 'To enable the normalization in ' \
+                                    'preprocessing, please specify both ' \
+                                    '`mean` and `std`.'
+            # Enable the normalization in preprocessing.
+            self._enable_normalize = True
+            self.register_buffer('mean',
+                                 torch.tensor(mean).view(-1, 1, 1), False)
+            self.register_buffer('std',
+                                 torch.tensor(std).view(-1, 1, 1), False)
+        else:
+            self._enable_normalize = False
+
+        # TODO: support batch augmentations.
+        self.batch_augments = batch_augments
+
+        # Support different padding methods in testing
+        self.test_cfg = test_cfg
+
+    def forward(self, data: dict, training: bool = False) -> Dict[str, Any]:
+        """Perform normalization、padding and bgr2rgb conversion based on
+        ``BaseDataPreprocessor``.
+
+        Args:
+            data (dict): data sampled from dataloader.
+            training (bool): Whether to enable training time augmentation.
+
+        Returns:
+            Dict: Data in the same format as the model 1 input.
+        """
+        # import pdb;pdb.set_trace()
+        data = self.cast_data(data)  # type: ignore
+        inputs = data['inputs']
+        data_samples = data.get('data_samples', None)
+
+        # import pdb;pdb.set_trace()
+
+        # import pdb;pdb.set_trace()
+        # TODO: whether normalize should be after stack_batch
+        # if self.channel_conversion and inputs[0][0].size(0) == 3:
+        #     inputs = [_input[[2, 1, 0], ...] for _input in inputs]
+        
+        
+        # 把 inputs展开，变成一个list，然后用这个list去拼接成一个patch
+        # inputs = [_input.float() for _input in inputs]  # 这才能把数据转换成float类型，不然全是255--->1367
+        
+        # import pdb;pdb.set_trace()
+        # if self._enable_normalize:
+        #     inputs = [(_input - self.mean) / self.std for _input in inputs]
+
+        # import pdb;pdb.set_trace()
+        if training:
+            assert data_samples is not None, ('During training, ',
+                                              '`data_samples` must be define.')
+            
+            # 将多个输入变成一个patch
+            inputs, data_samples = multimodal_stack_batch(
+                inputs=inputs,
+                data_samples=data_samples,
+                size=self.size,
+                size_divisor=self.size_divisor,
+                pad_val=self.pad_val,
+                seg_pad_val=self.seg_pad_val)
+
+            # import pdb;pdb.set_trace()
+
+            # if self.batch_augments is not None:
+            #     inputs, data_samples = self.batch_augments(
+            #         inputs, data_samples)
+        else:
+            # pad images when testing
+            if self.test_cfg:
+
+                inputs, padded_samples = multimodal_stack_batch(
+                    inputs=inputs,
+                    size=self.test_cfg.get('size', None),
+                    size_divisor=self.test_cfg.get('size_divisor', None),
+                    pad_val=self.pad_val,
+                    seg_pad_val=self.seg_pad_val)
+                for data_sample, pad_info in zip(data_samples, padded_samples):
+                    data_sample.set_metainfo({**pad_info})
+
+            else:
+                assert self.test_cfg is not None, f'please check test_cfg must be set'
+                inputs = torch.stack(inputs, dim=0)
+
+        return dict(inputs=inputs, data_samples=data_samples)

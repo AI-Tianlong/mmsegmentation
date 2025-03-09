@@ -207,6 +207,7 @@ class EncoderDecoder(BaseSegmentor):
             - ``seg_logits``(PixelData): Predicted logits of semantic
                 segmentation before normalization.
         """
+        # import pdb;pdb.set_trace()
         if data_samples is not None:
             batch_img_metas = [
                 data_sample.metainfo for data_sample in data_samples
@@ -220,7 +221,7 @@ class EncoderDecoder(BaseSegmentor):
                     padding_size=[0, 0, 0, 0])
             ] * inputs.shape[0]
 
-        seg_logits = self.inference(inputs, batch_img_metas)
+        seg_logits = self.inference(inputs, batch_img_metas)  # torch.Size([1, 18, 224, 224])
 
         return self.postprocess_result(seg_logits, data_samples)
 
