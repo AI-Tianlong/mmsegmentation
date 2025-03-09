@@ -42,7 +42,7 @@ with read_base():
     # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_80k import *
 
-find_unuser_parameters = False
+find_unused_parameters=True
 L3_num_classes = 18
 crop_size = (640, 640)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
