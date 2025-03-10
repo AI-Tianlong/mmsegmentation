@@ -31,7 +31,7 @@ with read_base():
 
 
 num_classes = 18 #倒是也不太影像，这里该改成19的
-randomness=dict(seed=42, deterministic=True)   # 同时要去改test.py文件
+# randomness=dict(seed=42, deterministic=True)   # 同时要去改test.py文件
 # find_unused_parameters=True
 
 # model settings
