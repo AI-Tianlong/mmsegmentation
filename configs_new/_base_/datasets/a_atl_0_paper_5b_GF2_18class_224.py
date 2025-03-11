@@ -71,7 +71,7 @@ tta_pipeline = [
 
 train_dataloader = dict(
     batch_size=2,
-    num_workers=8,  # numworkers 也会影响！
+    num_workers=4,  # numworkers 也会影响！
     persistent_workers=True,
     sampler=dict(type=InfiniteSampler, shuffle=True),
     dataset=dict(
@@ -105,8 +105,8 @@ test_dataloader = dict(
         data_root=data_root,
         data_prefix=dict(
             # img_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/2-多领域地物覆盖基础/小样本数据集推理/img_dir'),
-            img_path='img_dir/val/GF2-5B-18-base224',
-            seg_map_path='ann_dir/val/GF2-5B-18-base224'),
+            img_path='img_dir/test/GF2-5B-18-base224',
+            seg_map_path='ann_dir/test/GF2-5B-18-base224'),
         pipeline=test_pipeline))
 
 val_evaluator = dict(
