@@ -18,7 +18,7 @@ from mmengine.utils import to_2tuple
 
 from mmseg.registry import MODELS
 from ..utils.embed import PatchEmbed, PatchMerging
-
+from mmengine.runner.checkpoint import load_state_dict
 
 class WindowMSA(BaseModule):
     """Window based multi-head self-attention (W-MSA) module with relative
@@ -735,7 +735,9 @@ class SwinTransformer(BaseModule):
                             nH2, L2).permute(1, 0).contiguous()
 
             # load state_dict
-            self.load_state_dict(state_dict, strict=False)
+            # self.load_state_dict(state_dict, strict=False)
+            message = load_state_dict(self, state_dict, strict=False, logger='current')
+            print_log(message)
 
     def forward(self, x):
         x, hw_shape = self.patch_embed(x)
