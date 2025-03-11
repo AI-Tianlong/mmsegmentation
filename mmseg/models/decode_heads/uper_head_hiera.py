@@ -583,8 +583,7 @@ class UPerHead_Hiera(BaseDecodeHead):
             for index in range(len(seg_logits)):
                 # seg_logits[index] = F.sigmoid(seg_logits[index])
                 seg_logits[index] = F.softmax(seg_logits[index])
-
-        
+                
         # import pdb;pdb.set_trace()
         seg_logits_L1 = seg_logits[0]  # [2,4,640,640]
         seg_logits_L2 = seg_logits[1]  # [2,9,640,640]
@@ -615,7 +614,7 @@ class UPerHead_Hiera(BaseDecodeHead):
                     L2_seg_logit = seg_logits_L2[:, L2_index, :, :]
                     L3_seg_logit = seg_logits_L3[:, L3_index, :, :]
 
-                    seg_logits_merge_L3[:,L3_index,:,:] = 0*L1_seg_logit + 0*L2_seg_logit + 0.1*L3_seg_logit # 直接加上三个的特征图的值？所以有问题吧
+                    seg_logits_merge_L3[:,L3_index,:,:] = 0.3*L1_seg_logit + 0.3*L2_seg_logit + 0.4*L3_seg_logit # 直接加上三个的特征图的值？所以有问题吧
 
         return [seg_logits_merge_L1, seg_logits_merge_L2, seg_logits_merge_L3]
 

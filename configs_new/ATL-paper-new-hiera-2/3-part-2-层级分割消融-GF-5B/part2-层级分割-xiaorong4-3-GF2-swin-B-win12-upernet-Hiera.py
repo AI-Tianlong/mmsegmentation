@@ -24,10 +24,9 @@ from mmpretrain.models.backbones.convnext import ConvNeXt
 from mmseg.models.backbones.swin import SwinTransformer
 # DecodeHead
 from mmseg.models.decode_heads.uper_head import UPerHead
-from mmseg.models.decode_heads.atl_hiera_37_uper_head_multi_convseg import ATL_hiera_UPerHead_Multi_convseg
 from mmseg.models.decode_heads.fcn_head import FCNHead
+from mmseg.models.decode_heads.uper_head_hiera import UPerHead_Hiera
 # Loss
-from mmseg.models.losses.atl_hiera_37_loss import ATL_Hiera_Loss
 from mmseg.models.losses.atl_hiera_37_loss_convseg import ATL_Hiera_Loss_convseg
 from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
 
@@ -44,13 +43,18 @@ with read_base():
     from ..._base_.schedules.schedule_80k import *
 
 find_unused_parameters = True
-L3_num_classes = 18
+norm_cfg = dict(type=SyncBN, requires_grad=True)
+
+L1_num_classes = 4  # number of L1 Level label   # 5
+L2_num_classes = 9  # number of L1 Level label  # 11  5+11+21=37类
+L3_num_classes = 18  # number of L1 Level label  # 21
+
 
 backbone_norm_cfg = dict(type='LN', requires_grad=True)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
 # pretrained  = 'https://download.openmmlab.com/mmclassification/v0/convnext/downstream/convnext-large_3rdparty_in21k_20220301-e6e0ea0a.pth'
-pretrained = 'checkpoints/2-对比实验的权重/swin/large/swin-large-win12-4chan.pth'
+pretrained = 'checkpoints/2-对比实验的权重/swin/base/swin_base_patch4_window12_384_4chan.pth'
 
 crop_size = (640, 640)
 data_preprocessor = dict(
@@ -68,12 +72,12 @@ model = dict(
         type=SwinTransformer,
         in_channels=4,
         pretrain_img_size=384,
-        embed_dims=192,
+        embed_dims=128,
         patch_size=4,
         window_size=12,
         mlp_ratio=4,
         depths=[2, 2, 18, 2],
-        num_heads=[6, 12, 24, 48],
+        num_heads=[4, 8, 16, 32],
         strides=(4, 2, 2, 2),
         out_indices=(0, 1, 2, 3),
         qkv_bias=True,
@@ -88,20 +92,29 @@ model = dict(
         init_cfg=dict(type='Pretrained', checkpoint=pretrained),
         ),
     decode_head=dict(
-        type=UPerHead,
-        in_channels=[192, 384, 768, 1536],
+        type=UPerHead_Hiera,
+        num_classes_level_list = [L1_num_classes, L2_num_classes, L3_num_classes],
+        results_merge_hiera = True,
+        hiera_mode = 'xiaorong4',
+        loss_decode=dict(
+            type=ATL_Hiera_Loss_convseg,
+            num_classes=[L1_num_classes, L2_num_classes, L3_num_classes],
+            loss_weight=1.0),
+        # type=UPerHead,
+        in_channels=[128, 256, 512, 1024],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
-        channels=1024,
+        channels=768,
         dropout_ratio=0.1,
-        num_classes=L3_num_classes,
+        # num_classes=L3_num_classes,
         norm_cfg=norm_cfg,
         align_corners=False,
-        loss_decode=dict(
-            type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)),
+        # loss_decode=dict(
+        #     type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)),
+    ),
     # auxiliary_head=dict(
     #     type=FCNHead,
-    #     in_channels=768,
+    #     in_channels=384,
     #     in_index=2,
     #     channels=512,
     #     num_convs=1,
@@ -115,8 +128,8 @@ model = dict(
     # model training and testing settings
     train_cfg=dict(),
     # test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)),
-    test_cfg=dict(mode='whole')
-    )
+    test_cfg=dict(mode='whole'))
+    # )
 
 
 optimizer=dict(
