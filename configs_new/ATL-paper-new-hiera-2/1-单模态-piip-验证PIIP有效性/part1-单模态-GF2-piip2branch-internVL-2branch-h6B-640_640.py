@@ -60,8 +60,6 @@ data_preprocessor = dict(
     size=crop_size,
     test_cfg=dict(size_divisor=32))
 
-
-
 pretrained = None
 model = dict(
     type=EncoderDecoder,
