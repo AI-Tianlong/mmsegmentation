@@ -80,11 +80,18 @@ class StemConv(BaseModule):
 
     def __init__(self,
                  in_channels,
-                 out_channels,
+                 out_channels,  # embed_dims[0]：base的话，是64
                  act_cfg=dict(type='GELU'),
                  norm_cfg=dict(type='SyncBN', requires_grad=True)):
         super().__init__()
 
+#   (proj): Sequential(
+#     (0): Conv2d(4, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+#     (1): SyncBatchNorm(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+#     (2): GELU(approximate='none')
+#     (3): Conv2d(32, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+#     (4): SyncBatchNorm(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        
         self.proj = nn.Sequential(
             nn.Conv2d(
                 in_channels,
@@ -105,10 +112,10 @@ class StemConv(BaseModule):
 
     def forward(self, x):
         """Forward function."""
-
-        x = self.proj(x)
+        import pdb;pdb.set_trace()
+        x = self.proj(x) # [B,4,640,640] --> [B, 64, 160, 160]
         _, _, H, W = x.size()
-        x = x.flatten(2).transpose(1, 2)
+        x = x.flatten(2).transpose(1, 2) # [B, 64, 160, 160] --> [B, 64, 25600] --> [B, 25600, 64]
         return x, H, W
 
 
@@ -316,8 +323,11 @@ class OverlapPatchEmbed(BaseModule):
                  norm_cfg=dict(type='SyncBN', requires_grad=True)):
         super().__init__()
 
+#   (proj): Conv2d(64, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+#   (norm): _BatchNormXd(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+       
         self.proj = nn.Conv2d(
-            in_channels,  # 10
+            in_channels,  # 4
             embed_dim,    # 16
             kernel_size=patch_size,# 3
             stride=stride, # 3
@@ -327,12 +337,12 @@ class OverlapPatchEmbed(BaseModule):
         # import pdb;pdb.set_trace()
     def forward(self, x):
         """Forward function."""
-
-        x = self.proj(x)
+        import pdb;pdb.set_trace()
+        x = self.proj(x) #    # [B, 128, 80, 80] --> [B,320,40,40]
         _, _, H, W = x.shape
         x = self.norm(x)
 
-        x = x.flatten(2).transpose(1, 2)
+        x = x.flatten(2).transpose(1, 2)  # [B,128,80,80]-->[B,128,6400]-->[B,6400,128]   
 
         return x, H, W
 
@@ -396,24 +406,25 @@ class MSCAN(BaseModule):
         elif pretrained is not None:
             raise TypeError('pretrained must be a str or None')
 
-        self.depths = depths
-        self.num_stages = num_stages
+        self.depths = depths # Base:[3,3,12,3]
+        self.num_stages = num_stages # 4 
 
         dpr = [
             x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))
         ]  # stochastic depth decay rule
         cur = 0
 
-        for i in range(num_stages):
+        for i in range(num_stages):  # 0 1 2 3
             # import pdb;pdb.set_trace()
-            if i == 0:
-                patch_embed = StemConv(in_channels, embed_dims[0], norm_cfg=norm_cfg)
+            if i == 0:  # 第0个stage的时候
+                patch_embed = StemConv(in_channels, embed_dims[0], norm_cfg=norm_cfg) # 
+                # import pdb;pdb.set_trace()
             else:
                 patch_embed = OverlapPatchEmbed(
                     patch_size=7 if i == 0 else 3,
                     stride=4 if i == 0 else 2,
-                    in_channels=in_channels if i == 0 else embed_dims[i - 1],
-                    embed_dim=embed_dims[i], #不是64?
+                    in_channels=in_channels if i == 0 else embed_dims[i - 1], # 上一个的 [64,128,320]
+                    embed_dim=embed_dims[i], # [128,320,512]
                     norm_cfg=norm_cfg)
                 
             
@@ -466,11 +477,34 @@ class MSCAN(BaseModule):
             patch_embed = getattr(self, f'patch_embed{i + 1}')
             block = getattr(self, f'block{i + 1}')
             norm = getattr(self, f'norm{i + 1}')
-            x, H, W = patch_embed(x)  # []  ---> []
+            import pdb;pdb.set_trace()                                         # H/4 
+            x, H, W = patch_embed(x)  
             for blk in block:         # 过 depth 个 block
-                x = blk(x, H, W)
+                x = blk(x, H, W)     # 不变
+            import pdb;pdb.set_trace()        
             x = norm(x)               
             x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
             outs.append(x)            # 记录一个stage的输出
 
         return outs
+
+    # 对于 [4,640,640]输入
+    # stage0: [B,4,640,640] -->  patch_embed(x)[B,64,160,160][B, 25600, 64] -->  [B,64,160,160]
+    # stage1: [B,64,160,160] --> patch_embed(x)[B,128,80,80][B, 6400, 128]  -->  [B,128,80,80]
+    # stage2: [B,128,80,80] -->  patch_embed(x)[B,320,40,40][B, 1600, 320]  -->  [B,320,40,40]
+    # stage3: [B,320,40,40] -->  patch_embed(x)[B,512,20,20][B, 400, 512]   -->  [B,512,20,20]
+
+    # 对于 [4,512,512]输入
+    # stage0: [B,4,512,512] -->  patch_embed(x)[B,64,128,128][B, 16384, 64]--> [B,64,128,128]
+    # stage1: [B,64,128,128] --> patch_embed(x)[B,128,64,64][B, 4096, 128] --> [B,128,64,64]
+    # stage2: [B,128,64,64] -->  patch_embed(x)[B,320,32,32][B, 1024, 320] --> [B,320,32,32]
+    # stage3: [B,320,32,32] -->  patch_embed(x)[B,512,16,16][B, 256, 512]  --> [B,512,16,16]
+
+
+    # 对于 [4,224,224]输入
+    # stage0: [B,4,224,224] -->  patch_embed(x)[B,64,56,56][B,3136,64]  --> [B,64,56,56]
+    # stage1: [B,64,56,56]  -->  patch_embed(x)[B,128,28,28][B,784,128] --> [B,128,28,28]
+    # stage2: [B,128,28,28] -->  patch_embed(x)[B,320,14,14][B,196,320] --> [B,320,14,14]
+    # stage3: [B,320,14,14] -->  patch_embed(x)[B,512,7,7]  [B,49,512]  --> [B,512,7,7]
+
+

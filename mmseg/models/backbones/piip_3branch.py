@@ -333,6 +333,11 @@ class PIIPThreeBranch(nn.Module):
                         cls1=None, cls2=None, cls3=None,
                         deform_inputs=deform_inputs)
 
+        # merge前的特征尺寸
+        # branch1: [2,576,1024]  # 在计算过程中 是一直不变的 
+        # branch2: [2,1024,768]  # 在计算过程中 是一直不变的
+        # branch3: [2,1600,384]  # 在计算过程中 是一直不变的
+
         # Branch merging
         x1 = x1.transpose(1, 2).view(bs1, dim1, H1, W1) # [2, 576, 1024] --> [2, 1024, 24, 24]
         x1 = self.merge_branch1(x1)   # 特征图维度变到branch1的 [2, 1024, 24, 24]->[2, 1024, 24, 24]            

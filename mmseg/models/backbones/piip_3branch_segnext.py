@@ -27,7 +27,10 @@ from .internvit_6b import InternViT6B
 from .uniperceiver import UnifiedBertEncoder
 from .mscan import MSCAN  # segnext
 
-from .piip_modules import deform_inputs_1_vit, deform_inputs_2_vit, ThreeBranchInteractionBlock
+from .piip_modules import (deform_inputs_1_vit, 
+                           deform_inputs_2_vit, 
+                           ThreeBranchInteractionBlock,
+                           ThreeBranchInteractionBlock_segnext)
 
 
 # mmcv 1.x
@@ -35,7 +38,7 @@ from .piip_modules import deform_inputs_1_vit, deform_inputs_2_vit, ThreeBranchI
 # from mmdet.utils import get_root_logger
 
 @MODELS.register_module()
-class PIIPThreeBranch(nn.Module):
+class PIIPThreeBranch_conv(nn.Module):
     def __init__(self,
                  n_points=4,
                  deform_num_heads=6,
@@ -67,6 +70,7 @@ class PIIPThreeBranch(nn.Module):
         self.w2 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
         self.w3 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
         
+        # 需要把这些值给那啥掉，不然的话，会传递到backbone的初始化去
         self.branch1_interaction_indexes = branch1.pop("interaction_indexes")
         self.branch2_interaction_indexes = branch2.pop("interaction_indexes")
         self.branch3_interaction_indexes = branch3.pop("interaction_indexes")
@@ -79,53 +83,41 @@ class PIIPThreeBranch(nn.Module):
         self.branch2_w_cls_token = branch2.pop("branch2_w_cls_token", False)
         self.branch3_w_cls_token = branch3.pop("branch3_w_cls_token", False)
         
-        
-        if 'deit' in branch1['pretrained']:
-            self.branch1 = vit_models(**branch1)
-        elif 'beit' in branch1['pretrained']: # 如果beit这个词在pretrain中，则构建BEiT模型
-            self.branch1 = BEiT(**branch1)
-        elif 'perceiver' in branch1['pretrained']:
-            self.branch1 = UnifiedBertEncoder(**branch1)
-        elif 'segnext' in branch1['pretrained']:
+        self.branch1_real_size = branch1.pop('pretrain_img_size', False)
+        self.branch2_real_size = branch2.pop('pretrain_img_size', False)
+        self.branch3_real_size = branch3.pop('pretrain_img_size', False)
+
+      
+        if 'segnext' in branch1['pretrained']:
             self.branch1 = MSCAN(**branch1)
         else:
             self.branch1 = InternViT6B(**branch1)
             self.branch1_w_cls_token = True
         
-        if 'deit' in branch2['pretrained']:
-            self.branch2 = vit_models(**branch2)
-        elif 'beit' in branch2['pretrained']:
-            self.branch2 = BEiT(**branch2)
-        elif 'perceiver' in branch2['pretrained']:
-            self.branch2 = UnifiedBertEncoder(**branch2)
-        elif 'segnext' in branch2['pretrained']:
+     
+        if 'segnext' in branch2['pretrained']:
             self.branch2 = MSCAN(**branch2)
         else:
             self.branch2 = InternViT6B(**branch2)
             self.branch2_w_cls_token = True
             
-        if 'deit' in branch3['pretrained']:
-            self.branch3 = vit_models(**branch3)
-        elif 'beit' in branch3['pretrained']:
-            self.branch3 = BEiT(**branch3)
-        elif 'perceiver' in branch3['pretrained']:
-            self.branch3 = UnifiedBertEncoder(**branch3)
-        elif 'segnext' in branch3['pretrained']:
+        if 'segnext' in branch3['pretrained']:
             self.branch3 = MSCAN(**branch3)
         else:
             self.branch3 = InternViT6B(**branch3)
             self.branch3_w_cls_token = True
         
         assert len(self.branch1_interaction_indexes) == len(self.branch2_interaction_indexes) == len(self.branch3_interaction_indexes)
+        
         self.interactions = nn.Sequential(*[
-            ThreeBranchInteractionBlock(
-                branch1_dim=self.branch1.embed_dim,
-                branch2_dim=self.branch2.embed_dim,
-                branch3_dim=self.branch3.embed_dim, 
+            ThreeBranchInteractionBlock_segnext(
+                branch1_dim=self.branch1.embed_dims[num_stage],  # 这个还不太通用啊,那就分开写三个呗？
+                branch2_dim=self.branch2.embed_dims[num_stage],
+                branch3_dim=self.branch3.embed_dims[num_stage], 
 
-                branch1_img_size=self.branch1.pretrain_img_size,
-                branch2_img_size=self.branch2.pretrain_img_size,
-                branch3_img_size=self.branch3.pretrain_img_size, 
+                branch1_img_size=self.branch1.real_size,
+                branch2_img_size=self.branch2.real_size,
+                branch3_img_size=self.branch3.real_size, 
 
                 num_heads=deform_num_heads, 
                 n_points=n_points,
@@ -137,65 +129,57 @@ class PIIPThreeBranch(nn.Module):
                 attn_type=interact_attn_type,
                 with_proj=interaction_proj,
             )
-            for _ in range(len(self.branch1_interaction_indexes))
+            for num_stage in range(len(self.branch1_interaction_indexes))
         ])
         
-        dim1 = self.branch1.embed_dim  # branch1的维度, 最大
-        dim2 = self.branch2.embed_dim  # branch2的维度, 中等
-        dim3 = self.branch3.embed_dim  # branch3的维度, 最小
-        assert dim1 >= dim2 >= dim3
+        dim1 = self.branch1.embed_dims  # branch1的维度, 最大
+        dim2 = self.branch2.embed_dims  # branch2的维度, 中等
+        dim3 = self.branch3.embed_dims  # branch3的维度, 最小
+
+        # dim1 是一个列表, 理论上，每一个[64,128,320,512]的元素，都要满足dim1>=dim2>=dim3
+
+        if isinstance(dim1, list):
+            for num_stage in range(len(dim1)):
+                assert dim1[num_stage] >= dim2[num_stage] >= dim3[num_stage], f'Error: dim1={dim1}, dim2={dim2}, dim3={dim3}'
+        elif isinstance(dim1, int):
+            assert dim1 >= dim2 >= dim3, f'Error: dim1={dim1}, dim2={dim2}, dim3={dim3}'
         
-        # 将branch1的维度变到dim1
-        self.merge_branch1 = nn.Sequential(
-            nn.Conv2d(dim1, dim1, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.GroupNorm(32, dim1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(dim1, dim1, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.GroupNorm(32, dim1),
-            nn.ReLU(inplace=True),
-        )
-        # 将branch2的维度变到dim1
-        self.merge_branch2 = nn.Sequential(
-            nn.Conv2d(dim2, dim1, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.GroupNorm(32, dim1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(dim1, dim1, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.GroupNorm(32, dim1),
-            nn.ReLU(inplace=True),
-        )
-        # 将branch3的维度变到dim1
-        self.merge_branch3 = nn.Sequential(
-            nn.Conv2d(dim3, dim1, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.GroupNorm(32, dim1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(dim1, dim1, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.GroupNorm(32, dim1),
-            nn.ReLU(inplace=True),
-        )
+        # 将branch1的维度变到dim1 # [2,768,24,24]-->[2,1024,24,24] # 这是对于ViT的
+        # 维度都一样，都是512 所以这里其实不用给
+        # self.merge_branch1 = nn.Sequential(
+        #     nn.Conv2d(dim1, dim1, kernel_size=3, stride=1, padding=1, bias=False),
+        #     nn.GroupNorm(32, dim1),
+        #     nn.ReLU(inplace=True),
+        #     nn.Conv2d(dim1, dim1, kernel_size=3, stride=1, padding=1, bias=False),
+        #     nn.GroupNorm(32, dim1),
+        #     nn.ReLU(inplace=True),
+        # )
+        # # 将branch2的维度变到dim1
+        # self.merge_branch2 = nn.Sequential(
+        #     nn.Conv2d(dim2, dim1, kernel_size=3, stride=1, padding=1, bias=False),
+        #     nn.GroupNorm(32, dim1),
+        #     nn.ReLU(inplace=True),
+        #     nn.Conv2d(dim1, dim1, kernel_size=3, stride=1, padding=1, bias=False),
+        #     nn.GroupNorm(32, dim1),
+        #     nn.ReLU(inplace=True),
+        # )
+        # # 将branch3的维度变到dim1
+        # self.merge_branch3 = nn.Sequential(
+        #     nn.Conv2d(dim3, dim1, kernel_size=3, stride=1, padding=1, bias=False),
+        #     nn.GroupNorm(32, dim1),
+        #     nn.ReLU(inplace=True),
+        #     nn.Conv2d(dim1, dim1, kernel_size=3, stride=1, padding=1, bias=False),
+        #     nn.GroupNorm(32, dim1),
+        #     nn.ReLU(inplace=True),
+        # )
         
-        self.merge_branch1.apply(self._init_weights)
-        self.merge_branch2.apply(self._init_weights)
-        self.merge_branch3.apply(self._init_weights)
+        # self.merge_branch1.apply(self._init_weights)
+        # self.merge_branch2.apply(self._init_weights)
+        # self.merge_branch3.apply(self._init_weights)
         
-        out_dim = dim1
+        out_dim = dim1[3]
         self.is_dino = is_dino
-        if not is_dino: # 如果不是dino，则输出4个特征图
-            self.fpn1 = nn.Sequential(
-                nn.ConvTranspose2d(out_dim, out_dim, 2, 2),
-                nn.GroupNorm(32, out_dim),
-                nn.GELU(),
-                nn.ConvTranspose2d(out_dim, out_dim, 2, 2)
-            )
-            self.fpn1.apply(self._init_weights) 
-            
-        self.fpn2 = nn.Sequential(nn.ConvTranspose2d(out_dim, out_dim, 2, 2))
-        self.fpn3 = nn.Sequential(nn.Identity())
-        self.fpn4 = nn.Sequential(nn.MaxPool2d(kernel_size=2, stride=2))
 
-
-        self.fpn2.apply(self._init_weights)
-        self.fpn3.apply(self._init_weights)
-        self.fpn4.apply(self._init_weights)
         self.interactions.apply(self._init_weights)
         self.apply(self._init_deform_weights)
         self.init_weights(pretrained)
@@ -284,44 +268,7 @@ class PIIPThreeBranch(nn.Module):
         
         # import pdb; pdb.set_trace()
         # Patch embedding and position embedding
-        if 'perceiver' in self.branch1.pretrained:
-            x1, H1, W1 = self.branch1.visual_embed(x1)
-            bs1, n1, dim1 = x1.shape
-        else:
-            x1, H1, W1 = self.branch1.patch_embed(x1) # [2, 576, 1024],24,24  (384/16)^2=24^2=576
-            bs1, n1, dim1 = x1.shape # 2, 576, 1024
-            if self.branch1.pos_embed is not None:
-                pos_embed1 = self.branch1.pos_embed if not self.branch1_w_cls_token else self.branch1.pos_embed[:, 1:]  # [1, 576, 1024]
-                pos_embed1 = self._get_pos_embed(pos_embed1.float(), (self.branch1.pretrain_img_size, self.branch1.pretrain_img_size),  
-                                                (self.branch1.patch_size, self.branch1.patch_size), H1, W1) 
-                x1 = x1 + pos_embed1
-            x1 = self.branch1.pos_drop(x1)
 
-        if 'perceiver' in self.branch2.pretrained:
-            x2, H2, W2 = self.branch2.visual_embed(x2)
-            bs2, n2, dim2 = x2.shape
-        else:
-            x2, H2, W2 = self.branch2.patch_embed(x2) # [2, 1024, 768], 32,32 512/16=32 
-            bs2, n2, dim2 = x2.shape
-            if self.branch2.pos_embed is not None:
-                pos_embed2 = self.branch2.pos_embed if not self.branch2_w_cls_token else self.branch2.pos_embed[:, 1:]
-                pos_embed2 = self._get_pos_embed(pos_embed2.float(), (self.branch2.pretrain_img_size, self.branch2.pretrain_img_size), 
-                                                (self.branch2.patch_size, self.branch2.patch_size), H2, W2) 
-                x2 = x2 + pos_embed2
-            x2 = self.branch2.pos_drop(x2)
-
-        if 'perceiver' in self.branch3.pretrained:
-            x3, H3, W3 = self.branch3.visual_embed(x3)
-            bs3, n3, dim3 = x3.shape
-        else:
-            x3, H3, W3 = self.branch3.patch_embed(x3) # [2,1600,384],40,40 640/16=40
-            bs3, n3, dim3 = x3.shape
-            if self.branch3.pos_embed is not None:
-                pos_embed3 = self.branch3.pos_embed if not self.branch3_w_cls_token else self.branch3.pos_embed[:, 1:]
-                pos_embed3 = self._get_pos_embed(pos_embed3.float(), (self.branch3.pretrain_img_size, self.branch3.pretrain_img_size), 
-                                                (self.branch3.patch_size, self.branch3.patch_size), H3, W3) 
-                x3 = x3 + pos_embed3
-            x3 = self.branch3.pos_drop(x3)
 
 
         # Blocks and interactions

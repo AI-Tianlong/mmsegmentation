@@ -50,13 +50,9 @@ with read_base():
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 num_classes = 18
 
-# deepspeed = True
-deepspeed = False
-deepspeed_config = 'configs_zero_deepspeed/adam_zero1_bf16.json'
-
-branch1_pretrained = '/opt/AI-Tianlong/openmmlab/mmsegmentation/checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_large_224_21k.pth'
-branch2_pretrained = '/opt/AI-Tianlong/openmmlab/mmsegmentation/checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
-branch3_pretrained = '/opt/AI-Tianlong/openmmlab/mmsegmentation/checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_small_224_21k.pth'
+branch1_pretrained = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_large_224_21k.pth'
+branch2_pretrained = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
+branch3_pretrained = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_small_224_21k.pth'
 
 crop_size = (640, 640)
 data_preprocessor = dict(
@@ -162,20 +158,20 @@ model = dict(
             type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)
     ),
   
-    auxiliary_head=dict(
-        type=FCNHead,
-        in_channels=1024,
-        in_index=3,
-        channels=256,
-        num_convs=1,
-        concat_input=False,
-        dropout_ratio=0.1,
-        num_classes=num_classes,
-        norm_cfg=norm_cfg,
-        align_corners=False,
-        loss_decode=dict(
-            type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)
-    ),
+    # auxiliary_head=dict(
+    #     type=FCNHead,
+    #     in_channels=1024,
+    #     in_index=3,
+    #     channels=256,
+    #     num_convs=1,
+    #     concat_input=False,
+    #     dropout_ratio=0.1,
+    #     num_classes=num_classes,
+    #     norm_cfg=norm_cfg,
+    #     align_corners=False,
+    #     loss_decode=dict(
+    #         type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)
+    # ),
 
     test_cfg=dict(mode='whole')
 )
@@ -229,14 +225,3 @@ test_evaluator = dict(
     # format_only=True,
     keep_results=True)
 
-if deepspeed:
-    checkpoint_config = dict(deepspeed=deepspeed, by_epoch=False, interval=2000, max_keep_ckpts=4000)
-else:
-    checkpoint_config = dict(by_epoch=False, interval=2000, max_keep_ckpts=1)
-
-if deepspeed:
-    custom_hooks = [
-        dict(
-            type='ToBFloat16Hook',
-            priority=49),
-    ]

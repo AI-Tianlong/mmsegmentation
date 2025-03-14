@@ -1,4 +1,4 @@
-piip_3branch_segnext.py# --------------------------------------------------------
+# --------------------------------------------------------
 # PIIP
 # Copyright (c) 2024 OpenGVLab
 # Licensed under The MIT License [see LICENSE for details]
@@ -414,6 +414,8 @@ class ThreeBranchInteractionBlock(nn.Module):
         return x1, x2, x3, cls1, cls2, cls3
 
 
+
+
 class TwoBranchInteractionBlock(nn.Module):
     def __init__(self, branch1_dim, branch2_dim, 
                  branch1_img_size, branch2_img_size, 
@@ -448,3 +450,164 @@ class TwoBranchInteractionBlock(nn.Module):
         x1, x2 = self.interaction_units_12(x1, x2, deform_inputs["2to1"], deform_inputs["1to2"], H1, W1, H2, W2)
         
         return x1, x2, cls1, cls2
+    
+
+# ============================= For Segnext =================================
+class BidirectionalInteractionUnit_segnext(nn.Module):
+    """先明确，这里是什么去交互呢？
+    对于ViT来说，是[2,576,1024] 和 [2,1024,768]这两个维度去交互。
+    对于Segnext来说，则是 [B, 25600, 64] [B, 16384, 64] 这两个维度去交互。
+                         [B, 6400, 128] [B, 4096, 128]
+                         [B, 1600, 320] [B, 1024, 320]
+                         [B, 400, 512]  [B, 256,  512]
+    
+    交互完再reshape成2D图，x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2)
+    然后交互前，再x, H, W = patch_embed(x), 然后交互
+    """
+
+    def __init__(self, 
+                 branch1_dim,  # embed_dims[0] / embed_dims[1]
+                 branch2_dim, 
+                 branch1_img_size,  # real_size
+                 branch2_img_size, 
+                 num_heads=6, 
+                 n_points=4, 
+                 norm_layer=partial(nn.LayerNorm, eps=1e-6),
+                 drop=0., 
+                 drop_path=0., 
+                 with_cffn=False, 
+                 cffn_ratio=0.25, 
+                 deform_ratio=1.0, 
+                 with_cp=False, 
+                 attn_type='normal', 
+                 with_proj=True):
+        super().__init__()
+        self.attn_type = attn_type
+        self.branch1_img_size = branch1_img_size
+        self.branch2_img_size = branch2_img_size
+        self.branch1_dim = branch1_dim
+        self.branch2_dim = branch2_dim
+        
+        self.with_proj = with_proj
+        
+        if with_proj:
+            self.branch2to1_proj = nn.Linear(branch2_dim, branch1_dim)
+            self.branch1to2_proj = nn.Linear(branch1_dim, branch2_dim)
+            
+        self.branch2to1_injector = Injector(dim=branch1_dim,
+                                            num_heads=num_heads,
+                                            n_points=n_points, 
+                                            norm_layer=norm_layer, 
+                                            deform_ratio=deform_ratio,
+                                            with_cp=with_cp, 
+                                            with_cffn=with_cffn, 
+                                            cffn_ratio=cffn_ratio, 
+                                            drop=drop, 
+                                            drop_path=drop_path,
+                                            attn_type=attn_type,
+                                            dim_feat=branch1_dim if with_proj else branch2_dim)
+        
+        self.branch1to2_injector = Injector(dim=branch2_dim,
+                                                num_heads=num_heads,
+                                                n_points=n_points, 
+                                                norm_layer=norm_layer, 
+                                                deform_ratio=deform_ratio,
+                                                with_cp=with_cp, 
+                                                with_cffn=with_cffn, 
+                                                cffn_ratio=cffn_ratio, 
+                                                drop=drop, 
+                                                drop_path=drop_path,
+                                                attn_type=attn_type,
+                                                dim_feat=branch2_dim if with_proj else branch1_dim)
+        
+    
+    def forward(self, x1, x2, deform_inputs1, deform_inputs2, H1, W1, H2, W2):
+        # x1 is small image (large model), x2 is large image (small model)
+        
+        if self.with_proj:
+            x1_branch1to2_proj = self.branch1to2_proj(x1)
+            x2_branch2to1_proj = self.branch2to1_proj(x2) 
+        else:
+            x1_branch1to2_proj = x1
+            x2_branch2to1_proj = x2
+            
+        x1 = self.branch2to1_injector(query=x1, 
+                                      reference_points=deform_inputs1[0],
+                                      feat=x2_branch2to1_proj, 
+                                      spatial_shapes=deform_inputs1[1],
+                                      level_start_index=deform_inputs1[2], 
+                                      H=H1, 
+                                      W=W1)
+        
+        x2 = self.branch1to2_injector(query=x2, 
+                                      reference_points=deform_inputs2[0],
+                                      feat=x1_branch1to2_proj, 
+                                      spatial_shapes=deform_inputs2[1],
+                                      level_start_index=deform_inputs2[2], 
+                                      H=H2, 
+                                      W=W2) 
+        return x1, x2
+
+class ThreeBranchInteractionBlock_segnext(nn.Module):
+    def __init__(self, 
+                 branch1_dim, 
+                 branch2_dim, 
+                 branch3_dim, 
+
+                 branch1_img_size, 
+                 branch2_img_size, 
+                 branch3_img_size, 
+                 attn_type='deform', 
+                 **kwargs):
+        super().__init__()
+        self.attn_type = attn_type
+
+        self.interaction_units_12 = BidirectionalInteractionUnit_segnext(branch1_dim, branch2_dim, branch1_img_size, branch2_img_size, attn_type=attn_type, **kwargs)
+        self.interaction_units_23 = BidirectionalInteractionUnit_segnext(branch2_dim, branch3_dim, branch2_img_size, branch3_img_size, attn_type=attn_type, **kwargs)
+        
+        # for calculating flops
+        self.interaction_units = [
+            self.interaction_units_12,
+            self.interaction_units_23,
+        ]
+        
+        self.branch1_dim = branch1_dim
+        self.branch2_dim = branch2_dim
+        self.branch3_dim = branch3_dim
+    
+    def forward_vit_blocks(self, x, H, W, blocks, cls_=None):
+        if cls_ is not None:
+            x = torch.cat((cls_, x), dim=1)
+        for _, blk in enumerate(blocks):
+            x = blk(x, H, W)
+        if cls_ is not None:
+            cls_, x = x[:, :1, :], x[:, 1:, :]
+        return x, cls_
+    
+    def forward_segnext(self, x, H, W, stage_num):
+        B = x.shape[0]
+        patch_embed = getattr(self, f'patch_embed{stage_num + 1}')
+        block = getattr(self, f'block{stage_num + 1}')
+        norm = getattr(self, f'norm{stage_num + 1}')# H/4 
+        x, H, W = patch_embed(x)  
+        for blk in block:         # 过 depth 个 block
+            x = blk(x, H, W)     # 不变  
+        x = norm(x)               
+
+        x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
+        return x
+
+    def forward(self, 
+                x1, x2, x3, 
+                stage_num_1, stage_num_2, stage_num_3,
+                H1, W1, H2, W2, H3, W3,
+                  deform_inputs=None):
+        x1 = self.forward_segnext(x1, H1, W1, stage_num_1)
+        x2 = self.forward_segnext(x2, H2, W2, stage_num_2)
+        x3 = self.forward_segnext(x3, H3, W3, stage_num_3)
+        
+        # 特征交互完的特征
+        x2, x3 = self.interaction_units_23(x2, x3, deform_inputs["3to2"], deform_inputs["2to3"], H2, W2, H3, W3)
+        x1, x2 = self.interaction_units_12(x1, x2, deform_inputs["2to1"], deform_inputs["1to2"], H1, W1, H2, W2)
+        
+        return x1, x2, x3

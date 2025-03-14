@@ -23,7 +23,7 @@ from mmseg.models.segmentors.atl_hiera_37_encoder_decoder import ATL_Hiera_Encod
 from mmseg.models.data_preprocessor import SegDataPreProcessor
 # Backbone
 from mmseg.models.backbones.mscan import MSCAN
-from mmseg.models.backbones.piip_3branch_segnext import PIIPThreeBranch
+from mmseg.models.backbones.piip_3branch_segnext import PIIPThreeBranch_conv
 # from mmseg.models.backbones.piip_2branch import PIIPTwoBranch
 # from mmseg.models.backbones.piip_3branch import PIIPThreeBranch
 # Neck
@@ -74,7 +74,7 @@ model = dict(
     data_preprocessor=data_preprocessor,
     pretrained=None,
     backbone=dict(
-        type=PIIPThreeBranch,
+        type=PIIPThreeBranch_conv,
         n_points=4,
         deform_num_heads=16,
         cffn_ratio=0.25,
@@ -88,9 +88,9 @@ model = dict(
         
         branch1=dict(
             in_channels=4,
-            real_size=384,   # 该分支图像的尺寸
+            real_size=640,   # 该分支图像的尺寸
             pretrain_img_size=224,
-            embed_dims=[64, 128, 320, 512], # 四个stage的输出特征图维度
+            embed_dims=[64, 128, 320, 512], # 四个stage的输出特征图维度 # ViT类的这个stage不变啊！所以这个不行
             mlp_ratios=[8, 8, 4, 4],
             drop_rate=0.0,
             depths=[3, 5, 27, 3], # 每一个stage 包含的MSCA模块的数量？
@@ -104,10 +104,9 @@ model = dict(
         # ViT-base
         branch2=dict(
             pretrained = branch2_base_pretrained, 
-            in_chans=4, 
-            real_size=384,
-            pretrain_img_size=224,
             in_channels=4,
+            real_size=640,
+            pretrain_img_size=224,
             embed_dims=[64, 128, 320, 512],
             mlp_ratios=[8, 8, 4, 4],
             drop_rate=0.0,
@@ -122,10 +121,9 @@ model = dict(
         # ViT-small
         branch3=dict(
             pretrained = branch3_small_pretrained,
-            in_chans=4, 
+            in_channels=4,
             real_size=640,
             pretrain_img_size=224,
-            in_channels=4,
             embed_dims=[64, 128, 320, 512],
             mlp_ratios=[8, 8, 4, 4],
             drop_rate=0.0,
