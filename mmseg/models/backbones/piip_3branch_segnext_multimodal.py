@@ -41,7 +41,7 @@ from .piip_modules import (deform_inputs_1_cnn,
 # from mmdet.utils import get_root_logger
 
 @MODELS.register_module()
-class PIIPThreeBranch_segnext(nn.Module):
+class PIIPThreeBranch_segnext_Multimodal(nn.Module):
     def __init__(self,
                  n_points=4,
                  deform_num_heads=6,
@@ -94,21 +94,18 @@ class PIIPThreeBranch_segnext(nn.Module):
         if 'segnext' in branch1['pretrained']:
             self.branch1 = MSCAN(**branch1)
         else:
-            self.branch1 = InternViT6B(**branch1)
-            self.branch1_w_cls_token = True
+            raise  TypeError('please checkout model type')
         
      
         if 'segnext' in branch2['pretrained']:
             self.branch2 = MSCAN(**branch2)
         else:
-            self.branch2 = InternViT6B(**branch2)
-            self.branch2_w_cls_token = True
+            raise  TypeError('please checkout model type')
             
         if 'segnext' in branch3['pretrained']:
             self.branch3 = MSCAN(**branch3)
         else:
-            self.branch3 = InternViT6B(**branch3)
-            self.branch3_w_cls_token = True
+            raise  TypeError('please checkout model type')
         
         assert len(self.branch1_interaction_indexes) == len(self.branch2_interaction_indexes) == len(self.branch3_interaction_indexes)
         
@@ -240,35 +237,32 @@ class PIIPThreeBranch_segnext(nn.Module):
     def forward(self, x):
         outs = []    # 存放最终的金字塔 特征图
         
-        # Resize images
-        # 根据branch3的图像尺寸，算1和3的缩放因子
-        scale_factor_1to3 = self.branch1_real_size / self.branch3_real_size
-        if scale_factor_1to3 < 1:
-            x1 = F.interpolate(x, scale_factor=scale_factor_1to3, mode='bilinear', align_corners=False)
-        else:
-            x1 = x.clone()
+        # 单模态的图像，通过下采样来进行.
+        # # Resize images
+        # # 根据branch3的图像尺寸，算1和3的缩放因子
+        # scale_factor_1to3 = self.branch1_real_size / self.branch3_real_size
+        # if scale_factor_1to3 < 1:
+        #     x1 = F.interpolate(x, scale_factor=scale_factor_1to3, mode='bilinear', align_corners=False)
+        # else:
+        #     x1 = x.clone()
         
-        # 根据branch3的图像尺寸，算2和3的缩放因子
-        scale_factor_2to3 = self.branch2_real_size / self.branch3_real_size
-        if scale_factor_2to3 < 1:
-            x2 = F.interpolate(x, scale_factor=scale_factor_2to3, mode='bilinear', align_corners=False)
-        else:
-            x2 = x.clone()
+        # # 根据branch3的图像尺寸，算2和3的缩放因子
+        # scale_factor_2to3 = self.branch2_real_size / self.branch3_real_size
+        # if scale_factor_2to3 < 1:
+        #     x2 = F.interpolate(x, scale_factor=scale_factor_2to3, mode='bilinear', align_corners=False)
+        # else:
+        #     x2 = x.clone()
 
-        x3 = x.clone()
-        
+        # x3 = x.clone()
+        # S2 GF2 Google
+        # import pdb; pdb.set_trace()
+        x1, x2, x3 = x[2], x[1], x[0] # [2,10,224,224],[2, 4, 384, 384],[2,3,640,640]]
         # import pdb; pdb.set_trace()
         x1 = x1.type(self.dtype)
         x2 = x2.type(self.dtype)
         x3 = x3.type(self.dtype)
 
         deform_inputs = {}
-
-        # 不能按照这个来，因为这个是给vit的，用的是原始图像，
-        # 这里应该给特征图作为输入
-
-        # Blocks and interactions
-
         # import pdb; pdb.set_trace()
         for i, layer in enumerate(self.interactions):
             indexes1 = self.branch1_interaction_indexes[i]
@@ -292,7 +286,7 @@ class PIIPThreeBranch_segnext(nn.Module):
             # [2, 6400, 128], 80, 80   
             # [2, 1600, 320], 40, 40   
             # [2, 400, 512], 20, 20   
-            B = x.shape[0]
+            B = x[0].shape[0]
             def _segnext_block_forward(x, patch_embed, block, norm):
                 x, H, W = patch_embed(x)
                 for blk in block:         # 过 depth 个 block
@@ -301,10 +295,14 @@ class PIIPThreeBranch_segnext(nn.Module):
                 # x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
                 return x, H, W
 
+            # 对于特征图来说，2048的图像--> 512*512去计算，这也太大了
             x1, H1, W1 = _segnext_block_forward(x1, branch1_patch_embed, branch1_blocks,branch1_norm)  # [2,64,56,56],56,56
             x2, H2, W2 = _segnext_block_forward(x2, branch2_patch_embed, branch2_blocks,branch2_norm)  # [2,64,96,96],96,96
             x3, H3, W3 = _segnext_block_forward(x3, branch3_patch_embed, branch3_blocks,branch3_norm)  # [2,64,160,160],160,160
-             
+            
+
+
+
             # import pdb; pdb.set_trace()
             if self.interact_attn_type == "deform":
             # 这里，怎么计算 可形变注意力

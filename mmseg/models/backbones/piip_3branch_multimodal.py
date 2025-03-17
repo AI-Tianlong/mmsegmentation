@@ -21,6 +21,7 @@ try:
 except:
     has_deform_attn = False
 
+from mmengine.runner.checkpoint import load_state_dict
 from .deit import vit_models
 from .beit import BEiT
 from .internvit_6b import InternViT6B
@@ -222,7 +223,7 @@ class PIIPThreeBranch_MultiModal(nn.Module):
                 checkpoint = {}
                 for k, v in checkpoint_old.items():
                     checkpoint[k.replace('backbone.', '')] = v
-            message = self.load_state_dict(checkpoint, strict=False)
+            message = load_state_dict(self, checkpoint, strict=False, logger='current')
             print_log(message)
 
     def _get_pos_embed(self, pos_embed, pretrain_size, patch_size, H, W):
