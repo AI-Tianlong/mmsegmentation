@@ -23,7 +23,7 @@ from mmseg.models.segmentors.atl_hiera_37_encoder_decoder import ATL_Hiera_Encod
 from mmseg.models.data_preprocessor import SegDataPreProcessor
 # Backbone
 from mmseg.models.backbones.mscan import MSCAN
-from mmseg.models.backbones.piip_3branch_segnext import PIIPThreeBranch_conv
+from mmseg.models.backbones.piip_3branch_segnext import PIIPThreeBranch_segnext
 # from mmseg.models.backbones.piip_2branch import PIIPTwoBranch
 # from mmseg.models.backbones.piip_3branch import PIIPThreeBranch
 # Neck
@@ -74,13 +74,13 @@ model = dict(
     data_preprocessor=data_preprocessor,
     pretrained=None,
     backbone=dict(
-        type=PIIPThreeBranch_conv,
+        type=PIIPThreeBranch_segnext,
         n_points=4,
         deform_num_heads=16,
         cffn_ratio=0.25,
         deform_ratio=0.5,
         with_cffn=True,
-        interact_attn_type='deform',  # 可以换成别的注意力！
+        interact_attn_type='deform',  # 'normal' / 'deform' 可以换成别的注意力！
         interaction_drop_path_rate=0.4,
         interaction_proj=False,
         norm_layer='none',
@@ -88,8 +88,8 @@ model = dict(
         
         branch1=dict(
             in_channels=4,
-            real_size=640,   # 该分支图像的尺寸
-            pretrain_img_size=224,
+            real_size=224,   # 该分支图像的尺寸
+            pretrain_img_size=384,
             embed_dims=[64, 128, 320, 512], # 四个stage的输出特征图维度 # ViT类的这个stage不变啊！所以这个不行
             mlp_ratios=[8, 8, 4, 4],
             drop_rate=0.0,
@@ -98,14 +98,14 @@ model = dict(
             attention_kernel_paddings=[2, [0, 3], [0, 5], [0, 10]],
             act_cfg=dict(type=GELU),
             norm_cfg=dict(type=SyncBN, requires_grad=True),
-            interaction_indexes=[[0, 0], [1, 1], [2, 2], [3, 3]], # 总共就四个stage,只能这么交互
+            interaction_indexes=[[0, 0], [1, 1], [2, 2], [3, 3]], # 总共就四个stage,只能这么交互 # 这里是segnext的四个stage，1 2 3 4 而不是 0 1 2 3，所以这里给了0，需要去加回来
             pretrained = branch1_large_pretrained,
         ),
         # ViT-base
         branch2=dict(
             pretrained = branch2_base_pretrained, 
             in_channels=4,
-            real_size=640,
+            real_size=512,
             pretrain_img_size=224,
             embed_dims=[64, 128, 320, 512],
             mlp_ratios=[8, 8, 4, 4],
@@ -177,11 +177,11 @@ optim_wrapper = dict(
             'head': dict(lr_mult=10.)
         }))
 
-optim_wrapper = dict(
-    type=OptimWrapper,
-    optimizer=optimizer,
-    constructor=CustomLayerDecayOptimizerConstructor,
-    paramwise_cfg=dict(num_layers=24, layer_decay_rate=0.85, skip_stride=[2, 2]))
+# optim_wrapper = dict(
+#     type=OptimWrapper,
+#     optimizer=optimizer,
+#     constructor=CustomLayerDecayOptimizerConstructor,
+#     paramwise_cfg=dict(num_layers=24, layer_decay_rate=0.85, skip_stride=[2, 2]))
 
 param_scheduler = [
     dict(

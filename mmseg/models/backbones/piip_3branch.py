@@ -55,6 +55,7 @@ class PIIPThreeBranch(nn.Module):
         
         super().__init__()
         
+
         if norm_layer == "none":
             norm_layer = nn.Identity
         
@@ -257,16 +258,18 @@ class PIIPThreeBranch(nn.Module):
 
         x3 = x.clone()
         
-        x1 = x1.type(self.dtype)
-        x2 = x2.type(self.dtype)
-        x3 = x3.type(self.dtype)
+        import pdb; pdb.set_trace()
+
+        x1 = x1.type(self.dtype) # [2, 4, 384, 384]
+        x2 = x2.type(self.dtype) # [2, 4, 512, 512]
+        x3 = x3.type(self.dtype) # [2, 4, 640, 640]
 
         deform_inputs = {}
-        if self.interact_attn_type == "deform":
-            deform_inputs["2to1"] = deform_inputs_1_vit(x1, x2)  # 1和2的deform输入
-            deform_inputs["1to2"] = deform_inputs_2_vit(x2, x1)  # 2和1的deform输入
-            deform_inputs["3to2"] = deform_inputs_1_vit(x2, x3)  # 2和3的deform输入
-            deform_inputs["2to3"] = deform_inputs_2_vit(x3, x2)  # 3和2的deform输入
+        if self.interact_attn_type == "deform":                                              
+            deform_inputs["2to1"] = deform_inputs_1_vit(x1, x2)  # 1和2的deform输入  [[1,576 ,1,2]], [32,32], 0]  [reference_points, spatial_shapes, level_start_index]
+            deform_inputs["1to2"] = deform_inputs_2_vit(x2, x1)  # 2和1的deform输入  [[1,1024,1,2]], [24,24], 0]  [reference_points, spatial_shapes, level_start_index]
+            deform_inputs["3to2"] = deform_inputs_1_vit(x2, x3)  # 2和3的deform输入  [[1,1024,1,2]], [40,40], 0]  [reference_points, spatial_shapes, level_start_index]
+            deform_inputs["2to3"] = deform_inputs_2_vit(x3, x2)  # 3和2的deform输入  [[1,1600,1,2]], [32,32], 0]  [reference_points, spatial_shapes, level_start_index]
         else:
             deform_inputs["2to1"] = [None, None, None]
             deform_inputs["1to2"] = [None, None, None]

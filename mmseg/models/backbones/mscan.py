@@ -112,7 +112,6 @@ class StemConv(BaseModule):
 
     def forward(self, x):
         """Forward function."""
-        import pdb;pdb.set_trace()
         x = self.proj(x) # [B,4,640,640] --> [B, 64, 160, 160]
         _, _, H, W = x.size()
         x = x.flatten(2).transpose(1, 2) # [B, 64, 160, 160] --> [B, 64, 25600] --> [B, 25600, 64]
@@ -337,7 +336,7 @@ class OverlapPatchEmbed(BaseModule):
         # import pdb;pdb.set_trace()
     def forward(self, x):
         """Forward function."""
-        import pdb;pdb.set_trace()
+        # import pdb;pdb.set_trace()
         x = self.proj(x) #    # [B, 128, 80, 80] --> [B,320,40,40]
         _, _, H, W = x.shape
         x = self.norm(x)
@@ -405,6 +404,8 @@ class MSCAN(BaseModule):
             self.init_cfg = dict(type='Pretrained', checkpoint=pretrained)
         elif pretrained is not None:
             raise TypeError('pretrained must be a str or None')
+
+        self.pretrained = pretrained
 
         self.depths = depths # Base:[3,3,12,3]
         self.num_stages = num_stages # 4 

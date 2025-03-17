@@ -38,9 +38,6 @@ data_preprocessor.update(
         # std = [346.9202500676,456.20526627209,617.83057417844,361.47252556325],
         mean=[995.26933225455, 1452.7270343669, 1638.4348408118, 3150.9832206793],
         std=[317.36181350835, 406.4103774175, 546.77043273976, 501.33003719076],
-        # mean=None,
-        # std=None,
-        # bgr_to_rgb=True,
         pad_val=0,
         seg_pad_val=255,
         size=crop_size))
@@ -132,5 +129,11 @@ param_scheduler = [
     )
 ]
 train_cfg = dict(type=IterBasedTrainLoop, max_iters=40000, val_interval=1000)
-load_from = '/data/AI-Tianlong/Checkpoints/1-自己预训练的权重/mmseg1.x_beit_adapter_GIDimg_FiveBillionlabel-80000iter_miou_69_beitv2pr_4channel.pth'
+# 5B数据集上训练过得
+# load_from = '/data/AI-Tianlong/Checkpoints/1-自己预训练的权重/mmseg1.x_beit_adapter_GIDimg_FiveBillionlabel-80000iter_miou_69_beitv2pr_4channel.pth'
+
+load_from = '/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/2024-高分对地观测大赛-作物提取比赛/2024-作物提取比赛-GF-20241122-beit_adapter_mask2former_4xb2_40k_train_val/iter_20000.pth'
+
+
+
 # load_from = None

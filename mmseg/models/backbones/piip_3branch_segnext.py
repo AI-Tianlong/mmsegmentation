@@ -29,16 +29,19 @@ from .mscan import MSCAN  # segnext
 
 from .piip_modules import (deform_inputs_1_vit, 
                            deform_inputs_2_vit, 
-                           ThreeBranchInteractionBlock,
                            ThreeBranchInteractionBlock_segnext)
 
 
+from .piip_modules import (deform_inputs_1_cnn,
+                           deform_inputs_2_cnn, 
+                           ThreeBranchInteractionBlock_segnext)
+                            
 # mmcv 1.x
 # from mmdet.models.builder import BACKBONES
 # from mmdet.utils import get_root_logger
 
 @MODELS.register_module()
-class PIIPThreeBranch_conv(nn.Module):
+class PIIPThreeBranch_segnext(nn.Module):
     def __init__(self,
                  n_points=4,
                  deform_num_heads=6,
@@ -83,9 +86,9 @@ class PIIPThreeBranch_conv(nn.Module):
         self.branch2_w_cls_token = branch2.pop("branch2_w_cls_token", False)
         self.branch3_w_cls_token = branch3.pop("branch3_w_cls_token", False)
         
-        self.branch1_real_size = branch1.pop('pretrain_img_size', False)
-        self.branch2_real_size = branch2.pop('pretrain_img_size', False)
-        self.branch3_real_size = branch3.pop('pretrain_img_size', False)
+        self.branch1_pretrain_size = branch1.pop('pretrain_img_size', False)
+        self.branch2_pretrain_size = branch2.pop('pretrain_img_size', False)
+        self.branch3_pretrain_size = branch3.pop('pretrain_img_size', False)
 
       
         if 'segnext' in branch1['pretrained']:
@@ -111,13 +114,13 @@ class PIIPThreeBranch_conv(nn.Module):
         
         self.interactions = nn.Sequential(*[
             ThreeBranchInteractionBlock_segnext(
-                branch1_dim=self.branch1.embed_dims[num_stage],  # 这个还不太通用啊,那就分开写三个呗？
-                branch2_dim=self.branch2.embed_dims[num_stage],
-                branch3_dim=self.branch3.embed_dims[num_stage], 
+                branch1_dim=branch1.embed_dims[num_stage],  # 这个还不太通用啊,那就分开写三个呗？
+                branch2_dim=branch2.embed_dims[num_stage],
+                branch3_dim=branch3.embed_dims[num_stage], 
 
-                branch1_img_size=self.branch1.real_size,
-                branch2_img_size=self.branch2.real_size,
-                branch3_img_size=self.branch3.real_size, 
+                branch1_img_size=self.branch1_real_size,
+                branch2_img_size=self.branch2_real_size,
+                branch3_img_size=self.branch3_real_size,
 
                 num_heads=deform_num_heads, 
                 n_points=n_points,
@@ -132,9 +135,9 @@ class PIIPThreeBranch_conv(nn.Module):
             for num_stage in range(len(self.branch1_interaction_indexes))
         ])
         
-        dim1 = self.branch1.embed_dims  # branch1的维度, 最大
-        dim2 = self.branch2.embed_dims  # branch2的维度, 中等
-        dim3 = self.branch3.embed_dims  # branch3的维度, 最小
+        dim1 = branch1.embed_dims  # branch1的维度, 最大
+        dim2 = branch2.embed_dims  # branch2的维度, 中等
+        dim3 = branch3.embed_dims  # branch3的维度, 最小
 
         # dim1 是一个列表, 理论上，每一个[64,128,320,512]的元素，都要满足dim1>=dim2>=dim3
 
@@ -186,7 +189,9 @@ class PIIPThreeBranch_conv(nn.Module):
         
     @property
     def dtype(self):
-        return self.branch3.patch_embed.proj.weight.dtype
+        # import pdb; pdb.set_trace()
+        return self.branch1.patch_embed1.proj[0].weight.dtype  #有没有这个参数还是一个问题呢
+    
     
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -233,6 +238,8 @@ class PIIPThreeBranch_conv(nn.Module):
                 m._reset_parameters()
 
     def forward(self, x):
+        outs = []    # 存放最终的金字塔 特征图
+        
         # Resize images
         # 根据branch3的图像尺寸，算1和3的缩放因子
         scale_factor_1to3 = self.branch1_real_size / self.branch3_real_size
@@ -250,74 +257,94 @@ class PIIPThreeBranch_conv(nn.Module):
 
         x3 = x.clone()
         
+        # import pdb; pdb.set_trace()
         x1 = x1.type(self.dtype)
         x2 = x2.type(self.dtype)
         x3 = x3.type(self.dtype)
 
         deform_inputs = {}
-        if self.interact_attn_type == "deform":
-            deform_inputs["2to1"] = deform_inputs_1_vit(x1, x2)  # 1和2的deform输入
-            deform_inputs["1to2"] = deform_inputs_2_vit(x2, x1)  # 2和1的deform输入
-            deform_inputs["3to2"] = deform_inputs_1_vit(x2, x3)  # 2和3的deform输入
-            deform_inputs["2to3"] = deform_inputs_2_vit(x3, x2)  # 3和2的deform输入
-        else:
-            deform_inputs["2to1"] = [None, None, None]
-            deform_inputs["1to2"] = [None, None, None]
-            deform_inputs["3to2"] = [None, None, None]
-            deform_inputs["2to3"] = [None, None, None]
-        
-        # import pdb; pdb.set_trace()
-        # Patch embedding and position embedding
 
-
+        # 不能按照这个来，因为这个是给vit的，用的是原始图像，
+        # 这里应该给特征图作为输入
 
         # Blocks and interactions
+
+        # import pdb; pdb.set_trace()
         for i, layer in enumerate(self.interactions):
             indexes1 = self.branch1_interaction_indexes[i]
-            branch1_blocks = self.branch1.blocks[indexes1[0]:indexes1[-1] + 1]\
-                if 'perceiver' not in self.branch1.pretrained else self.branch1.layers[indexes1[0]:indexes1[-1] + 1]
+            branch1_patch_embed = getattr(self.branch1, f'patch_embed{indexes1[0] + 1}')
+            branch1_blocks =  getattr(self.branch1, f'block{indexes1[0]+1}')
+            branch1_norm = getattr(self.branch1, f'norm{indexes1[0]+1}')
+
             indexes2 = self.branch2_interaction_indexes[i]
-            branch2_blocks = self.branch2.blocks[indexes2[0]:indexes2[-1] + 1]\
-                if 'perceiver' not in self.branch2.pretrained else self.branch2.layers[indexes2[0]:indexes2[-1] + 1]
+            branch2_patch_embed = getattr(self.branch2, f'patch_embed{indexes2[0] + 1}')
+            branch2_blocks =  getattr(self.branch2, f'block{indexes2[0]+1}')
+            branch2_norm = getattr(self.branch2, f'norm{indexes2[0]+1}')
+
             indexes3 = self.branch3_interaction_indexes[i]
-            branch3_blocks = self.branch3.blocks[indexes3[0]:indexes3[-1] + 1]\
-                if 'perceiver' not in self.branch3.pretrained else self.branch3.layers[indexes3[0]:indexes3[-1] + 1]
+            branch3_patch_embed = getattr(self.branch3, f'patch_embed{indexes3[0] + 1}')
+            branch3_blocks =  getattr(self.branch3, f'block{indexes3[0]+1}')
+            branch3_norm = getattr(self.branch3, f'norm{indexes3[0]+1}')
 
-            x1, x2, x3, _, _, _ = layer(x1, x2, x3,
-                        branch1_blocks, branch2_blocks, branch3_blocks,
-                        H1=H1, W1=W1, H2=H2, W2=W2, H3=H3, W3=W3,
-                        cls1=None, cls2=None, cls3=None,
-                        deform_inputs=deform_inputs)
+            # import pdb; pdb.set_trace()
 
-        # Branch merging
-        x1 = x1.transpose(1, 2).view(bs1, dim1, H1, W1) # [2, 576, 1024] --> [2, 1024, 24, 24]
-        x1 = self.merge_branch1(x1)   # 特征图维度变到branch1的 [2, 1024, 24, 24]->[2, 1024, 24, 24]            
-        x1 = x1.type(torch.float32) 
-        x1 = F.interpolate(x1, size=(H3, W3), mode='bilinear', align_corners=False)  # 特征图尺寸变到branch3的
-        x1 = x1.type(self.dtype) # [2, 1024, 24, 24]->[2, 1024, 40, 40]
+            # [2, 25600, 64], 160, 160   
+            # [2, 6400, 128], 80, 80   
+            # [2, 1600, 320], 40, 40   
+            # [2, 400, 512], 20, 20   
+            B = x.shape[0]
+            def _segnext_block_forward(x, patch_embed, block, norm):
+                x, H, W = patch_embed(x)
+                for blk in block:         # 过 depth 个 block
+                    x = blk(x, H, W)     # 不变
+                x = norm(x)       
+                # x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
+                return x, H, W
 
-        x2 = x2.transpose(1, 2).view(bs2, dim2, H2, W2) # [2, 1024, 768] -> [2, 768, 32, 32]
-        x2 = self.merge_branch2(x2)  # 特征图维度变到branch1的 [2, 768, 32, 32]->[2, 1024, 32, 32]
-        x2 = x2.type(torch.float32)
-        x2 = F.interpolate(x2, size=(H3, W3), mode='bilinear', align_corners=False) # 特征图尺寸变到branch3的
-        x2 = x2.type(self.dtype) # [2, 1024, 32, 32]->[2, 1024, 40, 40]
-        
-        x3 = x3.transpose(1, 2).view(bs3, dim3, H3, W3) # [2,1600,384] -> [2, 384, 40, 40]
-        x3 = self.merge_branch3(x3)  # 特征图维度变到branch1的 
-        
-        out = x1 * self.w1 + x2 * self.w2 + x3 * self.w3  # 最终的输出
+            x1, H1, W1 = _segnext_block_forward(x1, branch1_patch_embed, branch1_blocks,branch1_norm)  # [2,64,56,56],56,56
+            x2, H2, W2 = _segnext_block_forward(x2, branch2_patch_embed, branch2_blocks,branch2_norm)  # [2,64,96,96],96,96
+            x3, H3, W3 = _segnext_block_forward(x3, branch3_patch_embed, branch3_blocks,branch3_norm)  # [2,64,160,160],160,160
              
+            # import pdb; pdb.set_trace()
+            if self.interact_attn_type == "deform":
+            # 这里，怎么计算 可形变注意力
+            # import pdb; pdb.set_trace()
+                deform_inputs["2to1"] = deform_inputs_1_cnn(x1, H1, W1, x2, H2, W2)  # 1和2的deform输入
+                deform_inputs["1to2"] = deform_inputs_2_cnn(x2, H2, W2, x1, H1, W1)  # 2和1的deform输入
+                deform_inputs["3to2"] = deform_inputs_1_cnn(x2, H2, W2, x3, H3, W3)  # 2和3的deform输入
+                deform_inputs["2to3"] = deform_inputs_2_cnn(x3, H3, W3, x2, H2, W2)  # 3和2的deform输入
+            else:
+                deform_inputs["2to1"] = [None, None, None]
+                deform_inputs["1to2"] = [None, None, None]
+                deform_inputs["3to2"] = [None, None, None]
+                deform_inputs["2to3"] = [None, None, None]
         
-        # Outputs for fpn
-        if not self.is_dino:
-            f1 = self.fpn1(out).contiguous().float() # [2, 1024, 160, 160]
-            f2 = self.fpn2(out).contiguous().float() # [2, 1024, 80, 80]
-            f3 = self.fpn3(out).contiguous().float() # [2, 1024, 40, 40]
-            f4 = self.fpn4(out).contiguous().float() # [2, 1024, 20, 20]
-            return [f1, f2, f3, f4]
+            # import pdb; pdb.set_trace()
+            x1, x2, x3, = layer(x1, x2, x3,
+                                H1=H1, W1=W1, H2=H2, W2=W2, H3=H3, W3=W3,
+                                deform_inputs=deform_inputs)   # 传给了ThreeBranchInteractionBlock_segnext
+
+            x1 = x1.reshape(B, H1, W1, -1).permute(0, 3, 1, 2).contiguous()  # [2, 64, 56, 56]
+            x2 = x2.reshape(B, H2, W2, -1).permute(0, 3, 1, 2).contiguous()  # [2, 64, 128, 128]
+            x3 = x3.reshape(B, H3, W3, -1).permute(0, 3, 1, 2).contiguous()  # [2, 64, 160, 160]
+
+            # Branch merging
             
-        else:
-            f2 = self.fpn2(out).contiguous().float()
-            f3 = self.fpn3(out).contiguous().float()
-            f4 = self.fpn4(out).contiguous().float()
-            return [f2, f3, f4]
+            # 通道一样，只变尺度
+            x1 = x1.type(torch.float32) 
+            x1 = F.interpolate(x1, size=(H3, W3), mode='bilinear', align_corners=False)  # 特征图尺寸变到branch3的
+            x1 = x1.type(self.dtype) # [2, 1024, 24, 24]->[2, 1024, 40, 40]
+
+            # 通道一样，只变尺度
+            x2 = x2.type(torch.float32)
+            x2 = F.interpolate(x2, size=(H3, W3), mode='bilinear', align_corners=False) # 特征图尺寸变到branch3的
+            x2 = x2.type(self.dtype) # [2, 1024, 32, 32]->[2, 1024, 40, 40]
+            
+            x3 = x3.type(torch.float32) 
+            x3 = x3.type(self.dtype)
+            
+            out = x1 * self.w1 + x2 * self.w2 + x3 * self.w3  # 最终的输出
+            outs.append(out.contiguous().float()) 
+            import pdb; pdb.set_trace()
+
+        return outs
