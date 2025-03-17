@@ -50,13 +50,9 @@ with read_base():
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 num_classes = 18
 
-# deepspeed = True
-deepspeed = False
-deepspeed_config = 'configs_zero_deepspeed/adam_zero1_bf16.json'
-
-branch1_pretrained = '/opt/AI-Tianlong/openmmlab/mmsegmentation/checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_large_224_21k.pth'
-branch2_pretrained = '/opt/AI-Tianlong/openmmlab/mmsegmentation/checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
-branch3_pretrained = '/opt/AI-Tianlong/openmmlab/mmsegmentation/checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_small_224_21k.pth'
+branch1_pretrained = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_large_224_21k.pth'
+branch2_pretrained = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
+branch3_pretrained = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_small_224_21k.pth'
 
 crop_size = (640, 640)
 data_preprocessor = dict(
@@ -80,7 +76,7 @@ model = dict(
         cffn_ratio=0.25,
         deform_ratio=0.5,
         with_cffn=True,
-        interact_attn_type='deform',
+        interact_attn_type='deform',  # 'deform' or 'normal'
         interaction_drop_path_rate=0.4,
         interaction_proj=False,
         norm_layer='none',
@@ -101,7 +97,15 @@ model = dict(
             with_fpn=False,
             interaction_indexes=[[0, 1], [2, 3], [4, 5], [6, 7], [8, 9], [10, 11], [12, 13], [14, 15], [16, 17], [18, 19], [20, 21], [22, 23]],
             pretrained = branch1_pretrained,
-            use_flash_attn=True,
+            use_flash_attn=True,    # 用上这个后，显著降低了计算量啊！！！！
+            window_attn=[True, True, True, True, True, True,
+                        True, True, True, True, True, True,
+                        True, True, True, True, True, True,
+                        True, True, True, True, True, True,],
+            window_size=[28, 28, 28, 28, 28, 28,
+                        28, 28, 28, 28, 28, 28,
+                        28, 28, 28, 28, 28, 28,
+                        28, 28, 28, 28, 28, 28],
         ),
         # ViT-base
         branch2=dict(
@@ -120,7 +124,15 @@ model = dict(
             with_fpn=False,
             interaction_indexes=[[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9], [10, 10], [11, 11]],
             pretrained =  branch2_pretrained,
-            use_flash_attn=True,
+            use_flash_attn=True,    # 用上这个后，显著降低了计算量啊！！！！
+            window_attn=[True, True, True,
+                        True, True, True,
+                        True, True, True,
+                        True, True, True,],
+            window_size=[28, 28, 28,
+                        28, 28, 28,
+                        28, 28, 28,
+                        28, 28, 28],
         ),
         # ViT-small
         branch3=dict(
@@ -140,6 +152,14 @@ model = dict(
             interaction_indexes=[[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9], [10, 10], [11, 11]],
             pretrained =  branch3_pretrained,
             use_flash_attn=True,
+            window_attn=[True, True, True,
+                        True, True, True,
+                        True, True, True,
+                        True, True, True,],
+            window_size=[28, 28, 28,
+                        28, 28, 28,
+                        28, 28, 28,
+                        28, 28, 28],
         ),
     ),
     # neck=dict(
@@ -162,20 +182,20 @@ model = dict(
             type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)
     ),
   
-    auxiliary_head=dict(
-        type=FCNHead,
-        in_channels=1024,
-        in_index=3,
-        channels=256,
-        num_convs=1,
-        concat_input=False,
-        dropout_ratio=0.1,
-        num_classes=num_classes,
-        norm_cfg=norm_cfg,
-        align_corners=False,
-        loss_decode=dict(
-            type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)
-    ),
+    # auxiliary_head=dict(
+    #     type=FCNHead,
+    #     in_channels=1024,
+    #     in_index=3,
+    #     channels=256,
+    #     num_convs=1,
+    #     concat_input=False,
+    #     dropout_ratio=0.1,
+    #     num_classes=num_classes,
+    #     norm_cfg=norm_cfg,
+    #     align_corners=False,
+    #     loss_decode=dict(
+    #         type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)
+    # ),
 
     test_cfg=dict(mode='whole')
 )
@@ -229,14 +249,3 @@ test_evaluator = dict(
     # format_only=True,
     keep_results=True)
 
-if deepspeed:
-    checkpoint_config = dict(deepspeed=deepspeed, by_epoch=False, interval=2000, max_keep_ckpts=4000)
-else:
-    checkpoint_config = dict(by_epoch=False, interval=2000, max_keep_ckpts=1)
-
-if deepspeed:
-    custom_hooks = [
-        dict(
-            type='ToBFloat16Hook',
-            priority=49),
-    ]

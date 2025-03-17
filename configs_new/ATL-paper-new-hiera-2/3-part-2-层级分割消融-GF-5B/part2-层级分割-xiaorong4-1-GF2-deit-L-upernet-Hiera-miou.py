@@ -123,7 +123,7 @@ model = dict(
 
         # 原始的
         # type=UPerHead,
-       in_channels=[1024, 1024, 1024, 1024],
+        in_channels=[1024, 1024, 1024, 1024],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
         channels=1024,

@@ -19,13 +19,14 @@ crop_size = (224, 224)
 train_pipeline = [
     dict(type=LoadSingleRSImageFromFile),
     dict(type=LoadAnnotations),
-    dict(
-        type=RandomResize,
-        scale=crop_size,
-        ratio_range=(0.5, 2.0),
-        keep_ratio=True),
-    dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),
-    dict(type=RandomFlip, prob=0.5),
+    dict(type=Resize, scale=crop_size, keep_ratio=True),  # 只是全部resize成640
+    # dict(
+    #     type=RandomResize,
+    #     scale=crop_size,
+    #     ratio_range=(0.5, 2.0),
+    #     keep_ratio=True),
+    # dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),
+    # dict(type=RandomFlip, prob=0.5),
     # dict(type=PhotoMetricDistortion), # 多通道 不太能用这个
     dict(type=PackSegInputs)
 ]
@@ -41,28 +42,12 @@ val_pipeline = [  #
 
 test_pipeline = [  #
     dict(type=LoadSingleRSImageFromFile),
-    # dict(type=Resize, scale=(512, 512), keep_ratio=True),   # 不 Resize 按原图尺寸推理
+    dict(type=Resize, scale=crop_size, keep_ratio=True),   # 不 Resize 按原图尺寸推理
     # dict(type=Resize, scale=(6800, 7200), keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
     dict(type=LoadAnnotations),  # 不需要验证，不用添加 Annotations
     dict(type=PackSegInputs)
-]
-
-img_ratios = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75]
-tta_pipeline = [
-    dict(type=LoadSingleRSImageFromFile, backend_args=None),
-    dict(
-        type=TestTimeAug,
-        transforms=[[
-            dict(type=Resize, scale_factor=r, keep_ratio=True)
-            for r in img_ratios
-        ],
-                    [
-                        dict(type=RandomFlip, prob=0., direction='horizontal'),
-                        dict(type=RandomFlip, prob=1., direction='horizontal')
-                    ], [dict(type=LoadAnnotations)],
-                    [dict(type=PackSegInputs)]])
 ]
 
 train_dataloader = dict(

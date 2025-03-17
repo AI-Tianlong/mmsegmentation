@@ -33,7 +33,7 @@ from .piip_modules import deform_inputs_1_vit, deform_inputs_2_vit, ThreeBranchI
 # from mmdet.utils import get_root_logger
 
 @MODELS.register_module()
-class PIIPThreeBranch(nn.Module):
+class FuZhu_2Branch(nn.Module):
     def __init__(self,
                  n_points=4,
                  deform_num_heads=6,
@@ -42,14 +42,13 @@ class PIIPThreeBranch(nn.Module):
                  deform_ratio=1.0,   
                  is_dino=False,   
                  interaction_proj=True,
-                      
+                 
                  interact_attn_type='normal',
                  interaction_drop_path_rate=0.3,
                  norm_layer=partial(nn.LayerNorm, eps=1e-6),
                  
-                 branch1={},
-                 branch2={},
-                 branch3={},
+                 new_domin_branch={},
+                 land_cover_branch={},
                  pretrained=None
                  ):
         

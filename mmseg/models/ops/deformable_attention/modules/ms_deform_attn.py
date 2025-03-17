@@ -26,7 +26,13 @@ def _is_power_of_2(n):
 
 
 class MSDeformAttn(nn.Module):
-    def __init__(self, d_model=256, n_levels=4, n_heads=8, n_points=4, ratio=1.0, d_feat=None):
+    def __init__(self, 
+                 d_model=256, 
+                 n_levels=4, 
+                 n_heads=8, 
+                 n_points=4, 
+                 ratio=1.0, 
+                 d_feat=None):
         """Multi-Scale Deformable Attention Module.
 
         :param d_model      hidden dimension
@@ -60,7 +66,7 @@ class MSDeformAttn(nn.Module):
         
         if d_feat is None:
             d_feat = d_model
-        self.value_proj = nn.Linear(d_feat, int(d_model * ratio))
+        self.value_proj = nn.Linear(d_feat, int(d_model * ratio))  # 这里注意一下。
 
         self._reset_parameters()
 
@@ -83,8 +89,12 @@ class MSDeformAttn(nn.Module):
         xavier_uniform_(self.output_proj.weight.data)
         constant_(self.output_proj.bias.data, 0.)
 
-    def forward(self, query, reference_points, input_flatten, input_spatial_shapes,
-                input_level_start_index, input_padding_mask=None):
+    def forward(self, query, 
+                reference_points, 
+                input_flatten, 
+                input_spatial_shapes,
+                input_level_start_index, 
+                input_padding_mask=None):
         """
         :param query                       (N, Length_{query}, C)
         :param reference_points            (N, Length_{query}, n_levels, 2), range in [0, 1], top-left (0,0), bottom-right (1, 1), including padding area
@@ -97,16 +107,18 @@ class MSDeformAttn(nn.Module):
         :return output                     (N, Length_{query}, C)
         """
 
-        N, Len_q, _ = query.shape
-        N, Len_in, _ = input_flatten.shape
+        # import pdb; pdb.set_trace()
+
+        N, Len_q, _ = query.shape           # segnext：[2,16384,64] deit:[2,1024,768]       [2,25600,64][2,1600,384]
+        N, Len_in, _ = input_flatten.shape  # segnext: [2,25600,64] deit:[2,1600,384]       [2,16384,64][2,25600,64]
         # assert (input_spatial_shapes[:, 0] *
         #         input_spatial_shapes[:, 1]).sum() == Len_in
 
-        value = self.value_proj(input_flatten)
+        value = self.value_proj(input_flatten)       # [2, 25600, 64] --> [2,25600, 32]
         if input_padding_mask is not None:
             value = value.masked_fill(input_padding_mask[..., None], float(0))
 
-        value = value.view(N, Len_in, self.n_heads,
+        value = value.view(N, Len_in, self.n_heads,  
                            int(self.ratio * self.d_model) // self.n_heads)
         sampling_offsets = self.sampling_offsets(query).view(
             N, Len_q, self.n_heads, self.n_levels, self.n_points, 2)

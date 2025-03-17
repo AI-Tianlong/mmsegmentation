@@ -47,19 +47,15 @@ with read_base():
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
-
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 num_classes = 18
 
-# deepspeed = True
-deepspeed = False
-deepspeed_config = 'configs_zero_deepspeed/adam_zero1_bf16.json'
-
 crop_size = (224, 224)
+pretrained = 'checkpoints/2-对比实验的权重/piip/deit/10chan/deit_10chan_large_224_21k.pth'
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    mean = None,
-    std = None,
+    mean =None,
+    std =None,
     # bgr_to_rgb=True,
     pad_val=0,
     seg_pad_val=255,
@@ -69,7 +65,6 @@ data_preprocessor = dict(
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
-    pretrained='checkpoints/2-对比实验的权重/piip/deit/10chan/deit_10chan_large_224_21k.pth',
     backbone=dict(
         type=vit_models,
         in_chans=10, 
@@ -85,9 +80,16 @@ model = dict(
         drop_path_rate=0.4,
         init_scale=1.,
         with_fpn=True,
-        # interaction_indexes=[[0, 1], [2, 3], [4, 5], [6, 7], [8, 9], [10, 11], [12, 13], [14, 15], [16, 17], [18, 19], [20, 21], [22, 23]],
-        # pretrained = "checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_large_224_21k.pth",
+        pretrained = pretrained,
         use_flash_attn=True,
+        window_attn=[True, True, True, True, True, True,
+                     True, True, True, True, True, True,
+                     True, True, True, True, True, True,
+                     True, True, True, True, True, True,],
+        window_size=[28, 28, 28, 28, 28, 28,
+                     28, 28, 28, 28, 28, 28,
+                     28, 28, 28, 28, 28, 28,
+                     28, 28, 28, 28, 28, 28],
         ),
     # neck=dict(
     #     type=MultiLevelNeck,
@@ -109,20 +111,20 @@ model = dict(
             type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)
     ),
   
-    auxiliary_head=dict(
-        type=FCNHead,
-        in_channels=1024,
-        in_index=3,
-        channels=256,
-        num_convs=1,
-        concat_input=False,
-        dropout_ratio=0.1,
-        num_classes=num_classes,
-        norm_cfg=norm_cfg,
-        align_corners=False,
-        loss_decode=dict(
-            type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)
-    ),
+    # auxiliary_head=dict(
+    #     type=FCNHead,
+    #     in_channels=1024,
+    #     in_index=3,
+    #     channels=256,
+    #     num_convs=1,
+    #     concat_input=False,
+    #     dropout_ratio=0.1,
+    #     num_classes=num_classes,
+    #     norm_cfg=norm_cfg,
+    #     align_corners=False,
+    #     loss_decode=dict(
+    #         type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)
+    # ),
 
     test_cfg=dict(mode='whole')
 )
@@ -163,7 +165,7 @@ default_hooks = dict(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),
     param_scheduler=dict(type=ParamSchedulerHook),
-    checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=10),
+    checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=2),
     sampler_seed=dict(type=DistSamplerSeedHook),
     visualization=dict(type=SegVisualizationHook))
 
@@ -176,14 +178,3 @@ test_evaluator = dict(
     # format_only=True,
     keep_results=True)
 
-if deepspeed:
-    checkpoint_config = dict(deepspeed=deepspeed, by_epoch=False, interval=2000, max_keep_ckpts=1)
-else:
-    checkpoint_config = dict(by_epoch=False, interval=2000, max_keep_ckpts=1)
-
-if deepspeed:
-    custom_hooks = [
-        dict(
-            type='ToBFloat16Hook',
-            priority=49),
-    ]

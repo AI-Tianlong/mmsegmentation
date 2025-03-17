@@ -47,9 +47,6 @@ with read_base():
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 num_classes = 18
 
-# deepspeed = True
-deepspeed = False
-deepspeed_config = 'configs_zero_deepspeed/adam_zero1_bf16.json'
 
 # 这和后面base的模型不一样的话，如果在decode_head里，给这三个数赋值的话，会报非常难定的错误
 crop_size = (2048, 640, 224)
@@ -219,7 +216,6 @@ default_hooks = dict(
     sampler_seed=dict(type=DistSamplerSeedHook),
     visualization=dict(type=SegVisualizationHook))
 
-
 val_evaluator = dict(
     type=IoUMetric_MultiModal, 
     iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
@@ -228,15 +224,3 @@ test_evaluator = dict(
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)
-
-if deepspeed:
-    checkpoint_config = dict(deepspeed=deepspeed, by_epoch=False, interval=2000, max_keep_ckpts=4000)
-else:
-    checkpoint_config = dict(by_epoch=False, interval=2000, max_keep_ckpts=1)
-
-if deepspeed:
-    custom_hooks = [
-        dict(
-            type='ToBFloat16Hook',
-            priority=49),
-    ]

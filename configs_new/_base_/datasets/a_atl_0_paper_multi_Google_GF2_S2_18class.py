@@ -36,18 +36,14 @@ dataset_type_test = ATL_5B_GF_Google_S2_Dataset_18class_train
 # data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-seg-裁切好的训练图像_S2_GF2_Google_size512'
 data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-Google-GF2-S2-地理配准-dataset-base224'
 
+resize_scale = [2048, 640, 224]
 # crop_size = (512, 512)  #这里怎么搞呢？每一个图像的尺寸都不一样，并且同一组数据里，crop_size也不一样
                         # PIIP的处理，是先通过最大的尺寸读进来，然后在backbone的forward里去插值进行缩放处理。
-albu_train_transforms = [
-    dict(type='HorizontalFlip', p=0.5),
-    dict(type='VerticalFlip', p=0.5)
-]
-
 
 train_pipeline = [
     dict(type=LoadMultiRSImageFromFile_with_data_preproocess_piip_samename),
     dict(type=ATL_MultiModal_LoadAnnotations),
-    dict(type=MultiImg_MultiAnn_Resize, scale=[2048,640,224], keep_ratio=True),
+    dict(type=MultiImg_MultiAnn_Resize, scale=resize_scale, keep_ratio=True),
     # dict(
     #     type=RandomChoiceResize,
     #     scales=[int(x * 0.1 * 512) for x in range(5, 21)],
@@ -65,7 +61,7 @@ val_pipeline = [  #
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
     dict(type=ATL_MultiModal_LoadAnnotations),
-    dict(type=MultiImg_MultiAnn_Resize, scale=[2048,640,224], keep_ratio=True),
+    dict(type=MultiImg_MultiAnn_Resize, scale=resize_scale, keep_ratio=True),
     dict(type=ATL_MultiRSImage_PackSegInputs_PIIP_samename)
 ]
 
@@ -75,23 +71,8 @@ test_pipeline = [  #
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
     dict(type=ATL_MultiModal_LoadAnnotations),
-    dict(type=MultiImg_MultiAnn_Resize, scale=[2048,640,224], keep_ratio=True),
+    dict(type=MultiImg_MultiAnn_Resize, scale=resize_scale, keep_ratio=True),
     dict(type=ATL_MultiRSImage_PackSegInputs_PIIP_samename)
-]
-
-img_ratios = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75]
-tta_pipeline = [
-    dict(type=LoadSingleRSImageFromFile_with_data_preproocess, backend_args=None),
-    dict(
-        type=TestTimeAug,
-        transforms=[[
-            dict(type=Resize, scale_factor=r, keep_ratio=True)
-            for r in img_ratios],
-                [
-                    dict(type=RandomFlip, prob=0., direction='horizontal'),
-                    dict(type=RandomFlip, prob=1., direction='horizontal')
-                ], [dict(type=ATL_MultiModal_LoadAnnotations)],
-                [dict(type=PackSegInputs)]])
 ]
 
 train_dataloader = dict(

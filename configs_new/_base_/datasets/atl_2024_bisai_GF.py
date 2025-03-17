@@ -13,7 +13,7 @@ from mmseg.evaluation import IoUMetric
 
 # dataset settings
 dataset_type = ATL2024Bisai_GF
-data_root = 'data/2024-高分对地观测比赛/初赛/裁切好的训练图像_512'
+data_root = '/data/AI-Tianlong/openmmlab/mmsegmentation/data/2024-高分对地观测比赛/复赛/crop_512'
 
 crop_size = (512, 512)
 train_pipeline = [
@@ -69,8 +69,8 @@ tta_pipeline = [
 ]
 
 train_dataloader = dict(
-    batch_size=2,
-    num_workers=4,
+    batch_size=8,
+    num_workers=8,
     persistent_workers=True,
     sampler=dict(type=InfiniteSampler, shuffle=True),
     dataset=dict(
