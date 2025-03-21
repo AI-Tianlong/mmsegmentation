@@ -69,7 +69,6 @@ pretrained = ''
 model = dict(
     type=FuZhu_EncoderDecoder,
     data_preprocessor=data_preprocessor,
-    
     new_domain_encoder_decoder=dict(
         backbone=dict(
             type=vit_models,
@@ -95,78 +94,8 @@ model = dict(
             window_size=[28, 28, 28, 28, 28, 28,
                         28, 28, 28, 28, 28, 28,
                         28, 28, 28, 28, 28, 28,
-                        28, 28, 28, 28, 28, 28],
-            ),
-            decode_head=dict(),
-            test_cfg=dict(mode='whole'),
-    ),
-    land_cover_encoder_decoder=dict(
-        backbone=dict(),
-        decode_head=dict(),
-        test_cfg=dict(mode='whole'),
-    ),
-
-    backbone=dict(
-        type = FuZhu_2Branch,
-        new_domin_branch=dict(
-            type=vit_models,
-            in_chans=10, 
-            img_size=512,
-            pretrain_img_size=224,
-            patch_size=16,
-            pretrain_patch_size=16,
-            depth=24,
-            embed_dim=1024,
-            num_heads=16,
-            mlp_ratio=4,
-            qkv_bias=True,
-            drop_path_rate=0.4,
-            init_scale=1.,
-            with_fpn=True,
-            # interaction_indexes=[[0, 1], [2, 3], [4, 5], [6, 7], [8, 9], [10, 11], [12, 13], [14, 15], [16, 17], [18, 19], [20, 21], [22, 23]],
-            # pretrained = "checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_large_224_21k.pth",
-            use_flash_attn=True,    # 用上这个后，显著降低了计算量啊！！！！
-            window_attn=[True, True, True, True, True, True,
-                        True, True, True, True, True, True,
-                        True, True, True, True, True, True,
-                        True, True, True, True, True, True,],
-            window_size=[28, 28, 28, 28, 28, 28,
-                        28, 28, 28, 28, 28, 28,
-                        28, 28, 28, 28, 28, 28,
-                        28, 28, 28, 28, 28, 28],
-        ),
-        land_cover_branch=dict(
-            frozen_all_para = True,
-            type=vit_models,
-            in_chans=10, 
-            img_size=512,
-            pretrain_img_size=224,
-            patch_size=16,
-            pretrain_patch_size=16,
-            depth=24,
-            embed_dim=1024,
-            num_heads=16,
-            mlp_ratio=4,
-            qkv_bias=True,
-            drop_path_rate=0.4,
-            init_scale=1.,
-            with_fpn=True,
-            # interaction_indexes=[[0, 1], [2, 3], [4, 5], [6, 7], [8, 9], [10, 11], [12, 13], [14, 15], [16, 17], [18, 19], [20, 21], [22, 23]],
-            # pretrained = "checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_large_224_21k.pth",
-            use_flash_attn=True,    # 用上这个后，显著降低了计算量啊！！！！
-            window_attn=[True, True, True, True, True, True,
-                        True, True, True, True, True, True,
-                        True, True, True, True, True, True,
-                        True, True, True, True, True, True,],
-            window_size=[28, 28, 28, 28, 28, 28,
-                        28, 28, 28, 28, 28, 28,
-                        28, 28, 28, 28, 28, 28,
-                        28, 28, 28, 28, 28, 28],
-
-        )),
-    decode_head=dict(
-        new_domin_branch=dict(
-            frozen_all_para = True,
+                        28, 28, 28, 28, 28, 28]),
+        decode_head=dict(
             type=UPerHead,
             in_channels=[1024, 1024, 1024, 1024],
             in_index=[0, 1, 2, 3],
@@ -178,8 +107,35 @@ model = dict(
             align_corners=False,
             loss_decode=dict(
                 type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)),
-        
-        land_cover_branch=dict(
+        test_cfg=dict(mode='whole'),
+        ),
+    land_cover_encoder_decoder=dict(
+        backbone=dict(
+            type=vit_models,
+            pretrained='checkpoints/2-对比实验的权重/piip/deit/10chan/deit_10chan_large_224_21k.pth',
+            in_chans=10, 
+            img_size=512,
+            pretrain_img_size=224,
+            patch_size=16,
+            pretrain_patch_size=16,
+            depth=24,
+            embed_dim=1024,
+            num_heads=16,
+            mlp_ratio=4,
+            qkv_bias=True,
+            drop_path_rate=0.4,
+            init_scale=1.,
+            with_fpn=True,
+            use_flash_attn=True,
+            window_attn=[True, True, True, True, True, True,
+                        True, True, True, True, True, True,
+                        True, True, True, True, True, True,
+                        True, True, True, True, True, True,],
+            window_size=[28, 28, 28, 28, 28, 28,
+                        28, 28, 28, 28, 28, 28,
+                        28, 28, 28, 28, 28, 28,
+                        28, 28, 28, 28, 28, 28]),
+        decode_head=dict(
             type=UPerHead_Hiera,
             num_classes_level_list = [4, 9, 18],
             results_merge_hiera = True,
@@ -195,7 +151,13 @@ model = dict(
             channels=1024,
             dropout_ratio=0.1,
             norm_cfg=norm_cfg,
-            align_corners=False,
+            align_corners=False),
+        test_cfg=dict(mode='slide', crop_size=crop_size, stride=(128, 128))
+        ),
+    decode_head=dict(
+
+        land_cover_branch=dict(
+
         )),
 
     test_cfg=dict(mode='whole')

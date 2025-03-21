@@ -71,10 +71,8 @@ class FuZhu_EncoderDecoder(BaseSegmentor):
     """  # noqa: E501
 
     def __init__(self,
-                 backbone: ConfigType,
-                 decode_head: ConfigType,
-                 neck: OptConfigType = None,
-                 auxiliary_head: OptConfigType = None,
+                 new_domain_encoder_decoder: ConfigType,
+                 land_cover_encoder_decoder: ConfigType,
                  train_cfg: OptConfigType = None,
                  test_cfg: OptConfigType = None,
                  data_preprocessor: OptConfigType = None,
@@ -82,83 +80,92 @@ class FuZhu_EncoderDecoder(BaseSegmentor):
                  init_cfg: OptMultiConfig = None):
         super().__init__(
             data_preprocessor=data_preprocessor, init_cfg=init_cfg)
+        
         if pretrained is not None:
-            assert backbone.get('pretrained') is None, \
+            assert new_domain_encoder_decoder.backbone.get('pretrained') is None, \
                 'both backbone and segmentor set pretrained weight'
-            backbone.pretrained = pretrained
-        self.backbone = MODELS.build(backbone)
-        if neck is not None:
-            self.neck = MODELS.build(neck)
-        self._init_decode_head(decode_head)
-        self._init_auxiliary_head(auxiliary_head)
+            new_domain_encoder_decoder.backbone.pretrained = pretrained
+        
+        self.new_domain_backbone = MODELS.build(new_domain_encoder_decoder.backbone)
+        self.land_cover_backbone = MODELS.build(land_cover_encoder_decoder.backbone)
 
-        self.train_cfg = train_cfg
-        self.test_cfg = test_cfg
+        self.new_domain_decode_head = MODELS.build(new_domain_encoder_decoder.decode_head)
+        self.land_cover_decode_head = MODELS.build(land_cover_encoder_decoder.decode_head)
+        
+        self.land_cover_train_cfg = land_cover_encoder_decoder.train_cfg
+        self.new_domain_train_cfg = new_domain_encoder_decoder.train_cfg
+        self.land_cover_test_cfg = land_cover_encoder_decoder.test_cfg
+        self.new_domain_test_cfg = new_domain_encoder_decoder.test_cfg
 
-        assert self.with_decode_head
+        self.align_corners = self.new_domain_decode_head.align_corners
+        self.out_channels = self.new_domain_decode_head.out_channels
 
-    def _init_decode_head(self, decode_head: ConfigType) -> None:
-        """Initialize ``decode_head``"""
-        self.decode_head = MODELS.build(decode_head)
-        self.align_corners = self.decode_head.align_corners
-        self.num_classes = self.decode_head.num_classes
-        self.out_channels = self.decode_head.out_channels
 
-    def _init_auxiliary_head(self, auxiliary_head: ConfigType) -> None:
-        """Initialize ``auxiliary_head``"""
-        if auxiliary_head is not None:
-            if isinstance(auxiliary_head, list):
-                self.auxiliary_head = nn.ModuleList()
-                for head_cfg in auxiliary_head:
-                    self.auxiliary_head.append(MODELS.build(head_cfg))
-            else:
-                self.auxiliary_head = MODELS.build(auxiliary_head)
+    # def _init_decode_head(self, decode_head: ConfigType) -> None:
+    #     """Initialize ``decode_head``"""
+    #     self.decode_head = MODELS.build(decode_head)
+    #     self.align_corners = self.decode_head.align_corners
+    #     self.num_classes = self.decode_head.num_classes
+    #     self.out_channels = self.decode_head.out_channels
+
+    # def _init_auxiliary_head(self, auxiliary_head: ConfigType) -> None:
+    #     """Initialize ``auxiliary_head``"""
+    #     if auxiliary_head is not None:
+    #         if isinstance(auxiliary_head, list):
+    #             self.auxiliary_head = nn.ModuleList()
+    #             for head_cfg in auxiliary_head:
+    #                 self.auxiliary_head.append(MODELS.build(head_cfg))
+    #         else:
+    #             self.auxiliary_head = MODELS.build(auxiliary_head)
 
     def extract_feat(self, inputs: Tensor) -> List[Tensor]:
         """Extract features from images."""
         # import pdb;pdb.set_trace()
-        x = self.backbone(inputs)
-        if self.with_neck:
-            x = self.neck(x)
-        # import pdb;pdb.set_trace()
-        return x
+        # 提land_cover的特征和新领域模型的特征
+        x_land_cover = self.land_cover_backbone(inputs)
+        x_new_domain = self.new_domain_backbone(inputs)
+
+        return x_new_domain, x_land_cover
 
     def encode_decode(self, inputs: Tensor,
                       batch_img_metas: List[dict]) -> Tensor:
         """Encode images with backbone and decode into a semantic segmentation
         map of the same size as input."""
-        x = self.extract_feat(inputs)
-        seg_logits = self.decode_head.predict(x, batch_img_metas,
-                                              self.test_cfg)
+        x_new_domain, x_land_cover = self.extract_feat(inputs)
 
-        return seg_logits
+        seg_logits_new_domain = self.new_domain_decode_head.predict(x_new_domain, 
+                                                                    batch_img_metas, 
+                                                                    self.new_domain_test_cfg)
+
+        return seg_logits_new_domain
 
     def _decode_head_forward_train(self, inputs: List[Tensor],
                                    data_samples: SampleList) -> dict:
         """Run forward function and calculate loss for decode head in
         training."""
-        losses = dict()
-        loss_decode = self.decode_head.loss(inputs, data_samples,
-                                            self.train_cfg)
+        # 这里接受的是，backbone输出的特征图
 
-        losses.update(add_prefix(loss_decode, 'decode'))
+        losses = dict()
+        loss_decode = self.new_domain_decode_head.loss(inputs, data_samples, self.train_cfg)
+
+        losses.update(add_prefix(loss_decode, 'new_domain_decode'))
         return losses
 
-    def _auxiliary_head_forward_train(self, inputs: List[Tensor],
-                                      data_samples: SampleList) -> dict:
-        """Run forward function and calculate loss for auxiliary head in
-        training."""
-        losses = dict()
-        if isinstance(self.auxiliary_head, nn.ModuleList):
-            for idx, aux_head in enumerate(self.auxiliary_head):
-                loss_aux = aux_head.loss(inputs, data_samples, self.train_cfg)
-                losses.update(add_prefix(loss_aux, f'aux_{idx}'))
-        else:
-            loss_aux = self.auxiliary_head.loss(inputs, data_samples,
-                                                self.train_cfg)
-            losses.update(add_prefix(loss_aux, 'aux'))
+    # def _auxiliary_head_forward_train(self, inputs: List[Tensor],
+    #                                   data_samples: SampleList) -> dict:
+    #     """Run forward function and calculate loss for auxiliary head in
+    #     training."""
+    #     losses = dict()
+    #     if isinstance(self.auxiliary_head, nn.ModuleList):
+    #         for idx, aux_head in enumerate(self.auxiliary_head):
+    #             loss_aux = aux_head.loss(inputs, data_samples, self.train_cfg)
+    #             losses.update(add_prefix(loss_aux, f'aux_{idx}'))
+    #     else:
+    #         loss_aux = self.auxiliary_head.loss(inputs, data_samples,
+    #                                             self.train_cfg)
+    #         losses.update(add_prefix(loss_aux, 'aux'))
 
-        return losses
+    #     return losses
 
     def loss(self, inputs: Tensor, data_samples: SampleList) -> dict:
         """Calculate losses from a batch of inputs and data samples.
@@ -174,16 +181,12 @@ class FuZhu_EncoderDecoder(BaseSegmentor):
         """
 
         # import pdb;pdb.set_trace()
-        x = self.extract_feat(inputs)  
+        x_new_domain, x_land_cover = self.extract_feat(inputs)  
 
         losses = dict()
 
-        loss_decode = self._decode_head_forward_train(x, data_samples)
+        loss_decode = self._decode_head_forward_train(x_new_domain, data_samples)
         losses.update(loss_decode)
-
-        if self.with_auxiliary_head:
-            loss_aux = self._auxiliary_head_forward_train(x, data_samples)
-            losses.update(loss_aux)
 
         return losses
 
@@ -225,22 +228,22 @@ class FuZhu_EncoderDecoder(BaseSegmentor):
 
         return self.postprocess_result(seg_logits, data_samples)
 
-    def _forward(self,
-                 inputs: Tensor,
-                 data_samples: OptSampleList = None) -> Tensor:
-        """Network forward process.
+    # def _forward(self,
+    #              inputs: Tensor,
+    #              data_samples: OptSampleList = None) -> Tensor:
+    #     """Network forward process.
 
-        Args:
-            inputs (Tensor): Inputs with shape (N, C, H, W).
-            data_samples (List[:obj:`SegDataSample`]): The seg
-                data samples. It usually includes information such
-                as `metainfo` and `gt_sem_seg`.
+    #     Args:
+    #         inputs (Tensor): Inputs with shape (N, C, H, W).
+    #         data_samples (List[:obj:`SegDataSample`]): The seg
+    #             data samples. It usually includes information such
+    #             as `metainfo` and `gt_sem_seg`.
 
-        Returns:
-            Tensor: Forward output of model without any post-processes.
-        """
-        x = self.extract_feat(inputs)
-        return self.decode_head.forward(x)
+    #     Returns:
+    #         Tensor: Forward output of model without any post-processes.
+    #     """
+    #     x = self.extract_feat(inputs)
+    #     return self.decode_head.forward(x)
 
     def slide_inference(self, inputs: Tensor,
                         batch_img_metas: List[dict]) -> Tensor:
@@ -366,3 +369,6 @@ class FuZhu_EncoderDecoder(BaseSegmentor):
         # unravel batch dim
         seg_pred = list(seg_pred)
         return seg_pred
+
+
+
