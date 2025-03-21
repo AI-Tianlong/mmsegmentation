@@ -13,7 +13,7 @@ from mmseg.evaluation import IoUMetric
 
 # dataset settings
 dataset_type = ATL2024Bisai_GF
-data_root = '/data/AI-Tianlong/openmmlab/mmsegmentation/data/2024-高分对地观测比赛/复赛/crop_512'
+data_root = '/opt/AI-Tianlong/Datasets/2024-高分创新大赛/复赛-训练集/crop_512/'
 
 crop_size = (512, 512)
 train_pipeline = [
@@ -91,7 +91,7 @@ val_dataloader = dict(
         data_prefix=dict(
             img_path='img_dir/train', seg_map_path='ann_dir/train'),
         pipeline=val_pipeline))
-# 想用大图去推理
+
 test_dataloader = dict(
     batch_size=1,
     num_workers=4,
@@ -99,15 +99,27 @@ test_dataloader = dict(
     sampler=dict(type=DefaultSampler, shuffle=False),
     dataset=dict(
         type=dataset_type,
-        data_root=None,
+        data_root=data_root,
         data_prefix=dict(
-            img_path='/data/AI-Tianlong/Datasets/2024-高分对地观测比赛/初赛/test/GF_test_image/'),
-        pipeline=test_pipeline))
+            img_path='img_dir/train', seg_map_path='ann_dir/train'),
+        pipeline=val_pipeline))
+# 想用大图去推理
+# test_dataloader = dict(
+#     batch_size=1,
+#     num_workers=4,
+#     persistent_workers=True,
+#     sampler=dict(type=DefaultSampler, shuffle=False),
+#     dataset=dict(
+#         type=dataset_type,
+#         data_root=None,
+#         data_prefix=dict(
+#             img_path='/opt/AI-Tianlong/openmmlab/mmsegmentation/data/2024-高分创新大赛/复赛测试文件'),
+#         pipeline=test_pipeline))
 
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
     type=IoUMetric,
     iou_metrics=['mIoU', 'mFscore'],
-    format_only=True,
+    # format_only=True,
     keep_results=True)

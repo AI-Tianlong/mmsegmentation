@@ -37,10 +37,10 @@ from mmseg.evaluation import IoUMetric
 from mmseg.evaluation.metrics.iou_metric_level import IoUMetric_level
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class_224 import *
-    from ..._base_.default_runtime import *
+    from .._base_.datasets.a_atl_0_paper_5b_GF2_18class_224 import *
+    from .._base_.default_runtime import *
     # from ..._base_.models.upernet_beit_potsdam import *
-    from ..._base_.schedules.schedule_80k import *
+    from .._base_.schedules.schedule_80k import *
 
 
 # 训好的权重：/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-2-GF2-convnext-L-upernet-Hiera-miiou75.41/iter_80000.pth
@@ -57,10 +57,13 @@ norm_cfg = dict(type=SyncBN, requires_grad=True)
 # pretrained  = 'https://download.openmmlab.com/mmclassification/v0/convnext/downstream/convnext-large_3rdparty_in21k_20220301-e6e0ea0a.pth'
 pretrained = 'checkpoints/2-对比实验的权重/convnext/large/convnext-large-4chan.pth'
 crop_size = (640, 640)
+
 data_preprocessor = dict(
         type=SegDataPreProcessor,
-        mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
-        std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
+        # mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
+        # std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
+        mean=[995.26933225455, 1452.7270343669, 1638.4348408118, 3150.9832206793],
+        std=[317.36181350835, 406.4103774175, 546.77043273976, 501.33003719076],
         pad_val=0,
         seg_pad_val=255,
         size=crop_size)
@@ -120,7 +123,7 @@ model = dict(
     #         type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)),
     # model training and testing settings
     train_cfg=dict(),
-    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(128, 128)))
+    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(384, 384)))
     # test_cfg=dict(mode='whole'))
 
 optimizer=dict(
@@ -155,6 +158,30 @@ param_scheduler = [
     )
 ]
 
+
+test_pipeline = [  #
+    dict(type=LoadSingleRSImageFromFile),
+    # dict(type=Resize, scale=crop_size, keep_ratio=True),
+    # dict(type=LoadAnnotations),  # 不需要验证，不用添加 Annotations
+    # dict(type=Resize, scale=(6800, 7200), keep_ratio=True),
+    # add loading annotation after ``Resize`` because ground truth
+    # does not need to do resize data transform
+    dict(type=PackSegInputs)
+]
+
+test_dataloader.update(
+    dict(
+    batch_size=1,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type=DefaultSampler, shuffle=False),
+    dataset=dict(
+        type=dataset_type,
+        data_root=None,
+        data_prefix=dict(img_path='/opt/AI-Tianlong/openmmlab/mmsegmentation/data/2024-高分创新大赛/复赛-训练集/训练集大图'),
+        pipeline=test_pipeline)))
+
+
 train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
@@ -167,9 +194,7 @@ default_hooks.update(
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
-    type=IoUMetric_level,
-    test_output_level = test_output_level,
-    num_classes_list = [4,9,18],
+    type=IoUMetric,
     iou_metrics=['mIoU', 'mFscore'],
-    # format_only=True,
+    format_only=True,
     keep_results=True)

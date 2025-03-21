@@ -605,7 +605,7 @@ class UPerHead_Hiera(BaseDecodeHead):
                 L1_seg_logit = seg_logits_L1[:, L1_index, :, :] # [2, 640, 640], 还是得四维的啊
                 L2_seg_logit = seg_logits_L2[:, L2_index, :, :]
 
-                seg_logits_merge_L2[:,L2_index,:,:] = 1*L1_seg_logit + 1*L2_seg_logit
+                seg_logits_merge_L2[:,L2_index,:,:] = 0.3*L1_seg_logit + 0.7*L2_seg_logit
 
         # 融合 L1、L2、L3 到L3
         for L1_index in range(len(L1_L2map)):     # L1 的 0 1 2 3
@@ -618,14 +618,7 @@ class UPerHead_Hiera(BaseDecodeHead):
                     L2_seg_logit = seg_logits_L2[:, L2_index, :, :]
                     L3_seg_logit = seg_logits_L3[:, L3_index, :, :]
 
-                    # 将特征图过一个relu？二值化？让其余的地方都变成mask？ 严格遵守？，然后相乘？
-                    
-    
-                    # L1_seg_mask = (L1_seg_logit > 0.01).float()
-                    # L2_seg_mask = (L2_seg_logit > 0.01).float()
+                    seg_logits_merge_L3[:,L3_index,:,:] = 0.3*L1_seg_logit + 0.3*L2_seg_logit + 0.4*L3_seg_logit # 直接加上三个的特征图的值？所以有问题吧
 
-                    seg_logits_merge_L3[:,L3_index,:,:] = 1*L1_seg_logit + 1*L2_seg_logit + 1*L3_seg_logit # 直接加上三个的特征图的值？所以有问题吧
-                    # seg_logits_merge_L3[:,L3_index,:,:] = L1_seg_mask*L2_seg_mask*L3_seg_logit # 直接加上三个的特征图的值？所以有问题吧
-                    # import pdb;pdb.set_trace()
         return [seg_logits_merge_L1, seg_logits_merge_L2, seg_logits_merge_L3]
 
