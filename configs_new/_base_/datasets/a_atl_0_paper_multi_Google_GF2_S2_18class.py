@@ -36,7 +36,7 @@ dataset_type_test = ATL_5B_GF_Google_S2_Dataset_18class_train
 # data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-seg-裁切好的训练图像_S2_GF2_Google_size512'
 data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-Google-GF2-S2-地理配准-dataset-base224'
 
-resize_scale = [2048, 640, 224]
+resize_scale = [1216, 640, 224]
 # crop_size = (512, 512)  #这里怎么搞呢？每一个图像的尺寸都不一样，并且同一组数据里，crop_size也不一样
                         # PIIP的处理，是先通过最大的尺寸读进来，然后在backbone的forward里去插值进行缩放处理。
 

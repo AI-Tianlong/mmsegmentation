@@ -14,18 +14,20 @@ from mmseg.evaluation import IoUMetric
 # dataset settings
 dataset_type = ATL_S2_5B_Dataset_18class
 data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-Google-GF2-S2-地理配准-dataset-base224'
-crop_size = (2048, 2048)
 
+crop_size = (640, 640)   # 不要随机增强！！！！
 train_pipeline = [
     dict(type=LoadSingleRSImageFromFile),
     dict(type=LoadAnnotations),
-    dict(
-        type=RandomResize,
-        scale=crop_size,
-        ratio_range=(0.5, 2.0),
-        keep_ratio=True),
-    dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),
-    dict(type=RandomFlip, prob=0.5),
+    dict(type=Resize, scale=crop_size, keep_ratio=True),  # 只是全部resize成640
+    # dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),
+    # dict(
+    #     type=RandomResize,
+    #     scale=crop_size,
+    #     ratio_range=(0.5, 2.0),
+    #     keep_ratio=True),
+    # dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),
+    # dict(type=RandomFlip, prob=0.5),
     # dict(type=PhotoMetricDistortion), # 多通道 不太能用这个
     dict(type=PackSegInputs)
 ]
@@ -41,32 +43,17 @@ val_pipeline = [  #
 
 test_pipeline = [  #
     dict(type=LoadSingleRSImageFromFile),
-    # dict(type=Resize, scale=(512, 512), keep_ratio=True),   # 不 Resize 按原图尺寸推理
+    dict(type=Resize, scale=crop_size, keep_ratio=True),
+    dict(type=LoadAnnotations),  # 不需要验证，不用添加 Annotations
     # dict(type=Resize, scale=(6800, 7200), keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
-    dict(type=LoadAnnotations),  # 不需要验证，不用添加 Annotations
     dict(type=PackSegInputs)
 ]
 
-img_ratios = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75]
-tta_pipeline = [
-    dict(type=LoadSingleRSImageFromFile, backend_args=None),
-    dict(
-        type=TestTimeAug,
-        transforms=[[
-            dict(type=Resize, scale_factor=r, keep_ratio=True)
-            for r in img_ratios
-        ],
-                    [
-                        dict(type=RandomFlip, prob=0., direction='horizontal'),
-                        dict(type=RandomFlip, prob=1., direction='horizontal')
-                    ], [dict(type=LoadAnnotations)],
-                    [dict(type=PackSegInputs)]])
-]
 
 train_dataloader = dict(
-    batch_size=2,
+    batch_size=4,
     num_workers=4,  # numworkers 也会影响！
     persistent_workers=True,
     sampler=dict(type=InfiniteSampler, shuffle=True),
@@ -74,8 +61,8 @@ train_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(
-            img_path='img_dir/train/Google-5B-18-base224',
-            seg_map_path='ann_dir/train/Google-5B-18-base224'),
+            img_path='img_dir/train/GF2-5B-18-base224',
+            seg_map_path='ann_dir/train/GF2-5B-18-base224'),
         pipeline=train_pipeline))
 
 val_dataloader = dict(
@@ -87,8 +74,8 @@ val_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(
-            img_path='img_dir/val/Google-5B-18-base224',
-            seg_map_path='ann_dir/val/Google-5B-18-base224'),
+            img_path='img_dir/val/GF2-5B-18-base224',
+            seg_map_path='ann_dir/val/GF2-5B-18-base224'),
         pipeline=val_pipeline))
 # 想用大图去推理
 test_dataloader = dict(
@@ -100,8 +87,9 @@ test_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(
-            img_path='img_dir/val/Google-5B-18-base224',
-            seg_map_path='ann_dir/val/Google-5B-18-base224'),
+            # img_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/2-多领域地物覆盖基础/小样本数据集推理/img_dir'),
+            img_path='img_dir/val/GF2-5B-18-base224',
+            seg_map_path='ann_dir/val/GF2-5B-18-base224'),
         pipeline=test_pipeline))
 
 val_evaluator = dict(
