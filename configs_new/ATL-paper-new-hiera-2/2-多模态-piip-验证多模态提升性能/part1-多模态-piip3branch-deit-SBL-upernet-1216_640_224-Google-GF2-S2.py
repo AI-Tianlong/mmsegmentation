@@ -83,7 +83,7 @@ model = dict(
         # For S2 10 band ViT-large
         branch1=dict(
             in_chans=10, 
-            real_size=224,
+            real_size=crop_size[2],
             pretrain_img_size=224,
             patch_size=16,
             pretrain_patch_size=16,
@@ -111,7 +111,7 @@ model = dict(
         # For GF2 4 band ViT-base
         branch2=dict(
             in_chans=4, 
-            real_size=640,
+            real_size=crop_size[1],
             pretrain_img_size=224,
             patch_size=16,
             pretrain_patch_size=16,
@@ -138,7 +138,7 @@ model = dict(
         # For Google 3 band ViT-small
         branch3=dict(
             in_chans=3, 
-            real_size=2048,
+            real_size=crop_size[0],
             pretrain_img_size=224,
             patch_size=16,
             pretrain_patch_size=16,
