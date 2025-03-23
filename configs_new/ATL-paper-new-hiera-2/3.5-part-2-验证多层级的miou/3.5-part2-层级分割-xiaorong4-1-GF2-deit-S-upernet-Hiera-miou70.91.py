@@ -46,15 +46,14 @@ from mmseg.evaluation.metrics.iou_metric_level import IoUMetric_level
 
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class_224 import *
+    from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class_640 import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
-# 训好的权重：/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-GF2-deit-S-upernet-Hiera-miou70.16/iter_80000.pth
+# 训好的权重：/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-GF2-deit-S-upernet-Hiera-miou70.91/iter_80000.pth
 test_output_level = 'L1' # 输出L3, 验证L3的精度
+results_merge_hiera = True
 
-
-find_unused_parameters = True
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
 L1_num_classes = 4  # number of L1 Level label   # 5
@@ -120,7 +119,7 @@ model = dict(
         type=UPerHead_Hiera,
         test_output_level=test_output_level, #最终输出的层级
         num_classes_level_list = [L1_num_classes, L2_num_classes, L3_num_classes],
-        results_merge_hiera = False,
+        results_merge_hiera = results_merge_hiera,
         hiera_mode = 'xiaorong4',
         loss_decode=dict(
             type=ATL_Hiera_Loss_convseg,
@@ -210,14 +209,3 @@ test_evaluator = dict(
     # format_only=True,
     keep_results=True)
 
-if deepspeed:
-    checkpoint_config = dict(deepspeed=deepspeed, by_epoch=False, interval=2000, max_keep_ckpts=1)
-else:
-    checkpoint_config = dict(by_epoch=False, interval=2000, max_keep_ckpts=1)
-
-if deepspeed:
-    custom_hooks = [
-        dict(
-            type='ToBFloat16Hook',
-            priority=49),
-    ]

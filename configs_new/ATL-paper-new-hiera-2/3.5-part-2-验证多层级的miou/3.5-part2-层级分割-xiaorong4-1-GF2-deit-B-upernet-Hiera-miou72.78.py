@@ -46,11 +46,11 @@ from mmseg.evaluation.metrics.iou_metric_level import IoUMetric_level
 
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class_224 import *
+    from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class_640 import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
-# 训好的权重：/opt/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-1-2025年结果/part2-层级分割-xiaorong4-1-GF2-deit-B-upernet-Hiera-miou72.78/iter_80000.pth
+# 训好的权重：/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-GF2-deit-B-upernet-Hiera-miou72.78/iter_80000.pth
 test_output_level = 'L3' # 输出L3, 验证L3的精度
 results_merge_hiera = True
 
@@ -61,15 +61,13 @@ L1_num_classes = 4  # number of L1 Level label   # 5
 L2_num_classes = 9  # number of L1 Level label  # 11  5+11+21=37类
 L3_num_classes = 18  # number of L1 Level label  # 21
 
-# deepspeed = True
-deepspeed = False
-deepspeed_config = 'configs_zero_deepspeed/adam_zero1_bf16.json'
-
 crop_size = (640, 640)
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
-    std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
+    # mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
+    # std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
+    mean = [412.62603765, 317.66892688, 243.74720123, 292.61469172],
+    std = [42.79585263, 45.59081086, 54.94280476, 69.32133677],
     # bgr_to_rgb=True,
     pad_val=0,
     seg_pad_val=255,
@@ -207,18 +205,6 @@ test_evaluator = dict(
     test_output_level = test_output_level,
     num_classes_list = [4,9,18],
     iou_metrics=['mIoU', 'mFscore'],
-    format_only=True,
+    # format_only=True,
     keep_results=True)
 
-
-if deepspeed:
-    checkpoint_config = dict(deepspeed=deepspeed, by_epoch=False, interval=2000, max_keep_ckpts=1)
-else:
-    checkpoint_config = dict(by_epoch=False, interval=2000, max_keep_ckpts=1)
-
-if deepspeed:
-    custom_hooks = [
-        dict(
-            type='ToBFloat16Hook',
-            priority=49),
-    ]
