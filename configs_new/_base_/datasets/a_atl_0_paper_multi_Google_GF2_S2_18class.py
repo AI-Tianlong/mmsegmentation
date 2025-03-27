@@ -67,11 +67,12 @@ val_pipeline = [  #
 
 test_pipeline = [  #
     dict(type=LoadMultiRSImageFromFile_with_data_preproocess_piip_samename),
+    dict(type=MultiImg_MultiAnn_Resize, scale=resize_scale, keep_ratio=True),
     # dict(type=Resize, scale=crop_size, keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
     dict(type=ATL_MultiModal_LoadAnnotations),
-    dict(type=MultiImg_MultiAnn_Resize, scale=resize_scale, keep_ratio=True),
+    # dict(type=MultiImg_MultiAnn_Resize, scale=resize_scale, keep_ratio=True),
     dict(type=ATL_MultiRSImage_PackSegInputs_PIIP_samename)
 ]
 

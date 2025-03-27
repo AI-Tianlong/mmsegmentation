@@ -103,7 +103,9 @@ def main():
         cfg.work_dir = osp.join('./work_dirs',
                                 osp.splitext(osp.basename(args.config))[0])
 
-    cfg.load_from = args.checkpoint
+    if cfg.get('load_from', None) is None:
+        cfg.load_from = args.checkpoint
+    # import pdb;pdb.set_trace()
 
     if args.show or args.show_dir:
         cfg = trigger_visualization_hook(cfg, args)

@@ -21,11 +21,12 @@ from mmseg.models.segmentors.atl_hiera_37_encoder_decoder import ATL_Hiera_Encod
 from mmseg.models.data_preprocessor import SegDataPreProcessor
 # Backbone
 from mmpretrain.models.backbones.convnext import ConvNeXt
+from mmseg.models.backbones.swin import SwinTransformer
 # DecodeHead
 from mmseg.models.decode_heads.uper_head import UPerHead
+from mmseg.models.decode_heads.fcn_head import FCNHead
 from mmseg.models.decode_heads.uper_head_hiera import UPerHead_Hiera
 # Loss
-from mmseg.models.losses.atl_hiera_37_loss import ATL_Hiera_Loss
 from mmseg.models.losses.atl_hiera_37_loss_convseg import ATL_Hiera_Loss_convseg
 from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
 
@@ -34,7 +35,6 @@ from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
                                      LearningRateDecayOptimizerConstructor)
 # Evaluation
 from mmseg.evaluation import IoUMetric
-from mmseg.evaluation.metrics.iou_metric_level import IoUMetric_level
 
 with read_base():
     from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class_224 import *
@@ -42,20 +42,20 @@ with read_base():
     # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_80k import *
 
+find_unused_parameters = True
+norm_cfg = dict(type=SyncBN, requires_grad=True)
 
-# 训好的权重：/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-2-GF2-convnext-L-upernet-Hiera-miiou75.41/iter_80000.pth
-test_output_level = 'L3' # 输出L3, 验证L3的精度
-# results_merge_hiera = True
-results_merge_hiera = True
-
-find_unused_parameters=True
 L1_num_classes = 4  # number of L1 Level label   # 5
 L2_num_classes = 9  # number of L1 Level label  # 11  5+11+21=37类
 L3_num_classes = 18  # number of L1 Level label  # 21
 
+
+backbone_norm_cfg = dict(type='LN', requires_grad=True)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
+
 # pretrained  = 'https://download.openmmlab.com/mmclassification/v0/convnext/downstream/convnext-large_3rdparty_in21k_20220301-e6e0ea0a.pth'
-pretrained = 'checkpoints/2-对比实验的权重/convnext/large/convnext-large-4chan.pth'
+pretrained = 'checkpoints/2-对比实验的权重/swin/base/swin_base_patch4_window12_384_4chan.pth'
+
 crop_size = (640, 640)
 data_preprocessor = dict(
         type=SegDataPreProcessor,
@@ -68,48 +68,55 @@ data_preprocessor = dict(
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
-    # pretrained=None,
     backbone=dict(
-        type=ConvNeXt,
+        type=SwinTransformer,
         in_channels=4,
-        arch='large',
-        out_indices=[0, 1, 2, 3],
-        drop_path_rate=0.4,
-        layer_scale_init_value=1.0,
-        gap_before_final_norm=False,
-        init_cfg=dict(
-            type='Pretrained', checkpoint=pretrained, prefix='backbone.')),
-    
+        pretrain_img_size=384,
+        embed_dims=128,
+        patch_size=4,
+        window_size=12,
+        mlp_ratio=4,
+        depths=[2, 2, 18, 2],
+        num_heads=[4, 8, 16, 32],
+        strides=(4, 2, 2, 2),
+        out_indices=(0, 1, 2, 3),
+        qkv_bias=True,
+        qk_scale=None,
+        patch_norm=True,
+        drop_rate=0.,
+        attn_drop_rate=0.,
+        drop_path_rate=0.3,
+        use_abs_pos_embed=False,
+        act_cfg=dict(type='GELU'),
+        norm_cfg=backbone_norm_cfg,
+        init_cfg=dict(type='Pretrained', checkpoint=pretrained),
+        ),
     decode_head=dict(
         type=UPerHead_Hiera,
-        test_output_level=test_output_level, #最终输出的层级
         num_classes_level_list = [L1_num_classes, L2_num_classes, L3_num_classes],
-        results_merge_hiera = results_merge_hiera,
+        results_merge_hiera = True,
         hiera_mode = 'xiaorong4',
         loss_decode=dict(
             type=ATL_Hiera_Loss_convseg,
             num_classes=[L1_num_classes, L2_num_classes, L3_num_classes],
             loss_weight=1.0),
-        
-         # 原始的
         # type=UPerHead,
-        in_channels=[192, 384, 768, 1536],
+        in_channels=[128, 256, 512, 1024],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
-        channels=1024,
+        channels=768,
         dropout_ratio=0.1,
         # num_classes=L3_num_classes,
         norm_cfg=norm_cfg,
         align_corners=False,
         # loss_decode=dict(
-        #     type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)
-    
+        #     type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)),
     ),
     # auxiliary_head=dict(
     #     type=FCNHead,
-    #     in_channels=768,
+    #     in_channels=384,
     #     in_index=2,
-    #     channels=256,
+    #     channels=512,
     #     num_convs=1,
     #     concat_input=False,
     #     dropout_ratio=0.1,
@@ -120,27 +127,27 @@ model = dict(
     #         type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)),
     # model training and testing settings
     train_cfg=dict(),
-    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(128, 128)))
-    # test_cfg=dict(mode='whole'))
+    # test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)),
+    test_cfg=dict(mode='whole'))
+    # )
+
 
 optimizer=dict(
-        type=AdamW, 
-        lr=0.0001, 
-        betas=(0.9, 0.999), 
-        weight_decay=0.05)
+    type=AdamW, 
+    lr=0.00006, 
+    betas=(0.9, 0.999), 
+    weight_decay=0.01)
 
 optim_wrapper = dict(
     # type='AmpOptimWrapper',  # mmengine 混合精度江都训练内存
     type=OptimWrapper,
     optimizer=optimizer,
-    constructor=LearningRateDecayOptimizerConstructor,
-    paramwise_cfg={
-        'decay_rate': 0.9,
-        'decay_type': 'stage_wise',
-        'num_layers': 12
-    },
-    )
-    # loss_scale='dynamic')
+    paramwise_cfg=dict(
+        custom_keys={
+            'absolute_pos_embed': dict(decay_mult=0.),
+            'relative_position_bias_table': dict(decay_mult=0.),
+            'norm': dict(decay_mult=0.)
+        }))
 
 param_scheduler = [
     dict(
@@ -167,9 +174,7 @@ default_hooks.update(
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
-    type=IoUMetric_level,
-    test_output_level = test_output_level,
-    num_classes_list = [4,9,18],
+    type=IoUMetric,
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)

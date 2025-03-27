@@ -37,25 +37,27 @@ from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
 from mmseg.evaluation import IoUMetric
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class_640 import *
+    from ..._base_.datasets.a_atl_0_paper_5b_s2_18class_224 import *
     from ..._base_.default_runtime import *
     # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_80k import *
 
 find_unused_parameters=True
 L3_num_classes = 18
-crop_size = (640, 640)
+crop_size = (224, 224)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
 # pretrained  = 'https://download.openmmlab.com/mmclassification/v0/convnext/downstream/convnext-large_3rdparty_in21k_20220301-e6e0ea0a.pth'
-pretrained = 'checkpoints/2-对比实验的权重/convnext/large/convnext-large-4chan.pth'
+pretrained = 'checkpoints/2-对比实验的权重/convnext/large/convnext-large-10chan.pth'
 data_preprocessor = dict(
-        type=SegDataPreProcessor,
-        mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
-        std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
-        pad_val=0,
-        seg_pad_val=255,
-        size=crop_size)
+    type=SegDataPreProcessor,
+    mean =None,
+    std =None,
+    # bgr_to_rgb=True,
+    pad_val=0,
+    seg_pad_val=255,
+    size=crop_size,
+    test_cfg=dict(size_divisor=32))
 
 model = dict(
     type=EncoderDecoder,
@@ -63,7 +65,7 @@ model = dict(
     # pretrained=None,
     backbone=dict(
         type=ConvNeXt,
-        in_channels=4,
+        in_channels=10,
         arch='large',
         out_indices=[0, 1, 2, 3],
         drop_path_rate=0.4,

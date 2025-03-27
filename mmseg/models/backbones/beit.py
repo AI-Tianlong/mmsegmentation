@@ -494,10 +494,8 @@ class BEiT(BaseModule):
 
         self.apply(_init_weights)
 
-        if (isinstance(self.init_cfg, dict)
-                and self.init_cfg.get('type') == 'Pretrained'):
-            checkpoint = _load_checkpoint(
-                self.init_cfg['checkpoint'], logger=None, map_location='cpu')
+        if (isinstance(self.init_cfg, dict) and self.init_cfg.get('type') == 'Pretrained'):
+            checkpoint = _load_checkpoint(self.init_cfg['checkpoint'], logger=None, map_location='cpu')
             state_dict = self.resize_rel_pos_embed(checkpoint)
             self.load_state_dict(state_dict, False)
         elif self.init_cfg is not None:
