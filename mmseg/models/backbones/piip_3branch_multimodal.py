@@ -356,8 +356,10 @@ class PIIPThreeBranch_MultiModal(nn.Module):
         x3 = F.interpolate(x3, size=(H2, W2), mode='bilinear', align_corners=False) # 特征图尺寸变到branch2的
         x3 = x3.type(self.dtype) # [2,1024,128,128]->[2, 1024, 40, 40]
 
-        out = x1 * self.w1 + x2 * self.w2 + x3 * self.w3  # 最终的输出
-             
+        # out = x1 * self.w1 + x2 * self.w2 + x3 * self.w3  # 最终的输出:71.48
+        out = x1 * self.w1 + x2 * self.w2   # 测试，如果这里只使用S2的特征：
+        # out = x2 * self.w2  # 测试，如果这里只使用GF2的特征：
+        # out = x3 * self.w3  # 测试，如果这里只使用Google的特征：
         
         # Outputs for fpn
         if not self.is_dino:

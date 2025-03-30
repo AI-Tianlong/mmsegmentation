@@ -15,11 +15,10 @@ from timm.models.vision_transformer import Mlp
 
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 
-import warnings
 from mmengine.model import BaseModule
+from mmengine.runner.checkpoint import load_state_dict
 from mmseg.registry import MODELS
 from mmengine.logging import print_log
-from mmengine.runner.checkpoint import CheckpointLoader, load_state_dict
 
 # mmcv 1.x 
 # from mmcv.runner import BaseModule
@@ -566,20 +565,10 @@ class vit_models(BaseModule):
                  with_fpn=False, 
                  use_simple_fpn=True,
                  use_flash_attn=False, 
-                 with_cp=False,
-                 init_cfg=None):
+                 with_cp=False):
 
-        super().__init__(init_cfg=init_cfg)
+        super().__init__()
         
-        if isinstance(pretrained, str):
-            warnings.warn('DeprecationWarning: pretrained is deprecated, '
-                            'please use "init_cfg" instead')
-            self.init_cfg = dict(type='Pretrained', checkpoint=pretrained)
-            # import pdb; pdb.set_trace()
-        elif pretrained is not None:
-            raise TypeError('pretrained must be a str or None')
-        
-
         if Mlp_block == "fused_mlp":
             assert FusedMLP is not None
             class FusedMLPWrapper(FusedMLP):
@@ -660,7 +649,7 @@ class vit_models(BaseModule):
                 )
             for i in range(depth)])
 
-        self.init_weights()
+        self.init_weights(pretrained)
 
         if with_fpn:
             self.up1 = nn.Sequential(*[
@@ -695,8 +684,8 @@ class vit_models(BaseModule):
                 m.bias.data.zero_()
 
     
-    def init_weights(self):
-        # import pdb; pdb.set_trace()
+    def init_weights(self, pretrained=None):
+
         def resize_pos_embed(pos_embed, H, W):
             len_pos = pos_embed.shape[1]
             if int(len_pos ** 0.5) ** 2 != len_pos:
@@ -707,40 +696,19 @@ class vit_models(BaseModule):
             pos_embed = F.interpolate(pos_embed, size=(H, W), mode='bicubic', align_corners=False). \
                 reshape(1, -1, H * W).permute(0, 2, 1)
             return pos_embed
-        
-        if isinstance(self.init_cfg, dict) and self.init_cfg.get('type') in ['Pretrained', 'Pretrained_Part']:
-            checkpoint = CheckpointLoader.load_checkpoint(self.init_cfg['checkpoint'], logger=None, map_location='cpu')
-            
-            if self.init_cfg.get('type') == 'Pretrained':
-                # import pdb; pdb.set_trace()
-                if 'state_dict' in checkpoint:
-                    state_dict = checkpoint['state_dict']
-                elif 'model' in checkpoint:
-                    state_dict = checkpoint['model']
-                else:
-                    state_dict = checkpoint
-
-            elif self.init_cfg.get('type') == 'Pretrained_Part':
-                if 'state_dict' in checkpoint:
-                    state_dict = checkpoint['state_dict']
-                elif 'model' in checkpoint:
-                    state_dict = checkpoint['model']
-                else:
-                    state_dict = checkpoint
-                
-                new_state_dict = {}
-                prefix = self.init_cfg.get('prefix')
-                prefix_len = len(prefix) # backbone.branch2.
-                for k, v in state_dict.items():
-                    # import pdb; pdb.set_trace()
-                    if prefix in k:
-                        new_state_dict[k[prefix_len:]] = v  # backbone.
-                state_dict = new_state_dict
-
-            else:
-                state_dict = checkpoint
+    
+        if isinstance(pretrained, str):
+            # logger = get_root_logger()
             # import pdb; pdb.set_trace()
-            pos_embed = state_dict['pos_embed'] # [1, 196, 768] # Base, 人这里可不是0啊
+
+            checkpoint = torch.load(pretrained, map_location='cpu')
+            if 'model' in checkpoint:
+                checkpoint = checkpoint['model']
+            
+            # import pdb; pdb.set_trace()
+            # resize pos_embed
+            # import pdb; pdb.set_trace()
+            pos_embed = checkpoint['pos_embed'] # [1, 196, 768] # Base, 人这里可不是0啊
             # checkpoint['pos_embed'] = resize_pos_embed(pos_embed,  # 权重中的pos_embed修改, 这里也不是0啊, 在forward里去resize的
             #                                            self.img_size // self.patch_size, 
             #                                            self.img_size // self.patch_size) # [1,196,768]-->[1,1600,768]
@@ -748,13 +716,12 @@ class vit_models(BaseModule):
             # self.pos_embed = [1, 196, 1024], 由于是在forward中插值，所以这里不需要resize
             
             # resize patch_embed
-            # import pdb; pdb.set_trace()
-            patch_embed = state_dict['patch_embed.proj.weight'] # [784, 4, 16, 16] 
-            state_dict['patch_embed.proj.weight'] = F.interpolate(patch_embed,  # [784, 4, 16, 16] -->  [768, 4, 16, 16]
-                                                                    size=(self.patch_size, self.patch_size), 
-                                                                    mode='bicubic', 
-                                                                    align_corners=False)
-            message = load_state_dict(self, state_dict, strict=False, logger='current')
+            patch_embed = checkpoint['patch_embed.proj.weight'] # [784, 4, 16, 16] 
+            checkpoint['patch_embed.proj.weight'] = F.interpolate(patch_embed,  # [784, 4, 16, 16] -->  [768, 4, 16, 16]
+                                                                  size=(self.patch_size, self.patch_size), 
+                                                                  mode='bicubic', 
+                                                                  align_corners=False)
+            message = load_state_dict(self, checkpoint, strict=False, logger='current')
             print_log(message)
 
     def _get_pos_embed(self, pos_embed, H, W):
@@ -789,7 +756,6 @@ class vit_models(BaseModule):
         return outs
 
     def forward(self, x):
-        # import pdb; pdb.set_trace()
         outs = self.forward_features(x)
         if self.use_simple_fpn:
             outs = [outs[-1]]

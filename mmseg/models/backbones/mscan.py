@@ -478,11 +478,11 @@ class MSCAN(BaseModule):
             patch_embed = getattr(self, f'patch_embed{i + 1}')
             block = getattr(self, f'block{i + 1}')
             norm = getattr(self, f'norm{i + 1}')
-            import pdb;pdb.set_trace()                                         # H/4 
+            # import pdb;pdb.set_trace()                                         # H/4 
             x, H, W = patch_embed(x)  
             for blk in block:         # 过 depth 个 block
                 x = blk(x, H, W)     # 不变
-            import pdb;pdb.set_trace()        
+            # import pdb;pdb.set_trace()        
             x = norm(x)               
             x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
             outs.append(x)            # 记录一个stage的输出

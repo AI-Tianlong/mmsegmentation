@@ -50,16 +50,19 @@ with read_base():
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
-# 训好的权重：/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-GF2-deit-L-upernet-Hiera-miou73.29/iter_80000.pth
+# 训好的权重：/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-GF2-deit-S-upernet-Hiera-miou70.91/iter_80000.pth
 test_output_level = 'L1' # 输出L3, 验证L3的精度
 results_merge_hiera = True
 
-find_unused_parameters = True
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
 L1_num_classes = 4  # number of L1 Level label   # 5
 L2_num_classes = 9  # number of L1 Level label  # 11  5+11+21=37类
 L3_num_classes = 18  # number of L1 Level label  # 21
+
+# deepspeed = True
+deepspeed = False
+deepspeed_config = 'configs_zero_deepspeed/adam_zero1_bf16.json'
 
 crop_size = (640, 640)
 data_preprocessor = dict(
@@ -73,37 +76,37 @@ data_preprocessor = dict(
     test_cfg=dict(size_divisor=32))
 
 # pretrained='checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
-pretrained = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_large_224_21k.pth'
+pretrained = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_small_224_21k.pth'
 
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type=vit_models,
-        in_chans=4, # 3/4
-        img_size=640, # 640 
+        pretrained = pretrained,
+        in_chans=4, 
+        img_size=640,
         pretrain_img_size=224,
         patch_size=16,
         pretrain_patch_size=16,
-        depth=24,
-        embed_dim=1024,
-        num_heads=16,
+        depth=12,
+        embed_dim=384,
+        num_heads=6,
         mlp_ratio=4,
         qkv_bias=True,
-        drop_path_rate=0.4,
+        drop_path_rate=0.05,
         init_scale=1.,
         with_fpn=True,
         # interaction_indexes=[[0, 1], [2, 3], [4, 5], [6, 7], [8, 9], [10, 11], [12, 13], [14, 15], [16, 17], [18, 19], [20, 21], [22, 23]],
-        pretrained = pretrained,
-        use_flash_attn=True,    # 用上这个后，显著降低了计算量啊！！！！
-        window_attn=[True, True, True, True, True, True,
-                     True, True, True, True, True, True,
-                     True, True, True, True, True, True,
-                     True, True, True, True, True, True,],
-        window_size=[28, 28, 28, 28, 28, 28,
-                     28, 28, 28, 28, 28, 28,
-                     28, 28, 28, 28, 28, 28,
-                     28, 28, 28, 28, 28, 28],
+        use_flash_attn=True,
+        window_attn=[True, True, True,
+                     True, True, True,
+                     True, True, True,
+                     True, True, True,],
+        window_size=[28, 28, 28,
+                     28, 28, 28,
+                     28, 28, 28,
+                     28, 28, 28],
         ),
     # neck=dict(
     #     type=MultiLevelNeck,
@@ -125,10 +128,10 @@ model = dict(
 
         # 原始的
         # type=UPerHead,
-       in_channels=[1024, 1024, 1024, 1024],
+        in_channels=[384, 384, 384, 384],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
-        channels=1024,
+        channels=384,
         dropout_ratio=0.1,
         # num_classes=num_classes,
         norm_cfg=norm_cfg,
@@ -151,7 +154,7 @@ model = dict(
     #     loss_decode=dict(
     #         type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)),
 
-    test_cfg=dict(mode='whole')
+    test_cfg=dict(mode='whole'),
     # test_cfg=dict(mode='slide', crop_size=(640, 640), stride=(384, 384))
 )
 
@@ -166,7 +169,7 @@ optim_wrapper = dict(
     type=OptimWrapper,
     optimizer=optimizer,
     constructor=CustomLayerDecayOptimizerConstructor,
-    paramwise_cfg=dict(num_layers=24, layer_decay_rate=0.85, skip_stride=[2, 2]))
+    paramwise_cfg=dict(num_layers=12, layer_decay_rate=0.85, skip_stride=[2, 2]))
 
 param_scheduler = [
     dict(
