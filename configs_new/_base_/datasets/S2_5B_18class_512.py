@@ -13,13 +13,13 @@ from mmseg.evaluation import IoUMetric
 
 # dataset settings
 dataset_type = ATL_S2_5B_Dataset_18class
-data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-GF2-5B-18-640'
+data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-S2-5B-18-512'
 
 # mean = [412.62603765, 317.66892688, 243.74720123, 292.61469172],
 # std = [42.79585263, 45.59081086, 54.94280476, 69.32133677],
 
 
-crop_size = (640, 640)   # 不要随机增强！！！！
+crop_size = (512, 512)   # 不要随机增强！！！！
 train_pipeline = [
     dict(type=LoadSingleRSImageFromFile),
     dict(type=LoadAnnotations),
@@ -59,7 +59,7 @@ test_pipeline = [  #
 
 train_dataloader = dict(
     batch_size=2,
-    num_workers=4,  # numworkers 也会影响！
+    num_workers=6,  # numworkers 也会影响！
     persistent_workers=True,
     sampler=dict(type=InfiniteSampler, shuffle=True),
     dataset=dict(

@@ -789,6 +789,7 @@ class vit_models(BaseModule):
         return outs
 
     def forward(self, x):
+        # import pdb; pdb.set_trace()
         outs = self.forward_features(x)
         if self.use_simple_fpn:
             outs = [outs[-1]]

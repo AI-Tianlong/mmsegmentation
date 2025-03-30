@@ -43,7 +43,7 @@ from mmseg.evaluation import IoUMetric
 
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class_224 import *
+    from ..._base_.datasets.GF2_5B_18class_640 import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
@@ -51,20 +51,18 @@ with read_base():
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 num_classes = 18
 
-# deepspeed = True
-deepspeed = False
-deepspeed_config = 'configs_zero_deepspeed/adam_zero1_bf16.json'
-
 crop_size = (640, 640)
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
-    std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
+    # mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
+    # std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
+    mean = [412.62603765, 317.66892688, 243.74720123, 292.61469172],
+    std = [42.79585263, 45.59081086, 54.94280476, 69.32133677],
     # bgr_to_rgb=True,
     pad_val=0,
     seg_pad_val=255,
-    size=crop_size,
-    test_cfg=dict(size_divisor=32))
+    size=crop_size)
+    # test_cfg=dict(size_divisor=32))
 
 # pretrained='checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
 pretrained = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
@@ -134,8 +132,8 @@ model = dict(
     #         type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)
     # ),
 
-    # test_cfg=dict(mode='whole')
-    test_cfg=dict(mode='slide', crop_size=(640, 640), stride=(384, 384))
+    test_cfg=dict(mode='whole')
+    # test_cfg=dict(mode='slide', crop_size=(640, 640), stride=(384, 384))
 )
 
 optimizer = dict(
@@ -149,7 +147,7 @@ optim_wrapper = dict(
     type=OptimWrapper,
     optimizer=optimizer,
     constructor=CustomLayerDecayOptimizerConstructor,
-    paramwise_cfg=dict(num_layers=12, layer_decay_rate=0.85, skip_stride=[2, 2]))
+    paramwise_cfg=dict(num_layers=24, layer_decay_rate=0.85, skip_stride=[2, 2]))
 
 param_scheduler = [
     dict(
@@ -174,7 +172,7 @@ default_hooks = dict(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),
     param_scheduler=dict(type=ParamSchedulerHook),
-    checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=10),
+    checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=4),
     sampler_seed=dict(type=DistSamplerSeedHook),
     visualization=dict(type=SegVisualizationHook))
 
@@ -186,15 +184,3 @@ test_evaluator = dict(
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)
-
-if deepspeed:
-    checkpoint_config = dict(deepspeed=deepspeed, by_epoch=False, interval=2000, max_keep_ckpts=1)
-else:
-    checkpoint_config = dict(by_epoch=False, interval=2000, max_keep_ckpts=1)
-
-if deepspeed:
-    custom_hooks = [
-        dict(
-            type='ToBFloat16Hook',
-            priority=49),
-    ]

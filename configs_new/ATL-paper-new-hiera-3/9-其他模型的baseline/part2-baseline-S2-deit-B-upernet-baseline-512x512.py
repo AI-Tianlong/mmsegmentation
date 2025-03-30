@@ -43,53 +43,54 @@ from mmseg.evaluation import IoUMetric
 
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_s2_18class_224 import *
+    from ..._base_.datasets.S2_5B_18class_512 import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 num_classes = 18
 
-crop_size = (224, 224)
-pretrained = 'checkpoints/2-对比实验的权重/piip/deit/10chan/deit_10chan_large_224_21k.pth'
+crop_size = (512, 512)
+pretrained = 'checkpoints/2-对比实验的权重/piip/deit/10chan/deit_10chan_base_224_21k.pth'
+# 减去均值，除以方差，除以10000变成反射率
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    mean =None,
-    std =None,
+    mean =[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    std =[10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
     # bgr_to_rgb=True,
     pad_val=0,
     seg_pad_val=255,
-    size=crop_size,
-    test_cfg=dict(size_divisor=32))
+    size=crop_size)
 
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type=vit_models,
-        in_chans=10, 
-        img_size=224,
+        in_chans=10, # 3/4
+        img_size=512, # 640 
         pretrain_img_size=224,
         patch_size=16,
         pretrain_patch_size=16,
-        depth=24,
-        embed_dim=1024,
-        num_heads=16,
+        depth=12,
+        embed_dim=768,
+        num_heads=12,
         mlp_ratio=4,
         qkv_bias=True,
-        drop_path_rate=0.4,
+        drop_path_rate=0.15,
         init_scale=1.,
         with_fpn=True,
+        # interaction_indexes=[[0, 1], [2, 3], [4, 5], [6, 7], [8, 9], [10, 11], [12, 13], [14, 15], [16, 17], [18, 19], [20, 21], [22, 23]],
         pretrained = pretrained,
-        use_flash_attn=True,
-        window_attn=[True, True, True, True, True, True,
-                     True, True, True, True, True, True,
-                     True, True, True, True, True, True,
-                     True, True, True, True, True, True,],
-        window_size=[28, 28, 28, 28, 28, 28,
-                     28, 28, 28, 28, 28, 28,
-                     28, 28, 28, 28, 28, 28,
-                     28, 28, 28, 28, 28, 28],
+        use_flash_attn=True,    # 用上这个后，显著降低了计算量啊！！！！
+        window_attn=[True, True, True,
+                     True, True, True,
+                     True, True, True,
+                     True, True, True,],
+        window_size=[28, 28, 28,
+                     28, 28, 28,
+                     28, 28, 28,
+                     28, 28, 28],
         ),
     # neck=dict(
     #     type=MultiLevelNeck,
@@ -99,10 +100,10 @@ model = dict(
 
     decode_head=dict(
         type=UPerHead,
-        in_channels=[1024, 1024, 1024, 1024],
+        in_channels=[768, 768, 768, 768],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
-        channels=1024,
+        channels=768,
         dropout_ratio=0.1,
         num_classes=num_classes,
         norm_cfg=norm_cfg,
