@@ -38,30 +38,27 @@ from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
 from mmseg.evaluation import IoUMetric
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_s2_18class_224 import *
+    from ..._base_.datasets.S2_5B_18class_512 import *
     from ..._base_.default_runtime import *
     # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_80k import *
 
-find_unused_parameters = True
 L3_num_classes = 18
-
-backbone_norm_cfg = dict(type='LN', requires_grad=True)
-norm_cfg = dict(type=SyncBN, requires_grad=True)
 
 # pretrained  = 'https://download.openmmlab.com/mmclassification/v0/convnext/downstream/convnext-large_3rdparty_in21k_20220301-e6e0ea0a.pth'
 pretrained = 'checkpoints/2-对比实验的权重/swin/large/swin-large-win12-10chan.pth'
+backbone_norm_cfg = dict(type='LN', requires_grad=True)
+norm_cfg = dict(type=SyncBN, requires_grad=True)
 
-crop_size = (224, 224)
+crop_size = (512, 512)
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    mean =None,
-    std =None,
+    mean =[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    std =[10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
     # bgr_to_rgb=True,
     pad_val=0,
     seg_pad_val=255,
-    size=crop_size,
-    test_cfg=dict(size_divisor=32))
+    size=crop_size)
 
 model = dict(
     type=EncoderDecoder,
