@@ -51,7 +51,7 @@ with read_base():
 num_classes = 18
 
 norm_cfg = dict(type=SyncBN, requires_grad=True)
-pretrained = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_small_224_21k.pth'
+pretrained = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_10chan_small_224_21k.pth'
 
 
 crop_size = (512, 512)
