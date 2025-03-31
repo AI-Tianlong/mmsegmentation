@@ -41,13 +41,11 @@ with read_base():
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
-
 L3_num_classes = 18
 crop_size = (512, 512)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
-# pretrained  = 'https://download.openmmlab.com/mmclassification/v0/convnext/downstream/convnext-large_3rdparty_in21k_20220301-e6e0ea0a.pth'
-pretrained = 'checkpoints/2-对比实验的权重/convnext/large/convnext-large-10chan.pth'
+pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-10chan.pth'
 data_preprocessor = dict(
     type=SegDataPreProcessor,
     mean =[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -64,7 +62,7 @@ model = dict(
     backbone=dict(
         type=ConvNeXt,
         in_channels=10,
-        arch='large',
+        arch='base',
         out_indices=[0, 1, 2, 3],
         drop_path_rate=0.4,
         layer_scale_init_value=1.0,
@@ -73,10 +71,10 @@ model = dict(
             type='Pretrained', checkpoint=pretrained, prefix='backbone.')),
     decode_head=dict(
         type=UPerHead,
-        in_channels=[192, 384, 768, 1536],
+        in_channels=[128, 256, 512, 1024],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
-        channels=1024,
+        channels=768,
         dropout_ratio=0.1,
         num_classes=L3_num_classes,
         norm_cfg=norm_cfg,
@@ -85,7 +83,7 @@ model = dict(
             type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)),
     # auxiliary_head=dict(
     #     type=FCNHead,
-    #     in_channels=768,
+    #     in_channels=512,
     #     in_index=2,
     #     channels=256,
     #     num_convs=1,
@@ -120,7 +118,6 @@ optim_wrapper = dict(
     },
     )
     # loss_scale='dynamic')
-
 param_scheduler = [
     dict(
         type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=1500),
@@ -134,7 +131,7 @@ param_scheduler = [
     )
 ]
 
-train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=4000)
+train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),
