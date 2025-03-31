@@ -26,32 +26,29 @@ from mmseg.evaluation.metrics.iou_metric_guding import IoUMetric_guding
 
 
 with read_base():
-    from ..._base_.datasets.GF2_5B_18class_640 import *
+    from ..._base_.datasets.S2_5B_18class_512 import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
-# 非常的一致，连loss和acc_seg都一模一样，去除了种子的影响
-randomness=dict(seed=42, deterministic=True)
-find_unused_parameters=True
+
 
 num_classes = 18 #倒是也不太影像，这里该改成19的
 
 # model settings
-checkpoint_file = 'checkpoints/2-对比实验的权重/segnext/small/segnext_mscan_s_4chan.pth'   # noqa
-ham_norm_cfg = dict(type=GN, num_groups=32, requires_grad=True)
+checkpoint_file = 'checkpoints/2-对比实验的权重/segnext/small/segnext_mscan_s_10chan.pth'   # noqa
 
-# crop_size = (1547, 1547)
-crop_size = (640, 640)
+ham_norm_cfg = dict(type=GN, num_groups=32, requires_grad=True)
+crop_size = (512, 512)
 
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
-    std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
+    mean =[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    std =[10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
     # bgr_to_rgb=True,
     pad_val=0,
     seg_pad_val=255,
-    size=crop_size,
-    test_cfg=dict(size_divisor=32))
+    size=crop_size)
+
 
 model = dict(
     type=EncoderDecoder,
@@ -59,7 +56,7 @@ model = dict(
     backbone=dict(
         type=MSCAN,
         init_cfg=dict(type='Pretrained', checkpoint=checkpoint_file),
-        in_channels=4,
+        in_channels=10,
         embed_dims=[64, 128, 320, 512],
         mlp_ratios=[8, 8, 4, 4],
         drop_rate=0.0,
@@ -120,12 +117,12 @@ param_scheduler = [
     )
 ]
 
-train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=2000)
+train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),
     param_scheduler=dict(type=ParamSchedulerHook),
-    checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=10),
+    checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=4),
     sampler_seed=dict(type=DistSamplerSeedHook),
     visualization=dict(type=SegVisualizationHook))
 
