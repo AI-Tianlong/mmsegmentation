@@ -81,20 +81,6 @@ model = dict(
         align_corners=False,
         loss_decode=dict(
             type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)),
-    # auxiliary_head=dict(
-    #     type=FCNHead,
-    #     in_channels=512,
-    #     in_index=2,
-    #     channels=256,
-    #     num_convs=1,
-    #     concat_input=False,
-    #     dropout_ratio=0.1,
-    #     num_classes=L3_num_classes,
-    #     norm_cfg=norm_cfg,
-    #     align_corners=False,
-    #     loss_decode=dict(
-    #         type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)),
-    # model training and testing settings
     train_cfg=dict(),
     # test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
     test_cfg=dict(mode='whole'))
