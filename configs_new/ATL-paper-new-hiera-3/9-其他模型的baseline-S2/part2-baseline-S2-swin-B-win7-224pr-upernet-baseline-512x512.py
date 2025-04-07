@@ -49,7 +49,7 @@ backbone_norm_cfg = dict(type='LN', requires_grad=True)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
 # pretrained  = 'https://download.openmmlab.com/mmclassification/v0/convnext/downstream/convnext-large_3rdparty_in21k_20220301-e6e0ea0a.pth'
-pretrained = 'checkpoints/2-对比实验的权重/swin/base/swin_base_patch4_window12_384_10chan.pth'
+pretrained = 'checkpoints/2-对比实验的权重/swin-224/base/swin_base_win7_224_10chan.pth'
 
 data_preprocessor = dict(
     type=SegDataPreProcessor,
