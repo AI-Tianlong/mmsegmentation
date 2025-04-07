@@ -28,8 +28,8 @@ num_classes = 24  # loss 要用，也要加 # 加上背景是25类
 # 这和后面base的模型不一样的话，如果在decode_head里，给这三个数赋值的话，会报非常难定的错误
 
 crop_size = (512, 512)
-# pretrained = None
-pretrained = '/opt/AI-Tianlong/checkpoints/atl_s2_checkpoint/10_channel_beitv2_large_patch16_224_pt1k_ft21k_BGR.pth'
+pretrained = None
+# pretrained = '/opt/AI-Tianlong/checkpoints/atl_s2_checkpoint/10_channel_beitv2_large_patch16_224_pt1k_ft21k_BGR.pth'
 # pretrained = None
 data_preprocessor.update(
     dict(
@@ -131,5 +131,5 @@ param_scheduler = [
     )
 ]
 
-load_from = '/opt/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/2024-4-11-s2_5billion_10bands_crop_10m_miou81.92_pr-44.0接着训用所有数据22222-4xb2-reduce-new-new/iter_36000.pth'
+# load_from = '/opt/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/2024-4-11-s2_5billion_10bands_crop_10m_miou81.92_pr-44.0接着训用所有数据22222-4xb2-reduce-new-new/iter_36000.pth'
 # load_from = None

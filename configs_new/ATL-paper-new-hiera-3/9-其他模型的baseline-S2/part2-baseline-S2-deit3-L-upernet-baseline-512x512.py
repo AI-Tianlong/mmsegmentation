@@ -74,7 +74,7 @@ model = dict(
         patch_size=16,
         drop_path_rate=0.4,
         out_type='featmap',
-        out_indices=(2, 5, 8, 11), # -1 ?测试一下
+        out_indices=(7, 11, 15, 23), # -1 ?测试一下
         init_cfg=dict(type='Pretrained', checkpoint=pretrained, prefix='backbone.'),
         ),
     neck=dict(
