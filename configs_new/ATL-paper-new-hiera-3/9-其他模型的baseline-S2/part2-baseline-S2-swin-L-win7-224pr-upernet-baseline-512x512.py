@@ -46,7 +46,7 @@ with read_base():
 L3_num_classes = 18
 
 # pretrained  = 'https://download.openmmlab.com/mmclassification/v0/convnext/downstream/convnext-large_3rdparty_in21k_20220301-e6e0ea0a.pth'
-pretrained = 'checkpoints/2-对比实验的权重/swin/large/swin-large-win12-10chan.pth'
+pretrained = 'checkpoints/2-对比实验的权重/swin-224/large/swin_large_win7_224_10chan.pth'
 backbone_norm_cfg = dict(type='LN', requires_grad=True)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
