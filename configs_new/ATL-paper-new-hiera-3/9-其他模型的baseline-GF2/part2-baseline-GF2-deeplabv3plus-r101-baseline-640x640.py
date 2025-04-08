@@ -45,6 +45,7 @@ data_preprocessor = dict(
 
 
 
+
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
