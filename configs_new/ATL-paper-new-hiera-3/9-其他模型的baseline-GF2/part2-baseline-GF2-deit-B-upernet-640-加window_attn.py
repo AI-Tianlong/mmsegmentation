@@ -54,15 +54,11 @@ num_classes = 18
 crop_size = (640, 640)
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    # mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
-    # std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
     mean = [412.62603765, 317.66892688, 243.74720123, 292.61469172],
     std = [42.79585263, 45.59081086, 54.94280476, 69.32133677],
-    # bgr_to_rgb=True,
     pad_val=0,
     seg_pad_val=255,
     size=crop_size)
-    # test_cfg=dict(size_divisor=32))
 
 # pretrained='checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
 pretrained = 'checkpoints/2-对比实验的权重/piip/deit/4chan/deit_4chan_base_224_21k.pth'
