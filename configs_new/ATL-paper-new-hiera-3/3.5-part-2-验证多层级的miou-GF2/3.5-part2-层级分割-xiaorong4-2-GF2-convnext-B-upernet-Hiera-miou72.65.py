@@ -37,13 +37,13 @@ from mmseg.evaluation import IoUMetric
 from mmseg.evaluation.metrics.iou_metric_level import IoUMetric_level
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class_224 import *
+    from ..._base_.datasets.GF2_5B_18class_640 import *
     from ..._base_.default_runtime import *
     # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_80k import *
 
 # 训好的权重：/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-2-GF2-convnext-B-upernet-Hiera-miou72.65/iter_80000.pth
-test_output_level = 'L3' # 输出L3, 验证L3的精度
+test_output_level = 'L1' # 输出L3, 验证L3的精度
 results_merge_hiera = False
 
 find_unused_parameters=True

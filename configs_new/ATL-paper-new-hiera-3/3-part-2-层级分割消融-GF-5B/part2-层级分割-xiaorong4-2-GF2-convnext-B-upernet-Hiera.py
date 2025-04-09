@@ -36,7 +36,7 @@ from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
 from mmseg.evaluation import IoUMetric
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class_224 import *
+    from ..._base_.datasets.GF2_5B_18class_640 import *
     from ..._base_.default_runtime import *
     # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_80k import *
@@ -112,7 +112,8 @@ model = dict(
     #         type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)),
     # model training and testing settings
     train_cfg=dict(),
-    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
+    test_cfg=dict(mode='whole'))
+    # test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
 
 
 optimizer=dict(
