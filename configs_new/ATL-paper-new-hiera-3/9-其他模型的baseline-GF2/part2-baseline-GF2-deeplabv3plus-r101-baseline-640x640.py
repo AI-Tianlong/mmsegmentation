@@ -44,8 +44,6 @@ data_preprocessor = dict(
     size=crop_size)
 
 
-
-
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
