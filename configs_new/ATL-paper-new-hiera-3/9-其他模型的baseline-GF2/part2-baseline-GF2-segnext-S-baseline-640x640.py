@@ -127,9 +127,9 @@ default_hooks.update(
     visualization=dict(type=SegVisualizationHook))
 
 val_evaluator = dict(
-    type=IoUMetric_guding, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
+    type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
-    type=IoUMetric_guding,
+    type=IoUMetric,
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)

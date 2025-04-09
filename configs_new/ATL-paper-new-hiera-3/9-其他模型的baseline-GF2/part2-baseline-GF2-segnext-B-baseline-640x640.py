@@ -129,9 +129,9 @@ default_hooks = dict(
 
 
 val_evaluator = dict(
-    type=IoUMetric_guding, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
+    type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
-    type=IoUMetric_guding,      # 这里也需要去改动，变成固定种子
+    type=IoUMetric,      # 这里也需要去改动，变成固定种子
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)
