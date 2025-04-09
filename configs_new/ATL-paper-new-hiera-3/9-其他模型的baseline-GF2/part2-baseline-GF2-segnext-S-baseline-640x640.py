@@ -31,8 +31,8 @@ with read_base():
     from ..._base_.schedules.schedule_80k import *
 
 # 非常的一致，连loss和acc_seg都一模一样，去除了种子的影响
-randomness=dict(seed=42, deterministic=True)
-find_unused_parameters=True
+# randomness=dict(seed=42, deterministic=True)
+# find_unused_parameters=True
 
 num_classes = 18 #倒是也不太影像，这里该改成19的
 
