@@ -123,15 +123,15 @@ default_hooks = dict(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),
     param_scheduler=dict(type=ParamSchedulerHook),
-    checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=10),
+    checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=2),
     sampler_seed=dict(type=DistSamplerSeedHook),
     visualization=dict(type=SegVisualizationHook))
 
 
 val_evaluator = dict(
-    type=IoUMetric_guding, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
+    type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
-    type=IoUMetric_guding,      # 这里也需要去改动，变成固定种子
+    type=IoUMetric,      # 这里也需要去改动，变成固定种子
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)

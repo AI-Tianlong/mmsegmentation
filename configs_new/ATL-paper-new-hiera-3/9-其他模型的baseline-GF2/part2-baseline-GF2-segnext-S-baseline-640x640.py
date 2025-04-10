@@ -31,8 +31,8 @@ with read_base():
     from ..._base_.schedules.schedule_80k import *
 
 # 非常的一致，连loss和acc_seg都一模一样，去除了种子的影响
-randomness=dict(seed=42, deterministic=True)
-find_unused_parameters=True
+# randomness=dict(seed=42, deterministic=True)
+# find_unused_parameters=True
 
 num_classes = 18 #倒是也不太影像，这里该改成19的
 
@@ -117,19 +117,19 @@ param_scheduler = [
     )
 ]
 
-train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=2000)
+train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),
     param_scheduler=dict(type=ParamSchedulerHook),
-    checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=10),
+    checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=2),
     sampler_seed=dict(type=DistSamplerSeedHook),
     visualization=dict(type=SegVisualizationHook))
 
 val_evaluator = dict(
-    type=IoUMetric_guding, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
+    type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
-    type=IoUMetric_guding,
+    type=IoUMetric,
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)
