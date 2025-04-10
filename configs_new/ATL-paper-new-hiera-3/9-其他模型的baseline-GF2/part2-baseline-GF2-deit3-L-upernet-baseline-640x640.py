@@ -51,7 +51,7 @@ with read_base():
 
 num_classes = 18
 norm_cfg = dict(type=SyncBN, requires_grad=True) # decode_head的 norm_cfg
-pretrained = 'checkpoints/2-对比实验的权重/deit3/10chan/deit3-large-384px-10chan.pth'
+pretrained = 'checkpoints/2-对比实验的权重/deit3/4chan/deit3-large-384px-4chan.pth'
 
 crop_size = (640, 640)
 data_preprocessor = dict(
