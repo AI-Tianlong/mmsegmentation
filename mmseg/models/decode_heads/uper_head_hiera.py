@@ -157,6 +157,10 @@ class UPerHead_Hiera(BaseDecodeHead):
                 self.conv_seg_L3 = self.conv_seg #(1024-->12)
 
 
+            elif self.hiera_mode == 'xiaorong5':
+                
+
+
             else:
                 raise ValueError(f'不支持的 hiera_mode: {self.hiera_mode}, 请检查消融实验配置')
 
