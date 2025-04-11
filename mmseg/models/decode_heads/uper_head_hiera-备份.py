@@ -53,7 +53,7 @@ class ProjectionHead(nn.Module):
 
 
 
-@MODELS.register_module()
+# @MODELS.register_module()
 class UPerHead_Hiera(BaseDecodeHead):
     """Unified Perceptual Parsing for Scene Understanding.
     This head is the implementation of `UPerNet <https://arxiv.org/abs/1807.10221>`_.
@@ -162,117 +162,29 @@ class UPerHead_Hiera(BaseDecodeHead):
                 self.conv_seg_L2 = nn.Conv2d(self.channels, num_classes_level_list[1], kernel_size=1) #(1024-->9)
                 self.conv_seg_L3 = self.conv_seg #(1024-->18)
 
-                def merge_block(in_channels, out_channels):
-                    # block = nn.Sequential(  # 4-->9 用两层卷积？
-                    #             nn.Conv2d(dim1, dim2, kernel_size=3, stride=1, padding=1, bias=False), # 4->9
-                    #             nn.ReLU(inplace=True),
-                    #             nn.Conv2d(dim2, dim2, kernel_size=3, stride=1, padding=1, bias=False),
-                    #             nn.ReLU(inplace=True)
-                    #             )
-                    block = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, bias=False)
+                def merge_block(dim1, dim2):
+                    block = nn.Sequential(  # 4-->9 用两层卷积？
+                                nn.Conv2d(dim1, dim2, kernel_size=3, stride=1, padding=1, bias=False), # 4->9
+                                nn.GroupNorm(32, dim2),
+                                nn.ReLU(inplace=True),
+                                nn.Conv2d(dim2, dim2, kernel_size=3, stride=1, padding=1, bias=False),
+                                nn.GroupNorm(32, dim2),
+                                nn.ReLU(inplace=True)
+                                )
                     return block
                 # stage1: coarse to fine 4-->9 | 4->18 9->18
                 self.stage1_merge_L1_to_L2 = merge_block(num_classes_level_list[0], num_classes_level_list[1])# For L2
-                self.stage_1_w12 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
-                self.stage_1_w22 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
-                
                 self.stage1_merge_L1_to_L3 = merge_block(num_classes_level_list[0], num_classes_level_list[2])# For L3
                 self.stage1_merge_L2_to_L3 = merge_block(num_classes_level_list[1], num_classes_level_list[2])
-                self.stage_1_w13 = nn.Parameter(torch.tensor(1.0), requires_grad=True) 
-                self.stage_1_w23 = nn.Parameter(torch.tensor(1.0), requires_grad=True) 
-                self.stage_1_w33 = nn.Parameter(torch.tensor(1.0), requires_grad=True) 
-                # stage2: fine to coarse 18-->9 | 18-->4  9-->4
-                self.stage2_merge_L3_to_L2 = merge_block(num_classes_level_list[2], num_classes_level_list[1])# For L2
-                self.stage_2_w32 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
-                self.stage_2_w22 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
-
-                self.stage2_merge_L3_to_L1 = merge_block(num_classes_level_list[2], num_classes_level_list[0])# For L1
-                self.stage2_merge_L2_to_L1 = merge_block(num_classes_level_list[1], num_classes_level_list[0])# For L1
-                self.stage_2_w31 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
-                self.stage_2_w21 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
-                self.stage_2_w11 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
-                
-                # 再来个权重吧
-            elif self.hiera_mode == 'xiaorong6':
-                # import pdb;pdb.set_trace()
-                class merge_block(nn.Module):
-                    def __init__(self, in_channels, out_channels):
-
-                        super().__init__()
-                        
-                        self.sigmoid=nn.Sigmoid()
-                        self.max_pool = nn.AdaptiveMaxPool2d(output_size=1) # [2,4,128,128]-->[2,4,1,1]  
-                        self.avg_pool = nn.AdaptiveAvgPool2d(output_size=1) # [2,4,128,128]-->[2,4,1,1]  
-                        self.mlp=nn.Sequential(
-                            nn.Linear(in_features=in_channels, out_features=out_channels,bias=False), # [2,4,1,1]-->[2,1024,1,1]
-                            nn.ReLU())
-                        # L1 spatial_attentation
-                        self.spatial_conv = nn.Conv2d(in_channels=2, 
-                                                        out_channels=1, 
-                                                        kernel_size=7 ,
-                                                        stride=1,
-                                                        padding=7//2,
-                                                        bias=False)
-                        self.channel_conv_1x1 = nn.Conv2d(in_channels=in_channels, 
-                                                            out_channels=out_channels, 
-                                                            kernel_size=1, 
-                                                            stride=1, 
-                                                            padding=0, 
-                                                            bias=False)
-                        
-
-                    def forward(self, convseg_outputs): # 这里传入这个 会不会把他改变了啊。还是稳妥一点，传一个copy进来吧
-                        # channel
-                        max_out_channel_att = self.max_pool(convseg_outputs)
-                        max_out_channel_att = self.mlp(max_out_channel_att.view(max_out_channel_att.size(0),-1))  # [2,4,1,1]-->[2,9]-->[2,18] or 反过来
-                        avg_out_channel_att = self.avg_pool(convseg_outputs)
-                        avg_out_channel_att = self.mlp(avg_out_channel_att.view(avg_out_channel_att.size(0),-1)) # [2,4,1,1]-->[2,9]-->[2,18] or 反过来
-                        channel_att_out = self.sigmoid(max_out_channel_att+avg_out_channel_att) # [2,9]-->[2,18] or 反过来
-                        # import pdb;pdb.set_trace()
-                        channel_att_out = channel_att_out.view(channel_att_out.size(0), channel_att_out.size(1),1,1) #[2,9]-->[2,9,1,1]
-                        # spatial
-                        max_out_spatial_att, _ = torch.max(convseg_outputs, dim=1, keepdim=True) # [2,4,128,128]-->[2,1,128,128]
-                        mean_out_spatial_att = torch.mean(convseg_outputs, dim=1, keepdim=True) # [2,4,128,128]-->[2,1,128,128]
-                        spatial_att_out = torch.cat((max_out_spatial_att, mean_out_spatial_att), dim=1) #[2,2,128,128]
-                        spatial_att_out = self.sigmoid(self.spatial_conv(spatial_att_out)) #[2,2,128,128]-->[2,1,128,128]
-                                        # [2,9,1,1] * [2,9,128,128] * [2,1,128,128] #用了广播机制
-                        # 原始特征  1x1 # 这里有个问题，没用原始特征了啊？
-                        convseg_outputs_att = self.channel_conv_1x1(convseg_outputs) # [2,4,128,128]-->[2,9,128,128]
-                        convseg_outputs_att = channel_att_out * convseg_outputs_att * spatial_att_out
-
-                        return convseg_outputs_att
-    
-
-                self.conv_seg_L1 = nn.Conv2d(self.channels, num_classes_level_list[0], kernel_size=1) #[2,1024,128,128]->[2,4,128,128]
-                self.conv_seg_L2 = nn.Conv2d(self.channels, num_classes_level_list[1], kernel_size=1) #(1024-->9)
-                self.conv_seg_L3 = self.conv_seg #(1024-->18)
-                
-                # stage1: coarse to fine 4-->9 | 4->18 9->18
-                # import pdb;pdb.set_trace()
-                self.stage1_merge_L1_to_L2 = merge_block(num_classes_level_list[0], num_classes_level_list[1])# For L2
-                self.stage_1_w12 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
-                self.stage_1_w22 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
-                
-                self.stage1_merge_L1_to_L3 = merge_block(num_classes_level_list[0], num_classes_level_list[2])# For L3
-                self.stage1_merge_L2_to_L3 = merge_block(num_classes_level_list[1], num_classes_level_list[2])
-                self.stage_1_w13 = nn.Parameter(torch.tensor(1.0), requires_grad=True) 
-                self.stage_1_w23 = nn.Parameter(torch.tensor(1.0), requires_grad=True) 
-                self.stage_1_w33 = nn.Parameter(torch.tensor(1.0), requires_grad=True) 
                 
                 # stage2: fine to coarse 18-->9 | 18-->4  9-->4
                 self.stage2_merge_L3_to_L2 = merge_block(num_classes_level_list[2], num_classes_level_list[1])# For L2
-                self.stage_2_w32 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
-                self.stage_2_w22 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
-
                 self.stage2_merge_L3_to_L1 = merge_block(num_classes_level_list[2], num_classes_level_list[0])# For L1
                 self.stage2_merge_L2_to_L1 = merge_block(num_classes_level_list[1], num_classes_level_list[0])# For L1
-                self.stage_2_w31 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
-                self.stage_2_w21 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
-                self.stage_2_w11 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
-                
+
             else:
                 raise ValueError(f'不支持的 hiera_mode: {self.hiera_mode}, 请检查消融实验配置')
-            
+
         self.proj_head = ProjectionHead(dim_in=self.in_channels[-1],   # backbone的最后一个特征图的维度
                                         norm_cfg=self.norm_cfg, 
                                         proj=proj)
@@ -489,59 +401,7 @@ class UPerHead_Hiera(BaseDecodeHead):
             return output_list, embedding
         
         elif self.hiera_mode == 'xiaorong5':
-            # original feature
-            original_L1 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L1) # [2,1024,128,128]->[2,4,128,128]
-            original_L2 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L2) # [2,1024,128,128]->[2,9,128,128]
-            original_L3 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L3) # [2,1024,128,128]->[2,18,128,128]
-
-            # stage1: coarse to fine
-            mid_L1 = original_L1 #[2,4,160,160]
-            mid_L2 = self.stage_1_w12 * self.stage1_merge_L1_to_L2(original_L1) + \
-                     self.stage_1_w22 * original_L2
-            mid_L3 = self.stage_1_w13 * self.stage1_merge_L1_to_L3(original_L1) +\
-                     self.stage_1_w23 * self.stage1_merge_L2_to_L3(original_L2) + \
-                     self.stage_1_w33 * original_L3
-
-            # stage2: fine to coarse
-            output_L3 = mid_L3
-            output_L2 = self.stage_2_w32 * self.stage2_merge_L3_to_L2(mid_L3) + \
-                        self.stage_2_w22 * mid_L2
-            output_L1 = self.stage_2_w31 * self.stage2_merge_L3_to_L1(mid_L3) + \
-                        self.stage_2_w21 * self.stage2_merge_L2_to_L1(mid_L2) + \
-                        self.stage_2_w11 * mid_L1
-            
-            output_list = [output_L1, output_L2, output_L3]
-            self.step += 1
-            
-            return output_list, embedding
-        
-        elif self.hiera_mode == 'xiaorong6':
-            # original feature
-            original_L1 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L1) # [2,1024,128,128]->[2,4,128,128]
-            original_L2 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L2) # [2,1024,128,128]->[2,9,128,128]
-            original_L3 = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L3) # [2,1024,128,128]->[2,18,128,128]
-
-            # import pdb;pdb.set_trace()
-            # stage1: coarse to fine
-            mid_L1 = original_L1 #[2,4,160,160]
-            mid_L2 = self.stage_1_w12 * self.stage1_merge_L1_to_L2(original_L1) + \
-                     self.stage_1_w22 * original_L2
-            mid_L3 = self.stage_1_w13 * self.stage1_merge_L1_to_L3(original_L1) +\
-                     self.stage_1_w23 * self.stage1_merge_L2_to_L3(original_L2) + \
-                     self.stage_1_w33 * original_L3
-
-            # stage2: fine to coarse
-            output_L3 = mid_L3
-            output_L2 = self.stage_2_w32 * self.stage2_merge_L3_to_L2(mid_L3) + \
-                        self.stage_2_w22 * mid_L2
-            output_L1 = self.stage_2_w31 * self.stage2_merge_L3_to_L1(mid_L3) + \
-                        self.stage_2_w21 * self.stage2_merge_L2_to_L1(mid_L2) + \
-                        self.stage_2_w11 * mid_L1
-            
-            output_list = [output_L1, output_L2, output_L3]
-            self.step += 1
-            
-            return output_list, embedding
+            pass
         
         else:
             raise ValueError(f'不支持的 hiera_mode: {self.hiera_mode}, 请检查消融实验配置')

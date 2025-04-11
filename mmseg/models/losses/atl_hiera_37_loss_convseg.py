@@ -553,7 +553,6 @@ class ATL_Hiera_Loss_convseg(nn.Module):
         # self.tree_triplet_loss = TreeTripletLoss(ignore_index = self.ignore_index)
         # self.tree_triplet_loss = Focal_Tree_Min_Loss(ignore_index = self.ignore_index)
         self.cross_entropy_loss = CrossEntropyLoss(loss_name='loss_hiera_ce')
-
         self._loss_name = loss_name
         self.mode = mode
     def forward(self,
@@ -577,30 +576,47 @@ class ATL_Hiera_Loss_convseg(nn.Module):
 
         # Focal Tree-Min Loss                # [list]
         # tree_min_loss = Tree_Min_Loss(pred_seg_logits, hiera_label_list, self.num_classes, ignore_index=self.ignore_index)  # 10.9371
+        
 
-        ce_loss_L1 = self.cross_entropy_loss(pred_seg_logits[0],
-                                             hiera_label_list[0],
-                                             weight=None,
-                                             ignore_index=self.ignore_index)
-
-        ce_loss_L2 = self.cross_entropy_loss(pred_seg_logits[1],
-                                             hiera_label_list[1],
-                                             weight=None,
-                                             ignore_index=self.ignore_index)
-
-        ce_loss_L3 = self.cross_entropy_loss(pred_seg_logits[2],
-                                             hiera_label_list[2],
-                                             weight=None,
-                                             ignore_index=self.ignore_index)
 
         # ====================== 2025 年 2 月 25 日的新实验 ====================
         
         # loss 消融1
         if self.mode == 'xiaorong1':
+            ce_loss_L1 = self.cross_entropy_loss(pred_seg_logits[0],
+                                             hiera_label_list[0],
+                                             weight=None,
+                                             ignore_index=self.ignore_index)
+
+            ce_loss_L2 = self.cross_entropy_loss(pred_seg_logits[1],
+                                                hiera_label_list[1],
+                                                weight=None,
+                                                ignore_index=self.ignore_index)
+
+            ce_loss_L3 = self.cross_entropy_loss(pred_seg_logits[2],
+                                                hiera_label_list[2],
+                                                weight=None,
+                                                ignore_index=self.ignore_index)
             loss = ce_loss_L1 + ce_loss_L2 + ce_loss_L3  
+        
         # loss 消融2 
         elif self.mode == 'xiaorong2':
+            ce_loss_L1 = self.cross_entropy_loss(pred_seg_logits[0],
+                                                hiera_label_list[0],
+                                                weight=None,
+                                                ignore_index=self.ignore_index)
+            ce_loss_L2 = self.cross_entropy_loss(pred_seg_logits[1],
+                                                hiera_label_list[1],
+                                                weight=None,
+                                                ignore_index=self.ignore_index)
+            ce_loss_L3 = self.cross_entropy_loss(pred_seg_logits[2],
+                                                hiera_label_list[2],
+                                                weight=None,
+                                                ignore_index=self.ignore_index)
             loss = 0.3*ce_loss_L1 + 0.3*ce_loss_L2 + 0.4*ce_loss_L3  
+        
+        elif self.mode == 'xiaorong3':
+            pass    
         return loss*self.loss_weight 
 
         # # loss = tree_min_loss + ce_loss_L1 + ce_loss_L2 + ce_loss_L3
