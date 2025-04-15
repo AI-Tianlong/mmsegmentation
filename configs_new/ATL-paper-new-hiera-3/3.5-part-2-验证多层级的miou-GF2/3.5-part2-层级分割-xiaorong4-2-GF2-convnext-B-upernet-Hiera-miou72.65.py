@@ -166,6 +166,7 @@ val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
     type=IoUMetric_level,
+    is_baseline = False,
     test_output_level = test_output_level,
     num_classes_list = [4,9,18],
     iou_metrics=['mIoU', 'mFscore'],

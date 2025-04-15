@@ -58,6 +58,7 @@ class IoUMetric_level(BaseMetric):
     """
 
     def __init__(self,
+                 is_baseline: bool = False,
                  test_output_level: str = 'L3',
                  num_classes_list: List[int] = [4, 9, 18],
                  ignore_index: int = 255,
@@ -70,7 +71,7 @@ class IoUMetric_level(BaseMetric):
                  prefix: Optional[str] = None,
                  **kwargs) -> None:
         super().__init__(collect_device=collect_device, prefix=prefix)
-
+        self.is_baseline = is_baseline
         self.test_output_level = test_output_level
         self.num_classes_list = num_classes_list
 
@@ -83,6 +84,16 @@ class IoUMetric_level(BaseMetric):
             mkdir_or_exist(self.output_dir)
         self.format_only = format_only
 
+    def convert_baseline_L3_to_L1_L2(self, L3_pred_label):
+        pred_label_list = convert_low_level_label_to_High_level(L3_pred_label, FiveBillion_18Classes_HieraMap_nobackground)
+        if self.test_output_level == 'L3':
+            pred_label = pred_label_list[2]
+        elif self.test_output_level == 'L2':
+            pred_label = pred_label_list[1]
+        elif self.test_output_level == 'L1':
+            pred_label = pred_label_list[0]
+        return pred_label
+    
     def process(self, data_batch: dict, data_samples: Sequence[dict]) -> None:
         """Process one batch of data and data_samples.
 
@@ -97,7 +108,8 @@ class IoUMetric_level(BaseMetric):
         for data_sample in data_samples:
             # 根据uperhead的输出，这里是L1、L2、L3
             pred_label = data_sample['pred_sem_seg']['data'].squeeze()  #经过Encode_Decoder的predict的结果 [594,594]
-    
+            if self.is_baseline:
+                pred_label = self.convert_baseline_L3_to_L1_L2(pred_label)
             # format_only always for test dataset without ground truth
             if not self.format_only:
                 label = data_sample['gt_sem_seg']['data'].squeeze().to(
@@ -119,9 +131,12 @@ class IoUMetric_level(BaseMetric):
                     num_classes = self.num_classes_list[0]
                     self.dataset_meta['classes'] = L1_classes_name
                     label = label_list[0]
-        
+
+                # 其实在这里处理这个label就行。
                 self.results.append(
-                    self.intersect_and_union(pred_label, label, num_classes,
+                    self.intersect_and_union(pred_label, 
+                                             label, 
+                                             num_classes,
                                              self.ignore_index))
                 
             # import pdb; pdb.set_trace()

@@ -36,33 +36,27 @@ from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
 from mmseg.evaluation import IoUMetric
 
 with read_base():
-    from ..._base_.datasets.S2_5B_18class_512 import *
+    from ..._base_.datasets.GF2_5B_18class_640 import *
     from ..._base_.default_runtime import *
     # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_80k import *
-
-# 训好的权重:/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-S2-deit-L-upernet-Hiera-miou52.52/iter_80000.pth
-test_output_level = 'L1' # 输出L3, 验证L3的精度
-results_merge_hiera = False
 
 find_unused_parameters=True
 L1_num_classes = 4  # number of L1 Level label   # 5
 L2_num_classes = 9  # number of L1 Level label  # 11  5+11+21=37类
 L3_num_classes = 18  # number of L1 Level label  # 21
 
-crop_size = (512, 512)
+crop_size = (640, 640)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
-pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-10chan.pth'
+pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-4chan.pth'
 data_preprocessor = dict(
-    type=SegDataPreProcessor,
-    mean =[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    std =[10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
-    # bgr_to_rgb=True,
-    pad_val=0,
-    seg_pad_val=255,
-    size=crop_size)
-
+        type=SegDataPreProcessor,
+        mean = [412.62603765, 317.66892688, 243.74720123, 292.61469172],
+        std = [42.79585263, 45.59081086, 54.94280476, 69.32133677],
+        pad_val=0,
+        seg_pad_val=255,
+        size=crop_size)
 
 model = dict(
     type=EncoderDecoder,
@@ -70,7 +64,7 @@ model = dict(
     # pretrained=None,
     backbone=dict(
         type=ConvNeXt,
-        in_channels=10,
+        in_channels=4,
         arch='base',
         out_indices=[0, 1, 2, 3],
         drop_path_rate=0.4,
@@ -85,6 +79,7 @@ model = dict(
         hiera_mode = 'xiaorong6',
         loss_decode=dict(
             type=ATL_Hiera_Loss_convseg,
+            mode='xiaorong3'
             num_classes=[L1_num_classes, L2_num_classes, L3_num_classes],
             loss_weight=1.0),
         

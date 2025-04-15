@@ -616,7 +616,7 @@ class ATL_Hiera_Loss_convseg(nn.Module):
             loss = 0.3*ce_loss_L1 + 0.3*ce_loss_L2 + 0.4*ce_loss_L3  
         
         elif self.mode == 'xiaorong3':
-            pass    
+            pass 
         return loss*self.loss_weight 
 
         # # loss = tree_min_loss + ce_loss_L1 + ce_loss_L2 + ce_loss_L3
