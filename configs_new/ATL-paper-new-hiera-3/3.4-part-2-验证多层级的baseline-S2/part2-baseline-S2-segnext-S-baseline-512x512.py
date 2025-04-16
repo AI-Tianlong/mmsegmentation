@@ -1,18 +1,11 @@
-
 from mmengine.config import read_base
-from mmengine.optim.optimizer import OptimWrapper
-from mmengine.optim.scheduler.lr_scheduler import LinearLR, PolyLR
-from torch.nn.modules.batchnorm import SyncBatchNorm as SyncBN
-from torch.optim import AdamW
-
-
 from torch.nn.modules.activation import GELU
 from torch.nn.modules.batchnorm import SyncBatchNorm as SyncBN
 from torch.nn.modules.normalization import GroupNorm as GN
 
+
 # EncoderDecoder
 from mmseg.models.segmentors.encoder_decoder import EncoderDecoder
-from mmseg.models.segmentors.atl_encoder_decoder import ATL_EncoderDecoder
 # SegDataPreProcessor
 from mmseg.models.data_preprocessor import SegDataPreProcessor
 # Backbone
@@ -21,19 +14,27 @@ from mmseg.models.backbones import MSCAN
 from mmseg.models.decode_heads.ham_head import LightHamHead
 # Loss
 from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
+from mmseg.models.losses.atl_hiera_37_loss_convseg import ATL_Hiera_Loss_convseg
+# optimizer
+from mmengine.optim.optimizer import OptimWrapper
+from mmengine.optim.scheduler.lr_scheduler import LinearLR, PolyLR
+from torch.optim import AdamW
 # Evaluation
 from mmseg.evaluation import IoUMetric
-
+from mmseg.evaluation.metrics.iou_metric_level import IoUMetric_level
 
 with read_base():
     from ..._base_.datasets.S2_5B_18class_512 import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
+test_output_level = 'L3' # 输出L3, 验证L的精度
+
 num_classes = 18 #倒是也不太影像，这里该改成19的
 
 # model settings
-checkpoint_file = 'checkpoints/2-对比实验的权重/segnext/large/segnext_mscan_l_10chan.pth'   # noqa
+checkpoint_file = 'checkpoints/2-对比实验的权重/segnext/small/segnext_mscan_s_10chan.pth'   # noqa
+
 ham_norm_cfg = dict(type=GN, num_groups=32, requires_grad=True)
 crop_size = (512, 512)
 
@@ -46,6 +47,7 @@ data_preprocessor = dict(
     seg_pad_val=255,
     size=crop_size)
 
+
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
@@ -56,8 +58,8 @@ model = dict(
         embed_dims=[64, 128, 320, 512],
         mlp_ratios=[8, 8, 4, 4],
         drop_rate=0.0,
-        drop_path_rate=0.3,
-        depths=[3, 5, 27, 3],
+        drop_path_rate=0.1,
+        depths=[2, 2, 4, 2],
         attention_kernel_sizes=[5, [1, 7], [1, 11], [1, 21]],
         attention_kernel_paddings=[2, [0, 3], [0, 5], [0, 10]],
         act_cfg=dict(type=GELU),
@@ -66,8 +68,8 @@ model = dict(
         type=LightHamHead,
         in_channels=[128, 320, 512],
         in_index=[1, 2, 3],
-        channels=1024,
-        ham_channels=1024,
+        channels=256,
+        ham_channels=256,
         dropout_ratio=0.1,
         num_classes=num_classes,
         norm_cfg=ham_norm_cfg,
@@ -85,6 +87,8 @@ model = dict(
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
 
+# # dataset settings
+# train_dataloader = dict(batch_size=16)
 
 # optimizer
 optim_wrapper = dict(
@@ -111,9 +115,7 @@ param_scheduler = [
     )
 ]
 
-
-
-train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=4000)
+train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),
@@ -122,11 +124,13 @@ default_hooks.update(
     sampler_seed=dict(type=DistSamplerSeedHook),
     visualization=dict(type=SegVisualizationHook))
 
-
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
-    type=IoUMetric,
+    type=IoUMetric_level,
+    is_baseline = True,
+    test_output_level = test_output_level,
+    num_classes_list = [4,9,18],
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)

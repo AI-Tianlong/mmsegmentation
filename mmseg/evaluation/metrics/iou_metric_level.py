@@ -1,8 +1,9 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import os.path as osp
 from collections import OrderedDict
-from typing import Dict, List, Optional, Sequence
+from typing import Any, List, Optional, Sequence, Union, Dict
 
+import logging
 import numpy as np
 import torch
 from mmengine.dist import is_main_process
@@ -11,8 +12,14 @@ from mmengine.logging import MMLogger, print_log
 from mmengine.utils import mkdir_or_exist
 from PIL import Image
 from prettytable import PrettyTable
+from torch import Tensor
+from mmengine.structures import BaseDataElement
+
+
 
 from mmseg.registry import METRICS
+from mmengine.dist import (broadcast_object_list, collect_results,
+                           is_main_process)
 
 from mmseg.models.losses.atl_hiera_37_loss_convseg import convert_low_level_label_to_High_level, FiveBillion_18Classes_HieraMap_nobackground
 
@@ -75,6 +82,9 @@ class IoUMetric_level(BaseMetric):
         self.test_output_level = test_output_level
         self.num_classes_list = num_classes_list
 
+        self.L2_results = []
+        self.L1_results = []
+
         self.ignore_index = ignore_index
         self.metrics = iou_metrics
         self.nan_to_num = nan_to_num
@@ -83,16 +93,65 @@ class IoUMetric_level(BaseMetric):
         if self.output_dir and is_main_process():
             mkdir_or_exist(self.output_dir)
         self.format_only = format_only
-
-    def convert_baseline_L3_to_L1_L2(self, L3_pred_label):
+        
+    def convert_baseline_L3_to_L1_L2(self, L3_pred_label, test_output_level):
         pred_label_list = convert_low_level_label_to_High_level(L3_pred_label, FiveBillion_18Classes_HieraMap_nobackground)
-        if self.test_output_level == 'L3':
+        if test_output_level == 'L3':
             pred_label = pred_label_list[2]
-        elif self.test_output_level == 'L2':
+        elif test_output_level == 'L2':
             pred_label = pred_label_list[1]
-        elif self.test_output_level == 'L1':
+        elif test_output_level == 'L1':
             pred_label = pred_label_list[0]
         return pred_label
+    
+    def baseline_L2_process(self, data_samples: Sequence[dict], level:str='L2') -> None:
+        num_classes = len(self.dataset_meta['classes'])
+        for data_sample in data_samples:    
+            # 根据uperhead的输出，这里是L1、L2、L3
+            pred_label = data_sample['pred_sem_seg']['data'].squeeze()  #经过Encode_Decoder的predict的结果 [594,594]
+            pred_label = self.convert_baseline_L3_to_L1_L2(pred_label, level)
+            label = data_sample['gt_sem_seg']['data'].squeeze().to(pred_label)
+            # import pdb; pdb.set_trace()
+            label_list = convert_low_level_label_to_High_level(label, FiveBillion_18Classes_HieraMap_nobackground)
+
+            if level == 'L3':
+                num_classes = self.num_classes_list[2]
+                self.dataset_meta['classes'] = L3_classes_name
+                label = label_list[2] # 仅输出融合后L3的特征图
+            elif level == 'L2':
+                num_classes = self.num_classes_list[1]
+                self.dataset_meta['classes'] = L2_classes_name
+                label = label_list[1]
+            elif level == 'L1':
+                num_classes = self.num_classes_list[0]
+                self.dataset_meta['classes'] = L1_classes_name
+                label = label_list[0]
+            self.L2_results.append(self.intersect_and_union(pred_label, label, num_classes, self.ignore_index))
+    
+    def baseline_L1_process(self, data_samples: Sequence[dict], level:str='L1') -> None:
+        num_classes = len(self.dataset_meta['classes'])
+        for data_sample in data_samples:    
+            # 根据uperhead的输出，这里是L1、L2、L3
+            pred_label = data_sample['pred_sem_seg']['data'].squeeze()  #经过Encode_Decoder的predict的结果 [594,594]
+            pred_label = self.convert_baseline_L3_to_L1_L2(pred_label, level)
+            label = data_sample['gt_sem_seg']['data'].squeeze().to(pred_label)
+            # import pdb; pdb.set_trace()
+            label_list = convert_low_level_label_to_High_level(label, FiveBillion_18Classes_HieraMap_nobackground)
+
+            if level == 'L3':
+                num_classes = self.num_classes_list[2]
+                self.dataset_meta['classes'] = L3_classes_name
+                label = label_list[2] # 仅输出融合后L3的特征图
+            elif level == 'L2':
+                num_classes = self.num_classes_list[1]
+                self.dataset_meta['classes'] = L2_classes_name
+                label = label_list[1]
+            elif level == 'L1':
+                num_classes = self.num_classes_list[0]
+                self.dataset_meta['classes'] = L1_classes_name
+                label = label_list[0]
+            self.L1_results.append(self.intersect_and_union(pred_label, label, num_classes, self.ignore_index))
+
     
     def process(self, data_batch: dict, data_samples: Sequence[dict]) -> None:
         """Process one batch of data and data_samples.
@@ -104,16 +163,22 @@ class IoUMetric_level(BaseMetric):
             data_batch (dict): A batch of data from the dataloader.
             data_samples (Sequence[dict]): A batch of outputs from the model.
         """
+        # 先把L2和L1处理掉
+        if self.is_baseline:
+            # import pdb;pdb.set_trace()
+            self.baseline_L2_process(data_samples=data_samples)
+            self.baseline_L1_process(data_samples=data_samples)
+
+        # For 正常的流程，去输出去。
         num_classes = len(self.dataset_meta['classes'])
         for data_sample in data_samples:
             # 根据uperhead的输出，这里是L1、L2、L3
             pred_label = data_sample['pred_sem_seg']['data'].squeeze()  #经过Encode_Decoder的predict的结果 [594,594]
             if self.is_baseline:
-                pred_label = self.convert_baseline_L3_to_L1_L2(pred_label)
+                pred_label = self.convert_baseline_L3_to_L1_L2(pred_label, self.test_output_level)
             # format_only always for test dataset without ground truth
             if not self.format_only:
-                label = data_sample['gt_sem_seg']['data'].squeeze().to(
-                    pred_label)
+                label = data_sample['gt_sem_seg']['data'].squeeze().to(pred_label)
                 # import pdb; pdb.set_trace()
                 label_list = convert_low_level_label_to_High_level(label, FiveBillion_18Classes_HieraMap_nobackground)
                 
@@ -131,13 +196,15 @@ class IoUMetric_level(BaseMetric):
                     num_classes = self.num_classes_list[0]
                     self.dataset_meta['classes'] = L1_classes_name
                     label = label_list[0]
-
+                
+                # import pdb;pdb.set_trace()
                 # 其实在这里处理这个label就行。
-                self.results.append(
-                    self.intersect_and_union(pred_label, 
-                                             label, 
-                                             num_classes,
-                                             self.ignore_index))
+                self.results.append(self.intersect_and_union(pred_label, label, num_classes, self.ignore_index))
+                
+                # The intersection of prediction and ground truth histogram on all classes.
+                # The union of prediction and ground truth histogram on all classes.
+                # The prediction histogram on all classes.
+                # The ground truth histogram on all classes.
                 
             # import pdb; pdb.set_trace()
             # format_result
@@ -167,6 +234,7 @@ class IoUMetric_level(BaseMetric):
                 mainly includes aAcc, mIoU, mAcc, mDice, mFscore, mPrecision,
                 mRecall.
         """
+        # import pdb;pdb.set_trace()
         logger: MMLogger = MMLogger.get_current_instance()
         if self.format_only:
             logger.info(f'results are saved to {osp.dirname(self.output_dir)}')
@@ -210,7 +278,7 @@ class IoUMetric_level(BaseMetric):
         class_table_data = PrettyTable()
         for key, val in ret_metrics_class.items():
             class_table_data.add_column(key, val)
-
+        
         print_log('per class results:', logger)
         print_log('\n' + class_table_data.get_string(), logger=logger)
 
@@ -347,3 +415,109 @@ class IoUMetric_level(BaseMetric):
                 for metric, metric_value in ret_metrics.items()
             })
         return ret_metrics
+
+
+    
+    def evaluate(self, size: int) -> dict:
+        """Evaluate the model performance of the whole dataset after processing
+        all batches.
+
+        Args:
+            size (int): Length of the entire validation dataset. When batch
+                size > 1, the dataloader may pad some data samples to make
+                sure all ranks have the same length of dataset slice. The
+                ``collect_results`` function will drop the padded data based on
+                this size.
+
+        Returns:
+            dict: Evaluation metrics dict on the val dataset. The keys are the
+            names of the metrics, and the values are corresponding results.
+        """
+        if len(self.results) == 0:
+            print_log(
+                f'{self.__class__.__name__} got empty `self.results`. Please '
+                'ensure that the processed results are properly added into '
+                '`self.results` in `process` method.',
+                logger='current',
+                level=logging.WARNING)
+
+        if self.collect_device == 'cpu':
+            if self.is_baseline:
+                L1_results = collect_results(
+                    self.L1_results,
+                    size,
+                    self.collect_device,
+                    tmpdir=self.collect_dir)
+                L2_results = collect_results(
+                    self.L2_results,
+                    size,
+                    self.collect_device,
+                    tmpdir=self.collect_dir)
+            results = collect_results(
+                self.results,
+                size,
+                self.collect_device,
+                tmpdir=self.collect_dir)
+        else:
+            if self.is_baseline:
+                L1_results = collect_results(self.L1_results, size, self.collect_device)
+                L2_results = collect_results(self.L2_results, size, self.collect_device)
+            results = collect_results(self.results, size, self.collect_device)
+
+        if is_main_process():
+            # cast all tensors in results list to cpu
+
+            if self.is_baseline:
+                # 打印L1的结果
+                self.dataset_meta['classes'] = L1_classes_name
+                L1_results = _to_cpu(L1_results)
+                L1_metrics = self.compute_metrics(L1_results)
+                print_log("L1 level metrics: " + ', '.join(f"{k}: {v}" for k, v in L1_metrics.items()), logger='current')
+                print('\n')
+
+                # 打印L2的结果
+                self.dataset_meta['classes'] = L2_classes_name
+                L2_results = _to_cpu(L2_results)
+                L2_metrics = self.compute_metrics(L2_results)
+                print_log("L2 level metrics: " + ', '.join(f"{k}: {v}" for k, v in L2_metrics.items()), logger='current')
+                print('\n')# 
+
+            # 打印L3的结果  / L2 / L1 根据self.test_output_level参数指定，恢复self.dataset_meta['classes']
+            if self.test_output_level == 'L3':
+                self.dataset_meta['classes'] = L3_classes_name
+            elif self.test_output_level == 'L2':
+                self.dataset_meta['classes'] = L2_classes_name
+            elif self.test_output_level == 'L1':
+                self.dataset_meta['classes'] = L1_classes_name
+            results = _to_cpu(results)
+            _metrics = self.compute_metrics(results)  # type: ignore # 这里就输出了那个啥啦
+
+            # Add prefix to metric names
+            if self.prefix: # self.prefix=None
+                _metrics = {
+                    '/'.join((self.prefix, k)): v
+                    for k, v in _metrics.items()
+                }
+            metrics = [_metrics]
+        else:
+            metrics = [None]  # type: ignore
+
+        broadcast_object_list(metrics)
+
+        # reset the results list
+        self.results.clear()
+        return metrics[0] #最后的那个，这里直接打印出来得了
+
+
+def _to_cpu(data: Any) -> Any:
+    """transfer all tensors and BaseDataElement to cpu."""
+    if isinstance(data, (Tensor, BaseDataElement)):
+        return data.to('cpu')
+    elif isinstance(data, list):
+        return [_to_cpu(d) for d in data]
+    elif isinstance(data, tuple):
+        return tuple(_to_cpu(d) for d in data)
+    elif isinstance(data, dict):
+        return {k: _to_cpu(v) for k, v in data.items()}
+    else:
+        return data

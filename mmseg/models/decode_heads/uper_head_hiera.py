@@ -98,8 +98,7 @@ class UPerHead_Hiera(BaseDecodeHead):
                 # 消融实验1  # 多层级间没有交互。只是输出三个通道，最后融合输出。
                 self.conv_seg_L1 = nn.Conv2d(self.channels, num_classes_level_list[0], kernel_size=1) #(1024-->5)
                 self.conv_seg_L2 = nn.Conv2d(self.channels, num_classes_level_list[1], kernel_size=1)
-                self.conv_seg_L3 = nn.Conv2d(self.channels, num_classes_level_list[2], kernel_size=1)
-                self.conv_seg #(1024-->12)
+                self.conv_seg_L3 = self.conv_seg
             elif self.hiera_mode == 'xiaorong2':
                 # 消融实验2  # 多层级间假交互，只是把第一个的特征图叠加在第二个上，最后融合输出。
                 self.conv_seg_L1 = nn.Conv2d(self.channels,                
