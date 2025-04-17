@@ -45,73 +45,10 @@ class TwoBranch_backbone(nn.Module):
         if norm_layer == "none":
             norm_layer = nn.Identity
 
-        self.land_use_branch = MODELS.build(land_use_branch)
-        self.new_task_branch = MODELS.build(new_task_branch)
+        self.land_use_branch = MODELS.build(land_use_branch)  # convnext
+        self.new_task_branch = MODELS.build(new_task_branch)  # convnext
  
-        
-        dim1 = self.branch1.embed_dim  # branch1的维度, 最大
-        dim2 = self.branch2.embed_dim  # branch2的维度, 中等
-        dim3 = self.branch3.embed_dim  # branch3的维度, 最小
-        assert dim1 >= dim2 >= dim3
-        
-        # 将branch1的维度变到dim1
-        self.merge_branch1 = nn.Sequential(
-            nn.Conv2d(dim1, dim1, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.GroupNorm(32, dim1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(dim1, dim1, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.GroupNorm(32, dim1),
-            nn.ReLU(inplace=True),
-        )
-        # 将branch2的维度变到dim1
-        self.merge_branch2 = nn.Sequential(
-            nn.Conv2d(dim2, dim1, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.GroupNorm(32, dim1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(dim1, dim1, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.GroupNorm(32, dim1),
-            nn.ReLU(inplace=True),
-        )
-        # 将branch3的维度变到dim1
-        self.merge_branch3 = nn.Sequential(
-            nn.Conv2d(dim3, dim1, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.GroupNorm(32, dim1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(dim1, dim1, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.GroupNorm(32, dim1),
-            nn.ReLU(inplace=True),
-        )
-        
-        self.merge_branch1.apply(self._init_weights)
-        self.merge_branch2.apply(self._init_weights)
-        self.merge_branch3.apply(self._init_weights)
-        
-        out_dim = dim1
-        self.is_dino = is_dino
-        if not is_dino: # 如果不是dino，则输出4个特征图
-            self.fpn1 = nn.Sequential(
-                nn.ConvTranspose2d(out_dim, out_dim, 2, 2),
-                nn.GroupNorm(32, out_dim),
-                nn.GELU(),
-                nn.ConvTranspose2d(out_dim, out_dim, 2, 2)
-            )
-            self.fpn1.apply(self._init_weights) 
-            
-        self.fpn2 = nn.Sequential(nn.ConvTranspose2d(out_dim, out_dim, 2, 2))
-        self.fpn3 = nn.Sequential(nn.Identity())
-        self.fpn4 = nn.Sequential(nn.MaxPool2d(kernel_size=2, stride=2))
-
-
-        self.fpn2.apply(self._init_weights)
-        self.fpn3.apply(self._init_weights)
-        self.fpn4.apply(self._init_weights)
-        self.interactions.apply(self._init_weights)
-        self.apply(self._init_deform_weights)
-        self.init_weights(pretrained)
-        
-    @property
-    def dtype(self):
-        return self.branch3.patch_embed.proj.weight.dtype
+     
     
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -139,7 +76,7 @@ class TwoBranch_backbone(nn.Module):
                 checkpoint_old = checkpoint['module']
                 checkpoint = {}
                 for k, v in checkpoint_old.items():
-                    checkpoint[k.replace('backbone.', '')] = v
+                    checkpoint[k.replace('backbone.', '')] = v        # 如果以backbone起始符合，用这里去加载
             message = self.load_state_dict(checkpoint, strict=False)
             print_log(message)
 

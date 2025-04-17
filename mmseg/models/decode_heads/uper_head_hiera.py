@@ -556,7 +556,7 @@ class UPerHead_Hiera(BaseDecodeHead):
 
 
     # =================== Hiera 修改 LOSS 和 predict 方式 ===============
-
+    
     def loss_by_feat(self, 
                      seg_logits: Tensor,
                      batch_data_samples: SampleList) -> dict:

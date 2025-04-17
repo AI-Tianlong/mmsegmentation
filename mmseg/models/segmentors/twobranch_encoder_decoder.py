@@ -71,62 +71,55 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
     """  # noqa: E501
 
     def __init__(self,
-                 backbone: ConfigType,
-                 decode_head: ConfigType,
-                 neck: OptConfigType = None,
-                 auxiliary_head: OptConfigType = None,
+                
+                 # backbone
+                 branch1_backbone_land_use: ConfigType,
+                 branch2_backbone_new_task: ConfigType,
+                 # decode_head
+                 branch1_decode_head_land_use: ConfigType,
+                 branch2_decode_head_new_task: ConfigType,
+
                  train_cfg: OptConfigType = None,
                  test_cfg: OptConfigType = None,
                  data_preprocessor: OptConfigType = None,
                  pretrained: Optional[str] = None,
                  init_cfg: OptMultiConfig = None):
-        super().__init__(
-            data_preprocessor=data_preprocessor, init_cfg=init_cfg)
+        super().__init__(data_preprocessor=data_preprocessor, init_cfg=init_cfg)
       
-        self.backbone = MODELS.build(backbone)
-        if neck is not None:
-            self.neck = MODELS.build(neck)
-        self._init_decode_head(decode_head)
-        self._init_auxiliary_head(auxiliary_head)
+        # Build multi backbone 
+        self.branch1_backbone_land_use = MODELS.build(branch1_backbone_land_use)
+        self.branch2_backbone_new_task = MODELS.build(branch2_backbone_new_task)
 
+        # Build multi decode_head 
+        self.branch1_decode_head_land_use = MODELS.build(branch1_decode_head_land_use)
+        self.branch2_decode_head_new_task = MODELS.build(branch2_decode_head_new_task)
+
+        self.branch1_land_use_out_channels = self.branch1_decode_head_land_use.out_channels
+        self.branch2_new_task_out_channels = self.branch2_decode_head_new_task.out_channels
+
+        self.align_corners = self.branch1_decode_head_land_use.align_corners
+        
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
 
-        assert self.with_decode_head
 
-    def _init_decode_head(self, decode_head: ConfigType) -> None:
-        """Initialize ``decode_head``"""
-        self.decode_head = MODELS.build(decode_head)
-        self.align_corners = self.decode_head.align_corners
-        self.num_classes = self.decode_head.num_classes
-        self.out_channels = self.decode_head.out_channels
-
-    def _init_auxiliary_head(self, auxiliary_head: ConfigType) -> None:
-        """Initialize ``auxiliary_head``"""
-        if auxiliary_head is not None:
-            if isinstance(auxiliary_head, list):
-                self.auxiliary_head = nn.ModuleList()
-                for head_cfg in auxiliary_head:
-                    self.auxiliary_head.append(MODELS.build(head_cfg))
-            else:
-                self.auxiliary_head = MODELS.build(auxiliary_head)
 
     def extract_feat(self, inputs: Tensor) -> List[Tensor]:
         """Extract features from images."""
         # import pdb;pdb.set_trace()
-        x = self.backbone(inputs)
-        if self.with_neck:
-            x = self.neck(x)
-        # import pdb;pdb.set_trace()
-        return x
+        x_land_use = self.branch1_backbone_land_use(inputs)
+        x_new_task = self.branch2_backbone_new_task(inputs)
+        
+        
+        return x_land_use, x_new_task
+
 
     def encode_decode(self, inputs: Tensor,
                       batch_img_metas: List[dict]) -> Tensor:
         """Encode images with backbone and decode into a semantic segmentation
         map of the same size as input."""
         x = self.extract_feat(inputs)
-        seg_logits = self.decode_head.predict(x, batch_img_metas,
-                                              self.test_cfg)
+        seg_logits = self.decode_head.predict(x, batch_img_metas, self.test_cfg)
 
         return seg_logits
 
@@ -135,26 +128,9 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
         """Run forward function and calculate loss for decode head in
         training."""
         losses = dict()
-        loss_decode = self.decode_head.loss(inputs, data_samples,
-                                            self.train_cfg)
+        loss_decode = self.decode_head.loss(inputs, data_samples, self.train_cfg)
 
         losses.update(add_prefix(loss_decode, 'decode'))
-        return losses
-
-    def _auxiliary_head_forward_train(self, inputs: List[Tensor],
-                                      data_samples: SampleList) -> dict:
-        """Run forward function and calculate loss for auxiliary head in
-        training."""
-        losses = dict()
-        if isinstance(self.auxiliary_head, nn.ModuleList):
-            for idx, aux_head in enumerate(self.auxiliary_head):
-                loss_aux = aux_head.loss(inputs, data_samples, self.train_cfg)
-                losses.update(add_prefix(loss_aux, f'aux_{idx}'))
-        else:
-            loss_aux = self.auxiliary_head.loss(inputs, data_samples,
-                                                self.train_cfg)
-            losses.update(add_prefix(loss_aux, 'aux'))
-
         return losses
 
     def loss(self, inputs: Tensor, data_samples: SampleList) -> dict:
@@ -170,8 +146,54 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
             dict[str, Tensor]: a dictionary of loss components
         """
 
-        # import pdb;pdb.set_trace()
-        x = self.extract_feat(inputs)  
+        import pdb;pdb.set_trace()                          # [2, 128, 128, 128] [2, 256, 64, 64] [2, 512, 32, 32] [2, 1024, 16, 16]
+        x_land_use, x_new_task = self.extract_feat(inputs)  # [2,10,512,512] --> x_land_use(tuple[4级]), x_new_task(tuple[4级])
+        x_land_use_list, _ = self.branch1_decode_head_land_use.forward(x_land_use)
+
+        # 保存 inputs[0]
+        import numpy as np
+        from osgeo import gdal
+        from ATL_Tools.ATL_gdal import save_array_to_tif
+        from PIL import Image
+        import os
+        import cv2
+
+        inputs_0 = inputs[0]
+        inputs_0_np = inputs_0.detach().cpu().numpy().astype(np.float32)
+        tif_save_path = '/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/7-part-3-跨领域-crop10m-Hiera/land_use_分支的特征输出/inputs[0].tif'
+        save_array_to_tif(img_array=inputs_0_np.transpose(1,2,0),out_path=tif_save_path,Band=10,Datatype=gdal.GDT_Float32)
+        np.save("/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/7-part-3-跨领域-crop10m-Hiera/land_use_分支的特征输出/inputs[0].npy", inputs_0_np)
+        print("Saved inputs[0] to 'inputs_0.npy'")
+    
+        
+        import pdb;pdb.set_trace()
+        x_land_use_list_np = [x.detach().cpu().numpy() for x in x_land_use_list]
+        np.save("/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/7-part-3-跨领域-crop10m-Hiera/land_use_分支的特征输出/L1_seglogits.npy", x_land_use_list_np[0])
+        np.save("/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/7-part-3-跨领域-crop10m-Hiera/land_use_分支的特征输出/L2_seglogits.npy", x_land_use_list_np[1])
+        np.save("/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/7-part-3-跨领域-crop10m-Hiera/land_use_分支的特征输出/L3_seglogits.npy", x_land_use_list_np[2])
+        
+
+        import pdb;pdb.set_trace()
+        L1_mask = np.argmax(x_land_use_list_np[0][0,:,:,:],axis=0).astype(np.uint8)  # x_land_use_list_np[0] [2,4,128,128]
+        L2_mask = np.argmax(x_land_use_list_np[1][0,:,:,:],axis=0).astype(np.uint8) # [2,4,128,128]
+        L3_mask = np.argmax(x_land_use_list_np[2][0,:,:,:],axis=0).astype(np.uint8) # [2,4,128,128]  # resize 到512 太那啥了
+
+
+
+        path_ = '/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/7-part-3-跨领域-crop10m-Hiera/land_use_分支的特征输出/'
+        L1_mask = cv2.resize(L1_mask, (512, 512), interpolation=cv2.INTER_NEAREST)
+        L2_mask = cv2.resize(L2_mask, (512, 512), interpolation=cv2.INTER_NEAREST)
+        L3_mask = cv2.resize(L3_mask, (512, 512), interpolation=cv2.INTER_NEAREST)
+        mask2RGB(MASK_array=L1_mask, RGB_out_path=path_, level='L1', backend='PIL')
+        mask2RGB(MASK_array=L2_mask, RGB_out_path=path_, level='L2', backend='PIL')
+        mask2RGB(MASK_array=L3_mask, RGB_out_path=path_, level='L3', backend='PIL')
+
+        # Image.fromarray(L1_mask).save(os.path.join(path_, 'L1_mask.png'))
+        # Image.fromarray(L2_mask).save(os.path.join(path_, 'L2_mask.png'))
+        # Image.fromarray(L3_mask).save(os.path.join(path_, 'L3_mask.png'))
+
+
+        import pdb;pdb.set_trace()
 
         losses = dict()
 
@@ -363,3 +385,52 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
         # unravel batch dim
         seg_pred = list(seg_pred)
         return seg_pred
+
+
+
+def mask2RGB(
+        MASK_array: str,
+        RGB_out_path: str,
+        level:str='L3',
+        save_suffix='.png',
+        backend='gdal'):
+    
+    reduce_zero_label = False
+    L1_palette =[[146, 208, 80], [0, 100, 255], [255, 217, 102], [198, 89, 17]]                           
+    L2_palette = [[112, 236, 89], [0, 150, 0], [250, 200, 0], [0, 100, 255],
+                    [200, 0, 0],[255, 217, 102],[250, 200, 150],[250, 150, 0],[198, 89, 17]]   
+    L3_palette=[[0,   240, 150], [150, 250, 0  ], [0,   150, 0  ], [250, 200, 0  ],
+                [200, 200, 0  ], [0,   0,   200], [0,   150, 200], [150, 200, 250],
+                [200, 0,   0  ], [250, 0,   150], [200, 150, 150], [250, 200, 150],
+                [150, 150, 0  ], [250, 150, 150], [250, 150, 0  ], [250, 200, 250],
+                [200, 150, 0  ], [200, 100, 50 ]]                           
+                
+    if level == 'L1':
+        palette = L1_palette
+    elif level == 'L2':
+        palette = L2_palette
+    elif level == 'L3':
+        palette = L3_palette
+
+    if reduce_zero_label:
+        new_palette = [[0, 0, 0]] + palette
+        # print(f"palette: {new_palette}")
+    else:
+        new_palette = palette
+        # print(f"palette: {new_palette}")
+    import numpy as np
+    new_palette = np.array(new_palette)
+
+
+
+    MASK_array[MASK_array == 255] = 0
+    h,w = MASK_array.shape
+
+    RGB_label = new_palette[MASK_array].astype(np.uint8)
+    
+    if backend == 'PIL':
+        import os
+        from PIL import Image
+        output_path = os.path.join(RGB_out_path, f'{level}_rgb.{save_suffix}')
+        RGB_label = Image.fromarray(RGB_label).save(output_path)
+ 
