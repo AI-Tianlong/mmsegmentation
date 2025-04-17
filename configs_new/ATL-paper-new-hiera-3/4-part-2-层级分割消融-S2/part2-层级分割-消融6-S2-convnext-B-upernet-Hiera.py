@@ -34,15 +34,14 @@ from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
                                      LearningRateDecayOptimizerConstructor)
 # Evaluation
 from mmseg.evaluation import IoUMetric
-from mmseg.evaluation.metrics.iou_metric_level import IoUMetric_level
 
 with read_base():
-    from ..._base_.datasets.GF2_5B_18class_640 import *
+    from ..._base_.datasets.S2_5B_18class_512 import *
     from ..._base_.default_runtime import *
     # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_80k import *
 
-# 训好的权重：/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-2-GF2-convnext-B-upernet-Hiera-miou72.65/iter_80000.pth
+# 训好的权重:/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-S2-deit-L-upernet-Hiera-miou52.52/iter_80000.pth
 test_output_level = 'L1' # 输出L3, 验证L3的精度
 results_merge_hiera = False
 
@@ -51,17 +50,19 @@ L1_num_classes = 4  # number of L1 Level label   # 5
 L2_num_classes = 9  # number of L1 Level label  # 11  5+11+21=37类
 L3_num_classes = 18  # number of L1 Level label  # 21
 
-
-pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-4chan.pth'
-crop_size = (640, 640)
+crop_size = (512, 512)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
+
+pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-10chan.pth'
 data_preprocessor = dict(
-        type=SegDataPreProcessor,
-        mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
-        std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
-        pad_val=0,
-        seg_pad_val=255,
-        size=crop_size)
+    type=SegDataPreProcessor,
+    mean =[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    std =[10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
+    # bgr_to_rgb=True,
+    pad_val=0,
+    seg_pad_val=255,
+    size=crop_size)
+
 
 model = dict(
     type=EncoderDecoder,
@@ -69,7 +70,7 @@ model = dict(
     # pretrained=None,
     backbone=dict(
         type=ConvNeXt,
-        in_channels=4,
+        in_channels=10,
         arch='base',
         out_indices=[0, 1, 2, 3],
         drop_path_rate=0.4,
@@ -77,13 +78,11 @@ model = dict(
         gap_before_final_norm=False,
         init_cfg=dict(
             type='Pretrained', checkpoint=pretrained, prefix='backbone.')),
-    
     decode_head=dict(
         type=UPerHead_Hiera,
-        test_output_level=test_output_level, #最终输出的层级
         num_classes_level_list = [L1_num_classes, L2_num_classes, L3_num_classes],
-        results_merge_hiera = results_merge_hiera,
-        hiera_mode = 'xiaorong4',
+        results_merge_hiera = True,
+        hiera_mode = 'xiaorong6',
         loss_decode=dict(
             type=ATL_Hiera_Loss_convseg,
             num_classes=[L1_num_classes, L2_num_classes, L3_num_classes],
@@ -97,11 +96,10 @@ model = dict(
         dropout_ratio=0.1,
         norm_cfg=norm_cfg,
         align_corners=False,
+    
     ),
-  
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
-
 
 optimizer=dict(
         type=AdamW, 
@@ -146,10 +144,7 @@ default_hooks.update(
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
-    type=IoUMetric_level,
-    is_baseline = False,
-    test_output_level = test_output_level,
-    num_classes_list = [4,9,18],
+    type=IoUMetric,
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)

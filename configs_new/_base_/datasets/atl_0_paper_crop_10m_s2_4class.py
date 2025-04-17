@@ -20,13 +20,13 @@ crop_size = (512, 512)
 train_pipeline = [
     dict(type=LoadSingleRSImageFromFile),
     dict(type=LoadAnnotations),
-    dict(
-        type=RandomResize,
-        scale=crop_size,
-        ratio_range=(0.5, 2.0),
-        keep_ratio=True),
-    dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),
-    dict(type=RandomFlip, prob=0.5),
+    # dict(
+    #     type=RandomResize,
+    #     scale=crop_size,
+    #     ratio_range=(0.5, 2.0),
+    #     keep_ratio=True),
+    # dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),
+    # dict(type=RandomFlip, prob=0.5),
     # dict(type=PhotoMetricDistortion), # 多通道 不太能用这个
     dict(type=PackSegInputs)
 ]
@@ -67,7 +67,7 @@ tta_pipeline = [
 ]
 
 train_dataloader = dict(
-    batch_size=4,
+    batch_size=2,
     num_workers=4,
     persistent_workers=True,
     sampler=dict(type=InfiniteSampler, shuffle=True),
@@ -75,7 +75,7 @@ train_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(
-            img_path='img_dir/train', seg_map_path='ann_dir/train'),
+            img_path='img_dir/mini_train', seg_map_path='ann_dir/mini_train'),
         pipeline=train_pipeline))
 
 val_dataloader = dict(

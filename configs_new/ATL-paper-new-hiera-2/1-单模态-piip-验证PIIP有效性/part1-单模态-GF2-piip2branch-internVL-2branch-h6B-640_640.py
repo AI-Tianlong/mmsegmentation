@@ -39,7 +39,7 @@ from mmseg.evaluation import IoUMetric
 
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_5b_GF2_18class_224 import *
+    from ..._base_.datasets.GF2_5B_18class_640 import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 

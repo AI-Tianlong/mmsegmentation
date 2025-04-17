@@ -23,25 +23,27 @@ from mmseg.models.decode_heads.ham_head import LightHamHead
 from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
 # Evaluation
 from mmseg.evaluation import IoUMetric
+from mmseg.evaluation.metrics.iou_metric_level import IoUMetric_level
 
 
 with read_base():
-    from ..._base_.datasets.S2_5B_18class_512 import *
+    from ..._base_.datasets.GF2_5B_18class_640 import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
+
+test_output_level = 'L3' # 输出L3, 验证L的精度
 
 num_classes = 18 #倒是也不太影像，这里该改成19的
 
 # model settings
-checkpoint_file = 'checkpoints/2-对比实验的权重/segnext/large/segnext_mscan_l_10chan.pth'   # noqa
+checkpoint_file = 'checkpoints/2-对比实验的权重/segnext/large/segnext_mscan_l_4chan.pth'   # noqa
 ham_norm_cfg = dict(type=GN, num_groups=32, requires_grad=True)
-crop_size = (512, 512)
 
+crop_size = (640, 640)
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    mean =[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    std =[10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
-    # bgr_to_rgb=True,
+    mean = [412.62603765, 317.66892688, 243.74720123, 292.61469172],
+    std = [42.79585263, 45.59081086, 54.94280476, 69.32133677],
     pad_val=0,
     seg_pad_val=255,
     size=crop_size)
@@ -52,7 +54,7 @@ model = dict(
     backbone=dict(
         type=MSCAN,
         init_cfg=dict(type='Pretrained', checkpoint=checkpoint_file),
-        in_channels=10,
+        in_channels=4,
         embed_dims=[64, 128, 320, 512],
         mlp_ratios=[8, 8, 4, 4],
         drop_rate=0.0,
@@ -113,12 +115,12 @@ param_scheduler = [
 
 
 
-train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=4000)
+train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),
     param_scheduler=dict(type=ParamSchedulerHook),
-    checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=4),
+    checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=2),
     sampler_seed=dict(type=DistSamplerSeedHook),
     visualization=dict(type=SegVisualizationHook))
 
@@ -126,7 +128,10 @@ default_hooks.update(
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
-    type=IoUMetric,
+    type=IoUMetric_level,
+    is_baseline = True,
+    test_output_level = test_output_level,
+    num_classes_list = [4,9,18],
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)

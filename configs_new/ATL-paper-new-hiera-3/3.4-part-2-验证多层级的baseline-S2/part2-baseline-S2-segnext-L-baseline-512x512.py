@@ -23,6 +23,7 @@ from mmseg.models.decode_heads.ham_head import LightHamHead
 from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
 # Evaluation
 from mmseg.evaluation import IoUMetric
+from mmseg.evaluation.metrics.iou_metric_level import IoUMetric_level
 
 
 with read_base():
@@ -30,8 +31,9 @@ with read_base():
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
-num_classes = 18 #倒是也不太影像，这里该改成19的
+test_output_level = 'L3' # 输出L3, 验证L的精度
 
+num_classes = 18 #倒是也不太影像，这里该改成19的
 # model settings
 checkpoint_file = 'checkpoints/2-对比实验的权重/segnext/large/segnext_mscan_l_10chan.pth'   # noqa
 ham_norm_cfg = dict(type=GN, num_groups=32, requires_grad=True)
@@ -126,7 +128,10 @@ default_hooks.update(
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
-    type=IoUMetric,
+    type=IoUMetric_level,
+    is_baseline = True,
+    test_output_level = test_output_level,
+    num_classes_list = [4,9,18],
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)
