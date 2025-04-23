@@ -110,7 +110,6 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
         x_land_use = self.branch1_backbone_land_use(inputs)
         x_new_task = self.branch2_backbone_new_task(inputs)
         
-        
         return x_land_use, x_new_task
 
 
@@ -118,15 +117,18 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
                       batch_img_metas: List[dict]) -> Tensor:
         """Encode images with backbone and decode into a semantic segmentation
         map of the same size as input."""
-        x = self.extract_feat(inputs)
-        seg_logits = self.decode_head.predict(x, batch_img_metas, self.test_cfg)
+        x_land_use, x_new_task = self.extract_feat(inputs)
+        land_use_seg_logits = self.branch1_decode_head_land_use.predict(x_land_use, batch_img_metas, self.test_cfg)
+        new_task_seg_logits = self.branch2_decode_head_land_use.predict(x_new_task, batch_img_metas, self.test_cfg)
 
-        return seg_logits
+        return land_use_seg_logits, new_task_seg_logits
 
     def _decode_head_forward_train(self, inputs: List[Tensor],
                                    data_samples: SampleList) -> dict:
         """Run forward function and calculate loss for decode head in
         training."""
+        
+
         losses = dict()
         loss_decode = self.decode_head.loss(inputs, data_samples, self.train_cfg)
 
@@ -149,6 +151,8 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
         import pdb;pdb.set_trace()                          # [2, 128, 128, 128] [2, 256, 64, 64] [2, 512, 32, 32] [2, 1024, 16, 16]
         x_land_use, x_new_task = self.extract_feat(inputs)  # [2,10,512,512] --> x_land_use(tuple[4级]), x_new_task(tuple[4级])
         x_land_use_list, _ = self.branch1_decode_head_land_use.forward(x_land_use)
+        x_new_task_list, _ = self.branch2_decode_head_new_task.forward(x_new_task) #[2, 128, 128, 128] [2, 256, 64, 64] [2, 512, 32, 32] [2, 1024, 16, 16]
+        # x_land_use_list = [x_land_use_list[0], x_land_use_list[1], x_land_use_list[2], x_land_use_list[3]]
 
         # 保存 inputs[0]
         import numpy as np
@@ -172,13 +176,10 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
         np.save("/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/7-part-3-跨领域-crop10m-Hiera/land_use_分支的特征输出/L2_seglogits.npy", x_land_use_list_np[1])
         np.save("/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/7-part-3-跨领域-crop10m-Hiera/land_use_分支的特征输出/L3_seglogits.npy", x_land_use_list_np[2])
         
-
         import pdb;pdb.set_trace()
         L1_mask = np.argmax(x_land_use_list_np[0][0,:,:,:],axis=0).astype(np.uint8)  # x_land_use_list_np[0] [2,4,128,128]
         L2_mask = np.argmax(x_land_use_list_np[1][0,:,:,:],axis=0).astype(np.uint8) # [2,4,128,128]
         L3_mask = np.argmax(x_land_use_list_np[2][0,:,:,:],axis=0).astype(np.uint8) # [2,4,128,128]  # resize 到512 太那啥了
-
-
 
         path_ = '/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/7-part-3-跨领域-crop10m-Hiera/land_use_分支的特征输出/'
         L1_mask = cv2.resize(L1_mask, (512, 512), interpolation=cv2.INTER_NEAREST)
@@ -191,7 +192,6 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
         # Image.fromarray(L1_mask).save(os.path.join(path_, 'L1_mask.png'))
         # Image.fromarray(L2_mask).save(os.path.join(path_, 'L2_mask.png'))
         # Image.fromarray(L3_mask).save(os.path.join(path_, 'L3_mask.png'))
-
 
         import pdb;pdb.set_trace()
 

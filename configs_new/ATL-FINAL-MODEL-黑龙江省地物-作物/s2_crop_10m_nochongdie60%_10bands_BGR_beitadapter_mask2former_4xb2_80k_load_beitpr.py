@@ -15,7 +15,7 @@ from mmseg.models.backbones import BEiTAdapter
 from mmseg.models.segmentors.encoder_decoder import EncoderDecoder
 
 with read_base():
-    from .._base_.datasets.atl_s2_crop_10m import *
+    from .._base_.datasets.S2_crop10m_18class_512 import *
     from .._base_.default_runtime import *
     from .._base_.models.mask2former_beit_potsdam import *
     from .._base_.schedules.schedule_80k import *
@@ -34,12 +34,6 @@ pretrained = '/opt/AI-Tianlong/checkpoints/atl_s2_checkpoint/10_channel_beitv2_l
 data_preprocessor.update(
     dict(
         type=SegDataPreProcessor,
-        # mean=[123.675, 116.28, 103.53],
-        # std=[58.395, 57.12, 57.375],
-        #       B2       B3      B4      B5      B6      B7     B8       B8A     B11    B12
-        # mean=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        # std= [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        # bgr_to_rgb=True,
         mean=None,
         std=None,
         pad_val=0,
@@ -86,9 +80,9 @@ model.update(
                 reduction='mean',
                 class_weight=[1.0] * num_classes + [0.1]),
         ),
-        test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341))))
+        # test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341))))
+        test_cfg=dict(mode='whole')))# dataset config
 
-# dataset config
 train_pipeline = [
     dict(type=LoadSingleRSImageFromFile),
     dict(type=LoadAnnotations),
@@ -131,7 +125,5 @@ param_scheduler = [
     )
 ]
 default_hooks.update(
-    dict(logger=dict(type=LoggerHook, interval=1, log_metric_by_epoch=False)))
+    dict(logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False)))
 
-load_from = None
-# load_from = None

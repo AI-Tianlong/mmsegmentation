@@ -14,19 +14,19 @@ from mmseg.evaluation import IoUMetric
 
 # dataset settings
 dataset_type = ATL_S2_Crop10m_Dataset_4class
-data_root = 'data/1-paper-segmentation/1-crop_10m_东北三省_512'
+data_root = 'data/1-paper-segmentation/2-多领域地物覆盖-S2-crop作物/5-裁切好的图像/0-S2-crop10m-4-512'
 
 crop_size = (512, 512)
 train_pipeline = [
     dict(type=LoadSingleRSImageFromFile),
     dict(type=LoadAnnotations),
-    # dict(
-    #     type=RandomResize,
-    #     scale=crop_size,
-    #     ratio_range=(0.5, 2.0),
-    #     keep_ratio=True),
-    # dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),
-    # dict(type=RandomFlip, prob=0.5),
+    dict(
+        type=RandomResize,
+        scale=crop_size,
+        ratio_range=(0.5, 2.0),
+        keep_ratio=True),
+    dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),
+    dict(type=RandomFlip, prob=0.5),
     # dict(type=PhotoMetricDistortion), # 多通道 不太能用这个
     dict(type=PackSegInputs)
 ]
@@ -46,7 +46,7 @@ test_pipeline = [  #
     # dict(type=Resize, scale=(6800, 7200), keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
-    # dict(type=LoadAnnotations), # 不需要验证，不用添加 Annotations
+    dict(type=LoadAnnotations), # 不需要验证，不用添加 Annotations
     dict(type=PackSegInputs)
 ]
 
@@ -75,7 +75,7 @@ train_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(
-            img_path='img_dir/mini_train', seg_map_path='ann_dir/mini_train'),
+            img_path='img_dir/train', seg_map_path='ann_dir/train'),
         pipeline=train_pipeline))
 
 val_dataloader = dict(
@@ -96,17 +96,14 @@ test_dataloader = dict(
     sampler=dict(type=DefaultSampler, shuffle=False),
     dataset=dict(
         type=dataset_type,
-        data_root=None,
-        data_prefix=dict(
-            img_path='/opt/AI-Tianlong/Datasets/ATL-ATLNongYe/0-河南/images',
-            seg_map_path=' '),
-        # ann_file = ' ',
-        pipeline=test_pipeline))
+        data_root=data_root,
+        data_prefix=dict(img_path='img_dir/val', seg_map_path='ann_dir/val'),
+        pipeline=val_pipeline))
 
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
     type=IoUMetric,
     iou_metrics=['mIoU', 'mFscore'],
-    format_only=True,
+    # format_only=True,
     keep_results=True)
