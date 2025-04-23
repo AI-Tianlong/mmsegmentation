@@ -27,6 +27,7 @@ from mmpretrain.models.backbones.convnext import ConvNeXt
 # DecodeHead
 from mmseg.models.decode_heads.uper_head import UPerHead
 from mmseg.models.decode_heads.uper_head_hiera import UPerHead_Hiera
+from mmseg.models.decode_heads.uper_head_hiera_2branch import UPerHead_Hiera_2branch
 # Loss
 from mmseg.models.losses.atl_hiera_37_loss import ATL_Hiera_Loss
 from mmseg.models.losses.atl_hiera_37_loss_convseg import ATL_Hiera_Loss_convseg
@@ -38,7 +39,7 @@ from mmseg.engine.optimizers.layer_decay_optimizer_constructor_atl import Learni
 from mmseg.evaluation import IoUMetric
 
 with read_base():
-    from ..._base_.datasets.atl_0_paper_crop_10m_s2_4class import *
+    from ..._base_.datasets.S2_crop10m_18class_512  import *
     from ..._base_.default_runtime import *
     # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_80k import *
@@ -48,16 +49,22 @@ test_output_level = 'L1' # 输出L3, 验证L3的精度
 results_merge_hiera = False
 
 find_unused_parameters=True
-L1_num_classes = 4  # number of L1 Level label   # 5
-L2_num_classes = 9  # number of L1 Level label  # 11  5+11+21=37类
-L3_num_classes = 18  # number of L1 Level label  # 21
+branch1_L1_num_classes = 4  # number of L1 Level label   # 5
+branch1_L2_num_classes = 9  # number of L1 Level label  # 11  5+11+21=37类
+branch1_L3_num_classes = 18  # number of L1 Level label  # 21
 
+
+branch2_L1_num_classes = 2  # number of L1 Level label   # 5
+branch2_L2_num_classes = 2  # number of L1 Level label  # 11  5+11+21=37类
+branch2_L3_num_classes = 4  # 水稻、大豆、玉米
 crop_num_classes = 4
 
 crop_size = (512, 512)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
-pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-10chan.pth'
+imagenet_pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-10chan.pth'
+land_use_checkpoint = 'checkpoints/part3-双分支/S2-18类-Hiera/part2-层级分割-消融6-S2-convnext-B-upernet-Hiera-miou58.47-67.60.pth'
+
 data_preprocessor = dict(
     type=SegDataPreProcessor,
     mean = None,
@@ -67,39 +74,40 @@ data_preprocessor = dict(
     seg_pad_val=255,
     size=crop_size)
 
-
-load_from = '/data/AI-Tianlong/openmmlab/mmsegmentation/checkpoints/part3-双分支/S2-18类-Hiera/part3-层级分割-消融6-S2-convnext-B-upernet-Hiera-2branche'
-
 model = dict(
     type=TwoBranch_EncoderDecoder,
     data_preprocessor=data_preprocessor,
         branch1_backbone_land_use=dict(
             type=ConvNeXt,
-            in_channels=10,
-            arch='base',
-            out_indices=[0, 1, 2, 3],
-            drop_path_rate=0.4,
-            layer_scale_init_value=1.0,
-            gap_before_final_norm=False),
-        
-        branch2_backbone_new_task=dict(
-            type=ConvNeXt,
+            init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='backbone.'),
             in_channels=10,
             arch='base',
             out_indices=[0, 1, 2, 3],
             drop_path_rate=0.4,
             layer_scale_init_value=1.0,
             gap_before_final_norm=False,
-            init_cfg=dict(type='Pretrained', checkpoint=pretrained, prefix='backbone.')),
+            frozen_stages=4), # 0不冻结任何stage，共四个stage, self.num_stages = len(self.depths)
+        
+        branch2_backbone_new_task=dict(
+            type=ConvNeXt,
+            init_cfg=dict(type='Pretrained', checkpoint=imagenet_pretrained, prefix='backbone.'),
+            in_channels=10,
+            arch='base',
+            out_indices=[0, 1, 2, 3],
+            drop_path_rate=0.4,
+            layer_scale_init_value=1.0,
+            gap_before_final_norm=False,
+            frozen_stages=0),
 
         branch1_decode_head_land_use=dict(
-            type=UPerHead_Hiera,
-            num_classes_level_list = [L1_num_classes, L2_num_classes, L3_num_classes],
+            type=UPerHead_Hiera_2branch,
+            init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='decode_head.'),
+            num_classes_level_list = [branch1_L1_num_classes, branch1_L2_num_classes, branch1_L3_num_classes],
             results_merge_hiera = True,
             hiera_mode = 'xiaorong6',
             loss_decode=dict(
                 type=ATL_Hiera_Loss_convseg,
-                num_classes=[L1_num_classes, L2_num_classes, L3_num_classes],
+                num_classes=[branch1_L1_num_classes, branch1_L2_num_classes, branch1_L3_num_classes],
                 loss_weight=1.0),
             in_channels=[128, 256, 512, 1024],
             in_index=[0, 1, 2, 3],
@@ -111,12 +119,12 @@ model = dict(
 
         branch2_decode_head_new_task=dict(
             type=UPerHead_Hiera,
-            num_classes_level_list = [L1_num_classes, L2_num_classes, L3_num_classes],
+            num_classes_level_list = [branch2_L1_num_classes, branch2_L2_num_classes, branch2_L3_num_classes],
             results_merge_hiera = True,
             hiera_mode = 'xiaorong6',
             loss_decode=dict(
                 type=ATL_Hiera_Loss_convseg,
-                num_classes=[L1_num_classes, L2_num_classes, L3_num_classes],
+                num_classes=[branch2_L1_num_classes, branch2_L2_num_classes, branch2_L3_num_classes],
                 loss_weight=1.0),
             in_channels=[128, 256, 512, 1024],
             in_index=[0, 1, 2, 3],

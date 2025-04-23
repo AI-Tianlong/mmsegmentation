@@ -12,6 +12,8 @@ from mmseg.datasets.transforms import (LoadAnnotations, PackSegInputs,
                                        ResizeShortestEdge)
 from mmseg.datasets.transforms.loading import LoadSingleRSImageFromFile
 
+
+
 # EncoderDecoder
 from mmseg.models.segmentors.encoder_decoder import EncoderDecoder
 from mmseg.models.segmentors.atl_hiera_37_encoder_decoder import ATL_Hiera_EncoderDecoder
@@ -33,14 +35,11 @@ from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
                                      LearningRateDecayOptimizerConstructor)
 # Evaluation
 from mmseg.evaluation import IoUMetric
-from mmseg.evaluation.metrics.iou_metric_level import IoUMetric_level
 
 with read_base():
-    from ..._base_.datasets.S2_5B_18class_512 import *
+    from ..._base_.datasets.S2_crop10m_18class_512 import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
-
-test_output_level = 'L3' # 输出L3, 验证L的精度
 
 L3_num_classes = 18
 crop_size = (512, 512)
@@ -49,12 +48,14 @@ norm_cfg = dict(type=SyncBN, requires_grad=True)
 pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-10chan.pth'
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    mean =[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    std =[10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
-    # bgr_to_rgb=True,
+    # mean =[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    # std =[10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
+    mean = None,
+    std = None,
     pad_val=0,
     seg_pad_val=255,
     size=crop_size)
+
 
 model = dict(
     type=EncoderDecoder,
@@ -130,10 +131,7 @@ default_hooks.update(
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
-    type=IoUMetric_level,
-    is_baseline = True,
-    test_output_level = test_output_level,
-    num_classes_list = [4,9,18],
+    type=IoUMetric,
     iou_metrics=['mIoU', 'mFscore'],
     format_only=True,
     keep_results=True)

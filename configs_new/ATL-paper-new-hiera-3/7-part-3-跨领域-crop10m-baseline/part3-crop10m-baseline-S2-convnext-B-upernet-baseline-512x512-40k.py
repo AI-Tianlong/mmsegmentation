@@ -12,6 +12,8 @@ from mmseg.datasets.transforms import (LoadAnnotations, PackSegInputs,
                                        ResizeShortestEdge)
 from mmseg.datasets.transforms.loading import LoadSingleRSImageFromFile
 
+
+
 # EncoderDecoder
 from mmseg.models.segmentors.encoder_decoder import EncoderDecoder
 from mmseg.models.segmentors.atl_hiera_37_encoder_decoder import ATL_Hiera_EncoderDecoder
@@ -33,16 +35,13 @@ from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
                                      LearningRateDecayOptimizerConstructor)
 # Evaluation
 from mmseg.evaluation import IoUMetric
-from mmseg.evaluation.metrics.iou_metric_level import IoUMetric_level
 
 with read_base():
-    from ..._base_.datasets.S2_5B_18class_512 import *
+    from ..._base_.datasets.S2_crop10m_18class_512 import *
     from ..._base_.default_runtime import *
-    from ..._base_.schedules.schedule_80k import *
+    from ..._base_.schedules.schedule_40k import *
 
-test_output_level = 'L3' # 输出L3, 验证L的精度
-
-L3_num_classes = 18
+L3_num_classes = 4
 crop_size = (512, 512)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
@@ -112,13 +111,13 @@ param_scheduler = [
         type='PolyLR',
         power=1.0,
         begin=1500,
-        end=80000,
+        end=40000,
         eta_min=0.0,
         by_epoch=False,
     )
 ]
 
-train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
+train_cfg.update(type=IterBasedTrainLoop, max_iters=40000, val_interval=8000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),
@@ -130,10 +129,7 @@ default_hooks.update(
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
-    type=IoUMetric_level,
-    is_baseline = True,
-    test_output_level = test_output_level,
-    num_classes_list = [4,9,18],
+    type=IoUMetric,
     iou_metrics=['mIoU', 'mFscore'],
-    format_only=True,
+    # format_only=True,
     keep_results=True)
