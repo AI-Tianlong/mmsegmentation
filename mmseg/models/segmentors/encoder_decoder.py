@@ -13,6 +13,15 @@ from mmseg.utils import (ConfigType, OptConfigType, OptMultiConfig,
 from .base import BaseSegmentor
 
 
+# ==================================
+# import pdb;pdb.set_trace()
+# import numpy as np
+# from osgeo import gdal
+# from ATL_Tools.ATL_gdal import save_array_to_tif, save_ds_to_tif
+# from ATL_Tools import mkdir_or_exist
+# from PIL import Image
+# import os
+
 @MODELS.register_module()
 class EncoderDecoder(BaseSegmentor):
     """Encoder Decoder segmentors.
@@ -175,7 +184,7 @@ class EncoderDecoder(BaseSegmentor):
 
         # import pdb;pdb.set_trace()
         x = self.extract_feat(inputs)  
-
+    
         losses = dict()
 
         loss_decode = self._decode_head_forward_train(x, data_samples)
@@ -222,7 +231,7 @@ class EncoderDecoder(BaseSegmentor):
             ] * inputs.shape[0]
 
         seg_logits = self.inference(inputs, batch_img_metas)  # torch.Size([1, 18, 224, 224])
-
+    
         return self.postprocess_result(seg_logits, data_samples)
 
     def _forward(self,
@@ -366,3 +375,74 @@ class EncoderDecoder(BaseSegmentor):
         # unravel batch dim
         seg_pred = list(seg_pred)
         return seg_pred
+
+def mask2RGB(
+        img_path: str,
+        MASK_array: str,
+        RGB_out_path: str,
+        level:str='L3',
+        save_suffix='.tif',
+        backend='gdal'):
+    import os
+    import numpy as np
+    from osgeo import gdal
+
+    reduce_zero_label = False
+    img_name = os.path.basename(img_path)
+    
+    L1_palette =[[146, 208, 80], [0, 100, 255], [255, 217, 102], [198, 89, 17]]                           
+    L2_palette = [[112, 236, 89], [0, 150, 0], [250, 200, 0], [0, 100, 255],
+                    [200, 0, 0],[255, 217, 102],[250, 200, 150],[250, 150, 0],[198, 89, 17]]   
+    L3_palette=[[0,   240, 150], [150, 250, 0  ], [0,   150, 0  ], [250, 200, 0  ],
+                [200, 200, 0  ], [0,   0,   200], [0,   150, 200], [150, 200, 250],
+                [200, 0,   0  ], [250, 0,   150], [200, 150, 150], [250, 200, 150],
+                [150, 150, 0  ], [250, 150, 150], [250, 150, 0  ], [250, 200, 250],
+                [200, 150, 0  ], [200, 100, 50 ]]                           
+                
+    if level == 'L1':
+        palette = L1_palette
+    elif level == 'L2':
+        palette = L2_palette
+    elif level == 'L3':
+        palette = L3_palette
+
+    if reduce_zero_label:
+        new_palette = [[0, 0, 0]] + palette
+        # print(f"palette: {new_palette}")
+    else:
+        new_palette = palette
+        # print(f"palette: {new_palette}")
+
+    new_palette = np.array(new_palette)
+
+    MASK_array[MASK_array == 255] = 0
+    h, w = MASK_array.shape
+
+    RGB_label = new_palette[MASK_array].astype(np.uint8)
+    
+    if backend == 'PIL':
+
+        output_path = os.path.join(RGB_out_path, f'{level}_rgb_{img_name}')
+        RGB_label = Image.fromarray(RGB_label).save(output_path)
+
+    elif backend == 'gdal':
+        output_path = os.path.join(RGB_out_path, f'{level}_Hiera输出_rgb_{img_name}')
+        driver = gdal.GetDriverByName('GTiff')
+        RGB_label_gdal = driver.Create(output_path, w, h, 3, gdal.GDT_Byte)
+
+        RGB_label_gdal.GetRasterBand(1).WriteArray(RGB_label[:,:,0])
+        RGB_label_gdal.GetRasterBand(2).WriteArray(RGB_label[:,:,1])
+        RGB_label_gdal.GetRasterBand(3).WriteArray(RGB_label[:,:,2])
+
+        img_gdal = gdal.Open(img_path, gdal.GA_ReadOnly)
+        assert  img_path is not None, f"无法打开 {img_path}"
+
+        trans = img_gdal.GetGeoTransform()
+        proj = img_gdal.GetProjection()
+
+        RGB_label_gdal.SetGeoTransform(trans)
+        RGB_label_gdal.SetProjection(proj)
+
+        RGB_label_gdal = None
+
+ 

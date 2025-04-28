@@ -169,7 +169,8 @@ class LearningRateDecayOptimizerConstructor(DefaultOptimWrapperConstructor):
                 else:
                     raise NotImplementedError()
             elif decay_type == 'stage_wise':
-                if 'ConvNeXt' in module.branch2_backbone_new_task.__class__.__name__:
+                if 'ConvNeXt' in module.backbone.branch2_backbone.__class__.__name__:
+                # if 'ConvNeXt' in module.branch2_backbone_new_task.__class__.__name__: # for mode1 
                     layer_id = get_stage_id_for_convnext(name, num_layers)
                     print_log(f'set param {name} as id {layer_id}')
                 else:

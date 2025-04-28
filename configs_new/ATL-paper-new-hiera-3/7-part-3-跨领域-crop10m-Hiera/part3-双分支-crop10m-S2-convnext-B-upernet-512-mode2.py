@@ -22,7 +22,6 @@ from mmseg.models.segmentors.twobranch_encoder_decoder import TwoBranch_EncoderD
 # SegDataPreProcessor
 from mmseg.models.data_preprocessor import SegDataPreProcessor
 # Backbone
-from mmseg.models.backbones.atl_twobranch_backbone import TwoBranch_backbone
 from mmpretrain.models.backbones.convnext import ConvNeXt
 # DecodeHead
 from mmseg.models.decode_heads.uper_head import UPerHead
@@ -37,6 +36,13 @@ from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
 from mmseg.engine.optimizers.layer_decay_optimizer_constructor_atl import LearningRateDecayOptimizerConstructor
 # Evaluation
 from mmseg.evaluation import IoUMetric
+
+# 2branch 相关的
+from mmseg.models.segmentors.twobranch_encoder_decoder_mode2 import TwoBranch_EncoderDecoder_mode2
+from mmseg.models.backbones.atl_twobranch_backbone_mode2 import TwoBranch_backbone_mode2
+from mmseg.models.decode_heads.atl_twobranch_head_mode2 import TwoBranch_decode_head_mode2
+
+
 
 with read_base():
     from ..._base_.datasets.S2_crop10m_18class_512  import *
@@ -67,17 +73,20 @@ land_use_checkpoint = 'checkpoints/part3-双分支/S2-18类-Hiera/part2-层级�
 
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    mean = None,
-    std = None,
-    # std =[10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
+    mean =[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    std =[10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
     pad_val=0,
     seg_pad_val=255,
     size=crop_size)
 
+# load_from = '/data/AI-Tianlong/openmmlab/mmsegmentation/checkpoints/part3-双分支/S2-18类-Hiera/part3-层级分割-消融6-S2-convnext-B-upernet-Hiera-2branche'
+
 model = dict(
-    type=TwoBranch_EncoderDecoder,
+    type=TwoBranch_EncoderDecoder_mode2,
     data_preprocessor=data_preprocessor,
-        branch1_backbone_land_use=dict(
+    backbone=dict(
+        type=TwoBranch_backbone_mode2,
+        branch1_backbone=dict(  # land use
             type=ConvNeXt,
             init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='backbone.'),
             in_channels=10,
@@ -85,10 +94,9 @@ model = dict(
             out_indices=[0, 1, 2, 3],
             drop_path_rate=0.4,
             layer_scale_init_value=1.0,
-            gap_before_final_norm=False,
-            frozen_stages=4), # 0不冻结任何stage，共四个stage, self.num_stages = len(self.depths)
+            gap_before_final_norm=False), # 0不冻结任何stage，共四个stage, self.num_stages = len(self.depths)
         
-        branch2_backbone_new_task=dict(
+        branch2_backbone=dict( # new_task
             type=ConvNeXt,
             init_cfg=dict(type='Pretrained', checkpoint=imagenet_pretrained, prefix='backbone.'),
             in_channels=10,
@@ -96,46 +104,49 @@ model = dict(
             out_indices=[0, 1, 2, 3],
             drop_path_rate=0.4,
             layer_scale_init_value=1.0,
-            gap_before_final_norm=False,
-            frozen_stages=0),
+            gap_before_final_norm=False)
+        ),
+    decode_head=dict(
+        type=TwoBranch_decode_head_mode2,
+            branch1_decode_head=dict(  # land use
+                type=UPerHead_Hiera_2branch,
+                init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='decode_head.'),
+                num_classes_level_list = [branch1_L1_num_classes, branch1_L2_num_classes, branch1_L3_num_classes],
+                results_merge_hiera = False,
+                hiera_mode = 'xiaorong6',
+                loss_decode=dict(
+                    type=ATL_Hiera_Loss_convseg,
+                    num_classes=[branch1_L1_num_classes, branch1_L2_num_classes, branch1_L3_num_classes],
+                    loss_weight=1.0),
+                in_channels=[128, 256, 512, 1024],
+                in_index=[0, 1, 2, 3],
+                pool_scales=(1, 2, 3, 6),
+                channels=768,
+                dropout_ratio=0.1,
+                norm_cfg=dict(type=SyncBN, requires_grad=False),
+                align_corners=False),
 
-        branch1_decode_head_land_use=dict(
-            type=UPerHead_Hiera_2branch,
-            init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='decode_head.'),
-            num_classes_level_list = [branch1_L1_num_classes, branch1_L2_num_classes, branch1_L3_num_classes],
-            results_merge_hiera = True,
-            hiera_mode = 'xiaorong6',
-            loss_decode=dict(
-                type=ATL_Hiera_Loss_convseg,
-                num_classes=[branch1_L1_num_classes, branch1_L2_num_classes, branch1_L3_num_classes],
-                loss_weight=1.0),
-            in_channels=[128, 256, 512, 1024],
-            in_index=[0, 1, 2, 3],
-            pool_scales=(1, 2, 3, 6),
-            channels=768,
-            dropout_ratio=0.1,
-            norm_cfg=norm_cfg,
-            align_corners=False),
-
-        branch2_decode_head_new_task=dict(
-            type=UPerHead_Hiera,
-            num_classes_level_list = [branch2_L1_num_classes, branch2_L2_num_classes, branch2_L3_num_classes],
-            results_merge_hiera = True,
-            hiera_mode = 'xiaorong6',
-            loss_decode=dict(
-                type=ATL_Hiera_Loss_convseg,
-                num_classes=[branch2_L1_num_classes, branch2_L2_num_classes, branch2_L3_num_classes],
-                loss_weight=1.0),
-            in_channels=[128, 256, 512, 1024],
-            in_index=[0, 1, 2, 3],
-            pool_scales=(1, 2, 3, 6),
-            channels=768,
-            dropout_ratio=0.1,
-            norm_cfg=norm_cfg,
-            align_corners=False),
+            branch2_decode_head=dict( # new_task
+                type=UPerHead_Hiera_2branch,
+                num_classes_level_list = [branch2_L1_num_classes, branch2_L2_num_classes, branch2_L3_num_classes],
+                results_merge_hiera = False,
+                hiera_mode = 'xiaorong6',
+                loss_decode=dict(
+                    type=ATL_Hiera_Loss_convseg,
+                    num_classes=[branch2_L1_num_classes, branch2_L2_num_classes, branch2_L3_num_classes],
+                    loss_weight=1.0),
+                in_channels=[128, 256, 512, 1024],
+                in_index=[0, 1, 2, 3],
+                pool_scales=(1, 2, 3, 6),
+                channels=768,
+                dropout_ratio=0.1,
+                norm_cfg=norm_cfg,
+                align_corners=False)
+                ),
             
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
+
 optimizer=dict(
         type=AdamW, 
         lr=0.0001, 
@@ -150,8 +161,11 @@ optim_wrapper = dict(
     paramwise_cfg={
         'decay_rate': 0.9,
         'decay_type': 'stage_wise',
-        'num_layers': 12
-    },
+        'num_layers': 12,
+
+        'branch1_backbone_land_use': dict(lr_mult=0.0),
+        'branch1_decode_head_land_use': dict(lr_mult=0.0),
+        }
     )
     # loss_scale='dynamic')
 param_scheduler = [
@@ -167,7 +181,7 @@ param_scheduler = [
     )
 ]
 
-train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
+train_cfg.update(type=IterBasedTrainLoop, max_iters=20000, val_interval=4000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),

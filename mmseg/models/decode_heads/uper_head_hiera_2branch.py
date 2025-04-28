@@ -688,7 +688,29 @@ class UPerHead_Hiera_2branch(BaseDecodeHead):
 
         return loss
     
-    def predict_by_feat(self, seg_logits: Tensor,
+    def predict(self, inputs: Tuple[Tensor], batch_img_metas: List[dict],
+                test_cfg: ConfigType) -> Tensor:
+        """Forward function for prediction.
+
+        Args:
+            inputs (Tuple[Tensor]): List of multi-level img features.
+            batch_img_metas (dict): List Image info where each dict may also
+                contain: 'img_shape', 'scale_factor', 'flip', 'img_path',
+                'ori_shape', and 'pad_shape'.
+                For details on the values of these keys see
+                `mmseg/datasets/pipelines/formatting.py:PackSegInputs`.
+            test_cfg (dict): The testing config.
+
+        Returns:
+            Tensor: Outputs segmentation logits map.
+        """
+        seg_logits = self.forward(inputs)  # 过decode_head的forward--->[2,40,128,128]
+
+        return self.predict_by_feat(seg_logits, batch_img_metas)   # [2,40,512,512]
+
+
+    def predict_by_feat(self, 
+                        seg_logits: Tensor,
                         batch_img_metas: List[dict]) -> Tensor:
         """Transform a batch of output seg_logits to the input shape.  # 缩放！
 
@@ -739,6 +761,7 @@ class UPerHead_Hiera_2branch(BaseDecodeHead):
         seg_logits = resize(
             input=seg_logits,
             size=size,
+            # mode='bilinear',
             mode='bilinear',
             align_corners=self.align_corners)
         

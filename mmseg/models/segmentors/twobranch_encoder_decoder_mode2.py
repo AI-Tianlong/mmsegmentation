@@ -33,7 +33,7 @@ L3_paddy_field_index = 0
 L3_dry_cropland_index = 1
 
 @MODELS.register_module()
-class TwoBranch_EncoderDecoder(BaseSegmentor):
+class TwoBranch_EncoderDecoder_mode2(BaseSegmentor):
     """Encoder Decoder segmentors.
 
     EncoderDecoder typically consists of backbone, decode_head, auxiliary_head.
@@ -90,51 +90,44 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
     """  # noqa: E501
 
     def __init__(self,
-                
                  # backbone
-                 branch1_backbone_land_use: ConfigType,
-                 branch2_backbone_new_task: ConfigType,
-                 # decode_head
-                 branch1_decode_head_land_use: ConfigType,
-                 branch2_decode_head_new_task: ConfigType,
-
+                 backbone: ConfigType,
+                 decode_head: ConfigType,
+         
                  train_cfg: OptConfigType = None,
                  test_cfg: OptConfigType = None,
                  data_preprocessor: OptConfigType = None,
                  pretrained: Optional[str] = None,
                  init_cfg: OptMultiConfig = None):
         super().__init__(data_preprocessor=data_preprocessor, init_cfg=init_cfg)
-      
-        # Build multi backbone 
-        self.branch1_backbone_land_use = MODELS.build(branch1_backbone_land_use)
-        self.branch2_backbone_new_task = MODELS.build(branch2_backbone_new_task)
 
-        # Build multi decode_head 
-        self.branch1_decode_head_land_use = MODELS.build(branch1_decode_head_land_use)
-        self.branch2_decode_head_new_task = MODELS.build(branch2_decode_head_new_task)
+
+        # Build multi backbone 
+
+        self.backbone = MODELS.build(backbone)
+        self.decode_head = MODELS.build(decode_head)
 
         # 在这里设置不需要梯度, 成功的，在loss里面确实没有梯度，但是这里设置了eval,会被IterBaseTrainLoop给覆盖掉
-        self.branch1_backbone_land_use.eval()
-        for param in self.branch1_backbone_land_use.parameters():
+        self.backbone.branch1_backbone.eval()
+        for param in self.backbone.branch1_backbone.parameters():
             param.requires_grad = False
 
-        self.branch1_decode_head_land_use.eval()
-        for param in self.branch1_decode_head_land_use.parameters():
+        self.decode_head.branch1_decode_head.eval()
+        for param in self.decode_head.branch1_decode_head.parameters():
             param.requires_grad = False
 
-        self.branch1_land_use_out_channels = self.branch1_decode_head_land_use.out_channels
-        self.branch2_new_task_out_channels = self.branch2_decode_head_new_task.out_channels
-
-        self.align_corners = self.branch1_decode_head_land_use.align_corners
+        self.out_channels = self.decode_head.branch1_decode_head.out_channels
+        self.align_corners = self.decode_head.branch1_decode_head.align_corners
         
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
 
+
     def extract_feat(self, inputs: Tensor) -> List[Tensor]:
         """Extract features from images."""
-        x_land_use = self.branch1_backbone_land_use(inputs)
-        x_new_task = self.branch2_backbone_new_task(inputs)
-        
+
+        x_land_use, x_new_task = self.backbone(inputs)
+
         return x_land_use, x_new_task
 
 
@@ -143,11 +136,16 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
         """Encode images with backbone and decode into a semantic segmentation
         map of the same size as input."""
         x_land_use, x_new_task = self.extract_feat(inputs)
-        land_use_seg_logits = self.branch1_decode_head_land_use.predict(x_land_use, batch_img_metas, self.test_cfg)
         
-        return land_use_seg_logits
+
+        land_use_seg_logits = self.decode_head.branch1_decode_head.predict(x_land_use, batch_img_metas, self.test_cfg)
+        new_task_seg_logits = self.decode_head.branch2_decode_head.predict(x_new_task, batch_img_metas, self.test_cfg)
+        
+        return land_use_seg_logits, new_task_seg_logits
+       
+        # return land_use_seg_logits
         # new_task_seg_logits = self.branch2_decode_head_land_use.predict(x_new_task, batch_img_metas, self.test_cfg)
-        # return land_use_seg_logits, new_task_seg_logits
+
 
 
     def _decode_head_forward_train(self, inputs: List[Tensor],
@@ -174,13 +172,20 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
         Returns:
             dict[str, Tensor]: a dictionary of loss components
         """
-        self.branch1_backbone_land_use.eval()
-        self.branch1_decode_head_land_use.eval()
+        self.backbone.branch1_backbone.eval()
+        self.decode_head.branch1_decode_head.eval()
 
                               # [2, 128, 128, 128] [2, 256, 64, 64] [2, 512, 32, 32] [2, 1024, 16, 16]
-        x_land_use = self.branch1_backbone_land_use(inputs)
-        x_new_task = self.branch2_backbone_new_task(inputs)
+        x_land_use, x_new_task = self.extract_feat(inputs)  # [2, 10, 512, 512] [2, 10, 512, 512]
         
+        # x_land_use, x_new_task
+
+        losses = dict()
+        loss_decode = self._decode_head_forward_train([x_land_use, x_new_task], data_samples)
+        losses.update(loss_decode)
+
+        return losses
+
         batch_img_metas = [
                 dict(
                     ori_shape=inputs.shape[2:],
@@ -192,12 +197,14 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
         # import pdb;pdb.set_trace()
         
         # 用来得到 land use 输出的三级特征图
-        self.branch1_decode_head_land_use.test_output_level='L3'
-        x_land_use_seglogits_L3 = self.branch1_decode_head_land_use.predict(x_land_use, batch_img_metas, self.test_cfg) # 1, 18, 512, 512
-        self.branch1_decode_head_land_use.test_output_level='L2'
-        x_land_use_seglogits_L2 = self.branch1_decode_head_land_use.predict(x_land_use, batch_img_metas, self.test_cfg) # 1, 9, 512, 512
-        self.branch1_decode_head_land_use.test_output_level='L1'
-        x_land_use_seglogits_L1 = self.branch1_decode_head_land_use.predict(x_land_use, batch_img_metas, self.test_cfg) # 1, 4, 512, 512
+        self.decode_head.branch1_decode_head.test_output_level='L3'
+        x_land_use_seglogits_L3 = self.decode_head.branch1_decode_head.predict(x_land_use, batch_img_metas, self.test_cfg) # 1, 18, 512, 512
+        
+        self.decode_head.branch1_decode_head.test_output_level='L2'
+        x_land_use_seglogits_L2 = self.decode_head.branch1_decode_head.predict(x_land_use, batch_img_metas, self.test_cfg) # 1, 9, 512, 512
+        
+        self.decode_head.branch1_decode_head.test_output_level='L1'
+        x_land_use_seglogits_L1 = self.decode_head.branch1_decode_head.predict(x_land_use, batch_img_metas, self.test_cfg) # 1, 4, 512, 512
 
         x_lan_use_seglogits_list = [x_land_use_seglogits_L1, x_land_use_seglogits_L2, x_land_use_seglogits_L3]
         
@@ -232,14 +239,9 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
         L2_seglogits_softmax = F.softmax(x_lan_use_seglogits_list[1], dim=1)  # [2, 9, 512, 512]
         L3_seglogits_softmax = F.softmax(x_lan_use_seglogits_list[2], dim=1)  # [2, 18, 512, 512]
 
-        import pdb;pdb.set_trace()
+        import pdb;pdb.set_trace() # 从land use 中，取出 符合那啥的值。
         L1_vegetation_seglogits_softmax = L1_seglogits_softmax[:, L1_vegetation_index, :, :]  # [2, 512, 512]
         L2_crop_seglogits_softmax = L2_seglogits_softmax[:, L2_cropland_index, :, :]  # [2, 512, 512]
-
-        
-
-
-
 
 
         # 输出L1, L2, L3 mask
