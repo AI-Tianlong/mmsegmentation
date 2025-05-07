@@ -116,7 +116,7 @@ model = dict(
         
         branch2_backbone=dict( # new_task
             type=ConvNeXt,
-            # init_cfg=dict(type='Pretrained', checkpoint=imagenet_pretrained, prefix='backbone.'),  # 这里可以消融一下
+            init_cfg=dict(type='Pretrained', checkpoint=imagenet_pretrained, prefix='backbone.'),  # 这里可以消融一下
             in_channels=10,
             arch='base',
             out_indices=[0, 1, 2, 3],
