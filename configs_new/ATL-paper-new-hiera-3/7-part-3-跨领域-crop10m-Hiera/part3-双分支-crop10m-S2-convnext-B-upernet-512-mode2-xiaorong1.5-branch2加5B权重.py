@@ -47,7 +47,7 @@ with read_base():
     from ..._base_.datasets.S2_crop10m_18class_512  import *
     from ..._base_.default_runtime import *
     # from ..._base_.models.upernet_beit_potsdam import *
-    from ..._base_.schedules.schedule_80k import *
+    from ..._base_.schedules.schedule_20k import *
 
 # 训好的权重:/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-S2-deit-L-upernet-Hiera-miou52.52/iter_80000.pth
 test_output_level = 'L1' # 输出L3, 验证L3的精度
@@ -113,10 +113,9 @@ model = dict(
                 [35, 38],
             ],
             ),
-        
         branch2_backbone=dict( # new_task
             type=ConvNeXt,
-            init_cfg=dict(type='Pretrained', checkpoint=imagenet_pretrained, prefix='backbone.'),  # 这里可以消融一下
+            init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='backbone.'),  # 这里可以消融一下
             in_channels=10,
             arch='base',
             out_indices=[0, 1, 2, 3],
@@ -206,7 +205,7 @@ param_scheduler = [
         type='PolyLR',
         power=1.0,
         begin=1500,
-        end=80000,
+        end=20000,
         eta_min=0.0,
         by_epoch=False,
     )
