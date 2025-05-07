@@ -107,8 +107,10 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
       
         # Build multi backbone 
         self.branch1_backbone_land_use = MODELS.build(branch1_backbone_land_use)
-        self.branch2_backbone_new_task = MODELS.build(branch2_backbone_new_task)
+        import pdb;pdb.set_trace()
 
+        self.branch2_backbone_new_task = MODELS.build(branch2_backbone_new_task)
+    
         # Build multi decode_head 
         self.branch1_decode_head_land_use = MODELS.build(branch1_decode_head_land_use)
         self.branch2_decode_head_new_task = MODELS.build(branch2_decode_head_new_task)
@@ -130,6 +132,7 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
 
+    # import pdb;pdb.set_trace()
     def extract_feat(self, inputs: Tensor) -> List[Tensor]:
         """Extract features from images."""
         x_land_use = self.branch1_backbone_land_use(inputs)
@@ -181,6 +184,7 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
         x_land_use = self.branch1_backbone_land_use(inputs)
         x_new_task = self.branch2_backbone_new_task(inputs)
         
+        import pdb;pdb.set_trace()
         batch_img_metas = [
                 dict(
                     ori_shape=inputs.shape[2:],
@@ -216,6 +220,7 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
             L2_pred_mask = x_lan_use_seglogits_list[1].squeeze().argmax(dim=0, keepdim=True).squeeze().cpu().numpy()  # keepdim=True，保留第0维度，大小为1
             L3_pred_mask = x_lan_use_seglogits_list[2].squeeze().argmax(dim=0, keepdim=True).squeeze().cpu().numpy()  # keepdim=True，保留第0维度，大小为1
             
+
             mask2RGB(img_path=input0_img_path, MASK_array=L1_pred_mask, RGB_out_path=save_dir_path, level='L1', backend='gdal')
             mask2RGB(img_path=input0_img_path, MASK_array=L2_pred_mask, RGB_out_path=save_dir_path, level='L2', backend='gdal')
             mask2RGB(img_path=input0_img_path, MASK_array=L3_pred_mask, RGB_out_path=save_dir_path, level='L3', backend='gdal')

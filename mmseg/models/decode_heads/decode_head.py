@@ -263,7 +263,8 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
         losses = self.loss_by_feat(seg_logits, batch_data_samples)
         return losses
 
-    def predict(self, inputs: Tuple[Tensor], batch_img_metas: List[dict],
+    def predict(self, inputs: Tuple[Tensor], 
+                batch_img_metas: List[dict],
                 test_cfg: ConfigType) -> Tensor:
         """Forward function for prediction.
 
@@ -303,6 +304,7 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
         Returns:
             dict[str, Tensor]: a dictionary of loss components
         """
+        import pdb; pdb.set_trace()
         # seg_logits: [2,65,128,128]
         seg_label = self._stack_batch_gt(batch_data_samples)  # [2,1,512,512]
         loss = dict()

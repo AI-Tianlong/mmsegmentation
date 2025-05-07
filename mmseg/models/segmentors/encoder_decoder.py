@@ -147,9 +147,10 @@ class EncoderDecoder(BaseSegmentor):
         """Run forward function and calculate loss for decode head in
         training."""
         losses = dict()
-        loss_decode = self.decode_head.loss(inputs, data_samples,
+        loss_decode = self.decode_head.loss(inputs, 
+                                            data_samples,
                                             self.train_cfg)
-
+        
         losses.update(add_prefix(loss_decode, 'decode'))
         return losses
 

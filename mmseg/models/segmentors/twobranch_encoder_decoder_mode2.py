@@ -104,8 +104,8 @@ class TwoBranch_EncoderDecoder_mode2(BaseSegmentor):
 
         # Build multi backbone 
 
-        self.backbone = MODELS.build(backbone)
-        self.decode_head = MODELS.build(decode_head)
+        self.backbone = MODELS.build(backbone)        # TwoBranch_backbone_mode2
+        self.decode_head = MODELS.build(decode_head)  # TwoBranch_deocde_head_mode2
 
         # 在这里设置不需要梯度, 成功的，在loss里面确实没有梯度，但是这里设置了eval,会被IterBaseTrainLoop给覆盖掉
         self.backbone.branch1_backbone.eval()
@@ -125,6 +125,8 @@ class TwoBranch_EncoderDecoder_mode2(BaseSegmentor):
 
     def extract_feat(self, inputs: Tensor) -> List[Tensor]:
         """Extract features from images."""
+        # x_land_use 的list是 branch1_backbone 的输出
+        # x_new_task 是两个分支进行特征交互后的输出
 
         x_land_use, x_new_task = self.backbone(inputs)
 
@@ -137,27 +139,40 @@ class TwoBranch_EncoderDecoder_mode2(BaseSegmentor):
         map of the same size as input."""
         x_land_use, x_new_task = self.extract_feat(inputs)
         
+        # 这里，不应该是分开连个seg_logits. 应该用self.decode_head的predict, 去实现有交互的输出
 
-        land_use_seg_logits = self.decode_head.branch1_decode_head.predict(x_land_use, batch_img_metas, self.test_cfg)
-        new_task_seg_logits = self.decode_head.branch2_decode_head.predict(x_new_task, batch_img_metas, self.test_cfg)
-        
-        return land_use_seg_logits, new_task_seg_logits
-       
-        # return land_use_seg_logits
+        seg_logits = self.decode_head.predict([x_land_use, x_new_task], batch_img_metas, self.test_cfg)
+
+        return seg_logits
+    
+        # land_use_seg_logits = self.decode_head.branch1_decode_head.predict(x_land_use, batch_img_metas, self.test_cfg)
+        # new_task_seg_logits = self.decode_head.branch2_decode_head.predict(x_new_task, batch_img_metas, self.test_cfg)
+        # return land_use_seg_logits, new_task_seg_logits
+ 
         # new_task_seg_logits = self.branch2_decode_head_land_use.predict(x_new_task, batch_img_metas, self.test_cfg)
 
 
 
-    def _decode_head_forward_train(self, inputs: List[Tensor],
+    def _decode_head_forward_train(self, 
+                                   inputs: List[Tensor],
                                    data_samples: SampleList) -> dict:
         """Run forward function and calculate loss for decode head in
         training."""
-        
+
+        # 这里，给到TwoBranch_decode_head_mode2的loss函数
+        # inputs: 这里有两个，分别为x_land_use和x_new_task的两组特征图，需要在twobranch_decode_对两个分支进行交互
+        # inputs: [x_land_use, x_new_task], 分别是两个list
+        # import pdb; pdb.set_trace()
+                # import pdb;pdb.set_trace()
 
         losses = dict()
-        loss_decode = self.decode_head.loss(inputs, data_samples, self.train_cfg)
+        loss_decode = self.decode_head.loss(inputs=inputs, 
+                                            batch_data_samples=data_samples, 
+                                            train_cfg=self.train_cfg, 
+                                            test_cfg=self.test_cfg) # twobranch_decode_mode2
 
-        losses.update(add_prefix(loss_decode, 'decode'))
+        # import pdb;pdb.set_trace()
+        losses.update(add_prefix(loss_decode, 'branch2_decode_'))
         return losses
 
     def loss(self, inputs: Tensor, data_samples: SampleList) -> dict:
@@ -175,104 +190,19 @@ class TwoBranch_EncoderDecoder_mode2(BaseSegmentor):
         self.backbone.branch1_backbone.eval()
         self.decode_head.branch1_decode_head.eval()
 
-                              # [2, 128, 128, 128] [2, 256, 64, 64] [2, 512, 32, 32] [2, 1024, 16, 16]
-        x_land_use, x_new_task = self.extract_feat(inputs)  # [2, 10, 512, 512] [2, 10, 512, 512]
-        
-        # x_land_use, x_new_task
+        # import pdb;pdb.set_trace()
+        # inputs: [2, 10, 512, 512]
+        # x_land_use: [2, 128, 128, 128] [2, 256, 64, 64] [2, 512, 32, 32] [2, 1024, 16, 16]
+        x_land_use, x_new_task = self.extract_feat(inputs) 
+                                 # 这里给出来的那个特征，应该是交互过的特征，和piip似的
+                                 # 所以这里的extract_feat是twobranch_backbone_mode2的forward，并且要两个分支有交互。
 
-        losses = dict()
+        losses = dict()    # 所以我需要去定义decode_head_forward的loss + forward
         loss_decode = self._decode_head_forward_train([x_land_use, x_new_task], data_samples)
-        losses.update(loss_decode)
+        losses.update(loss_decode)  
 
         return losses
 
-        batch_img_metas = [
-                dict(
-                    ori_shape=inputs.shape[2:],
-                    img_shape=inputs.shape[2:],
-                    pad_shape=inputs.shape[2:],
-                    padding_size=[0, 0, 0, 0])
-            ] * inputs.shape[0]
-
-        # import pdb;pdb.set_trace()
-        
-        # 用来得到 land use 输出的三级特征图
-        self.decode_head.branch1_decode_head.test_output_level='L3'
-        x_land_use_seglogits_L3 = self.decode_head.branch1_decode_head.predict(x_land_use, batch_img_metas, self.test_cfg) # 1, 18, 512, 512
-        
-        self.decode_head.branch1_decode_head.test_output_level='L2'
-        x_land_use_seglogits_L2 = self.decode_head.branch1_decode_head.predict(x_land_use, batch_img_metas, self.test_cfg) # 1, 9, 512, 512
-        
-        self.decode_head.branch1_decode_head.test_output_level='L1'
-        x_land_use_seglogits_L1 = self.decode_head.branch1_decode_head.predict(x_land_use, batch_img_metas, self.test_cfg) # 1, 4, 512, 512
-
-        x_lan_use_seglogits_list = [x_land_use_seglogits_L1, x_land_use_seglogits_L2, x_land_use_seglogits_L3]
-        
-        save_results = True
-        if save_results:
-            input0_data_sample = data_samples[0]
-            input0_img_path = input0_data_sample.img_path
-            img_name = os.path.basename(input0_img_path)
-            save_dir_path = '/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/7-part-3-跨领域-crop10m-Hiera/特征输出-2branch-loss'
-            save_dir_path = os.path.join(save_dir_path+'_'+img_name.split('黑龙江省_')[1].split('.tif')[0])
-            
-            mkdir_or_exist(save_dir_path)
-            shutil.copy(input0_img_path, os.path.join(save_dir_path, img_name))
-
-            L1_pred_mask = x_lan_use_seglogits_list[0].squeeze().argmax(dim=0, keepdim=True).squeeze().cpu().numpy()  # keepdim=True，保留第0维度，大小为1
-            L2_pred_mask = x_lan_use_seglogits_list[1].squeeze().argmax(dim=0, keepdim=True).squeeze().cpu().numpy()  # keepdim=True，保留第0维度，大小为1
-            L3_pred_mask = x_lan_use_seglogits_list[2].squeeze().argmax(dim=0, keepdim=True).squeeze().cpu().numpy()  # keepdim=True，保留第0维度，大小为1
-            
-            mask2RGB(img_path=input0_img_path, MASK_array=L1_pred_mask, RGB_out_path=save_dir_path, level='L1', backend='gdal')
-            mask2RGB(img_path=input0_img_path, MASK_array=L2_pred_mask, RGB_out_path=save_dir_path, level='L2', backend='gdal')
-            mask2RGB(img_path=input0_img_path, MASK_array=L3_pred_mask, RGB_out_path=save_dir_path, level='L3', backend='gdal')
-
-            x_lan_use_seglogits_list_np_cpu = [x.detach().cpu().numpy() for x in x_lan_use_seglogits_list]
-            np.save(os.path.join(save_dir_path,'L1_seglogits.npy'), x_lan_use_seglogits_list_np_cpu[0])
-            np.save(os.path.join(save_dir_path,'L2_seglogits.npy'), x_lan_use_seglogits_list_np_cpu[1])
-            np.save(os.path.join(save_dir_path,'L3_seglogits.npy'), x_lan_use_seglogits_list_np_cpu[2])
-
-            import pdb;pdb.set_trace()
-        
-        # 经过softmax之后的值,非常的高,范围更保守！
-        L1_seglogits_softmax = F.softmax(x_lan_use_seglogits_list[0], dim=1)  # [2, 4, 512, 512]
-        L2_seglogits_softmax = F.softmax(x_lan_use_seglogits_list[1], dim=1)  # [2, 9, 512, 512]
-        L3_seglogits_softmax = F.softmax(x_lan_use_seglogits_list[2], dim=1)  # [2, 18, 512, 512]
-
-        import pdb;pdb.set_trace() # 从land use 中，取出 符合那啥的值。
-        L1_vegetation_seglogits_softmax = L1_seglogits_softmax[:, L1_vegetation_index, :, :]  # [2, 512, 512]
-        L2_crop_seglogits_softmax = L2_seglogits_softmax[:, L2_cropland_index, :, :]  # [2, 512, 512]
-
-
-        # 输出L1, L2, L3 mask
-        ## import pdb;pdb.set_trace()
-        ## L1_mask = np.argmax(x_land_use_list_np[0][0,:,:,:],axis=0).astype(np.uint8)  # x_land_use_list_np[0] [2,4,128,128]
-        ## L2_mask = np.argmax(x_land_use_list_np[1][0,:,:,:],axis=0).astype(np.uint8) # [2,4,128,128]
-        ## L3_mask = np.argmax(x_land_use_list_np[2][0,:,:,:],axis=0).astype(np.uint8) # [2,4,128,128]  # resize 到512 太那啥了
-#
-        ## L1_mask = cv2.resize(L1_mask, (512, 512), interpolation=cv2.INTER_NEAREST)
-        ## L2_mask = cv2.resize(L2_mask, (512, 512), interpolation=cv2.INTER_NEAREST)
-        ## L3_mask = cv2.resize(L3_mask, (512, 512), interpolation=cv2.INTER_NEAREST)
-        
-        ##mask2RGB(img_path=input0_img_path, MASK_array=L1_mask, RGB_out_path=save_dir_path, level='L1', backend='gdal')
-        ##mask2RGB(img_path=input0_img_path, MASK_array=L2_mask, RGB_out_path=save_dir_path, level='L2', backend='gdal')
-        ##mask2RGB(img_path=input0_img_path, MASK_array=L3_mask, RGB_out_path=save_dir_path, level='L3', backend='gdal')
-
-
-        
-        # x_new_task_list, _ = self.branch2_decode_head_new_task.forward(x_new_task) #[2, 128, 128, 128] [2, 256, 64, 64] [2, 512, 32, 32] [2, 1024, 16, 16]
-        
-        
-        # losses = dict()
-
-        # loss_decode = self._decode_head_forward_train(x, data_samples)
-        # losses.update(loss_decode)
-
-        # if self.with_auxiliary_head:
-        #     loss_aux = self._auxiliary_head_forward_train(x, data_samples)
-        #     losses.update(loss_aux)
-
-        # return losses
 
     def predict(self,
                 inputs: Tensor,
@@ -309,27 +239,22 @@ class TwoBranch_EncoderDecoder_mode2(BaseSegmentor):
             ] * inputs.shape[0]
 
         seg_logits = self.inference(inputs, batch_img_metas)  # torch.Size([1, 18, 224, 224])
+        # [1, 18, 512, 512] [1, 4, 512, 512]
+        # branch1_的输出     branch2_的输出
 
         
-        import numpy as np
-        from osgeo import gdal
-        from ATL_Tools.ATL_gdal import save_array_to_tif, save_ds_to_tif
-        from ATL_Tools import mkdir_or_exist
-        from PIL import Image
-        import os
-        import pdb;pdb.set_trace()
+        if isinstance(seg_logits, tuple) and len(seg_logits) == 2:
+            barnch1_seg_logits, barnch2_seg_logits = seg_logits
+            return self.postprocess_result(barnch2_seg_logits, data_samples)
+            
+        elif isinstance(seg_logits, Tensor):
+            return self.postprocess_result(seg_logits, data_samples)
         
-        input0_data_sample = data_samples[0]
-        input0_img_path = input0_data_sample.img_path
-        img_name = os.path.basename(input0_img_path)
-        save_dir_path = '/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/7-part-3-跨领域-crop10m-Hiera/特征输出-2branch-predict'
-        mkdir_or_exist(save_dir_path)
+        else:
+            TypeError(f'The type of seg_logits is {type(seg_logits)}, '
+                      f'but only Tensor or tuple of Tensor is supported.')
 
-        L3_mask = seg_logits[0].argmax(dim=0, keepdim=True).cpu().numpy()  # keepdim=True，保留第0维度，大小为1
-        L3_mask = np.squeeze(L3_mask, axis=0)  # [1, 512, 512] -> [512, 512]
-        mask2RGB(img_path=input0_img_path, MASK_array=L3_mask, RGB_out_path=save_dir_path, level='L3', backend='gdal')
-
-        return self.postprocess_result(seg_logits, data_samples)
+        
 
     def _forward(self,
                  inputs: Tensor,
@@ -441,6 +366,7 @@ class TwoBranch_EncoderDecoder_mode2(BaseSegmentor):
         assert self.test_cfg.get('mode', 'whole') in ['slide', 'whole'], \
             f'Only "slide" or "whole" test mode are supported, but got ' \
             f'{self.test_cfg["mode"]}.'
+        
         ori_shape = batch_img_metas[0]['ori_shape']
         if not all(_['ori_shape'] == ori_shape for _ in batch_img_metas):
             print_log(
@@ -493,9 +419,6 @@ class TwoBranch_EncoderDecoder_mode2(BaseSegmentor):
         return self._run_forward(data, mode='predict')  # type: ignore
 
 
-
-
-
 def set_requires_grad(nets, requires_grad=False):
     """Set requires_grad for all the networks.
 
@@ -513,71 +436,3 @@ def set_requires_grad(nets, requires_grad=False):
 
 
 
-
-def mask2RGB(
-        img_path: str,
-        MASK_array: str,
-        RGB_out_path: str,
-        level:str='L3',
-        save_suffix='.tif',
-        backend='gdal'):
-
-    reduce_zero_label = False
-    img_name = os.path.basename(img_path)
-    
-    L1_palette =[[146, 208, 80], [0, 100, 255], [255, 217, 102], [198, 89, 17]]                           
-    L2_palette = [[112, 236, 89], [0, 150, 0], [250, 200, 0], [0, 100, 255],
-                    [200, 0, 0],[255, 217, 102],[250, 200, 150],[250, 150, 0],[198, 89, 17]]   
-    L3_palette=[[0,   240, 150], [150, 250, 0  ], [0,   150, 0  ], [250, 200, 0  ],
-                [200, 200, 0  ], [0,   0,   200], [0,   150, 200], [150, 200, 250],
-                [200, 0,   0  ], [250, 0,   150], [200, 150, 150], [250, 200, 150],
-                [150, 150, 0  ], [250, 150, 150], [250, 150, 0  ], [250, 200, 250],
-                [200, 150, 0  ], [200, 100, 50 ]]                           
-                
-    if level == 'L1':
-        palette = L1_palette
-    elif level == 'L2':
-        palette = L2_palette
-    elif level == 'L3':
-        palette = L3_palette
-
-    if reduce_zero_label:
-        new_palette = [[0, 0, 0]] + palette
-        # print(f"palette: {new_palette}")
-    else:
-        new_palette = palette
-        # print(f"palette: {new_palette}")
-    import numpy as np
-    new_palette = np.array(new_palette)
-
-    MASK_array[MASK_array == 255] = 0
-    h, w = MASK_array.shape
-
-    RGB_label = new_palette[MASK_array].astype(np.uint8)
-    
-    if backend == 'PIL':
-
-        output_path = os.path.join(RGB_out_path, f'{level}_rgb_{img_name}')
-        RGB_label = Image.fromarray(RGB_label).save(output_path)
-
-    elif backend == 'gdal':
-        output_path = os.path.join(RGB_out_path, f'{level}_rgb_{img_name}')
-        driver = gdal.GetDriverByName('GTiff')
-        RGB_label_gdal = driver.Create(output_path, w, h, 3, gdal.GDT_Byte)
-
-        RGB_label_gdal.GetRasterBand(1).WriteArray(RGB_label[:,:,0])
-        RGB_label_gdal.GetRasterBand(2).WriteArray(RGB_label[:,:,1])
-        RGB_label_gdal.GetRasterBand(3).WriteArray(RGB_label[:,:,2])
-
-        img_gdal = gdal.Open(img_path, gdal.GA_ReadOnly)
-        assert  img_path is not None, f"无法打开 {img_path}"
-
-        trans = img_gdal.GetGeoTransform()
-        proj = img_gdal.GetProjection()
-
-        RGB_label_gdal.SetGeoTransform(trans)
-        RGB_label_gdal.SetProjection(proj)
-
-        RGB_label_gdal = None
-
- 
