@@ -8,7 +8,7 @@ class ATL_S2_Crop10m_Dataset_4class(BaseSegDataset):
     """"""
     METAINFO = dict(
         classes=('Others-land', 'Rice', 'Corn', 'soybean'),
-        palette=[[190, 190, 190], [0, 200, 250], [250, 200, 0],
+        palette=[[255, 255, 255], [0, 200, 250], [250, 200, 0],
                  [150, 150, 250]])
 
     def __init__(self,

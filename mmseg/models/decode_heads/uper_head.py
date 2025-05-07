@@ -39,8 +39,8 @@ class UPerHead(BaseDecodeHead):
             act_cfg=self.act_cfg,
             align_corners=self.align_corners)
         self.bottleneck = ConvModule(
-            self.in_channels[-1] + len(pool_scales) * self.channels,
-            self.channels,
+            self.in_channels[-1] + len(pool_scales) * self.channels,  # 1024 + 4*768
+            self.channels, # 768
             3,
             padding=1,
             conv_cfg=self.conv_cfg,
@@ -80,12 +80,13 @@ class UPerHead(BaseDecodeHead):
             act_cfg=self.act_cfg)
 
     def psp_forward(self, inputs):
+        # import pdb;pdb.set_trace()
         """Forward function of PSP module."""
-        x = inputs[-1]
+        x = inputs[-1]  # [2, 1024, 16, 16]
         psp_outs = [x]
-        psp_outs.extend(self.psp_modules(x))
-        psp_outs = torch.cat(psp_outs, dim=1)
-        output = self.bottleneck(psp_outs)
+        psp_outs.extend(self.psp_modules(x))  # [2, 1024, 16, 16]--> [2, 768, 16, 16] [2, 768, 16, 16] [2, 768, 16, 16] [2, 768, 16, 16]
+        psp_outs = torch.cat(psp_outs, dim=1) # [2, 1024, 16, 16] +  4*[2, 768, 16, 16] --> [2, 4096, 16, 16]
+        output = self.bottleneck(psp_outs)    # [2, 4096, 16, 16] -> [2, 768, 16, 16]
 
         return output
 
@@ -100,50 +101,54 @@ class UPerHead(BaseDecodeHead):
             feats (Tensor): A tensor of shape (batch_size, self.channels,
                 H, W) which is feature map for last layer of decoder head.
         """
-        inputs = self._transform_inputs(inputs)
+        # https://blog.csdn.net/yumaomi/article/details/125376320
+        inputs = self._transform_inputs(inputs)  # [1, 128, 128, 128] [1, 256, 64, 64] [1, 512, 32, 32] [1, 1024, 16, 16]
 
         # build laterals,
-        # 3xConvModule{Conv2d(1024, 1024, (1,1), (1,1), bias=False) + bn + ReLU}
+        # 3xConvModule{Conv2d(X, 768, (1,1), (1,1), bias=False) + bn + ReLU}
         #
         # laterals = [[2, 1024, 128, 128], [2, 1024, 64, 64], [2, 1024, 32, 32]]
         laterals = [
             lateral_conv(inputs[i])
-            for i, lateral_conv in enumerate(self.lateral_convs)
+            for i, lateral_conv in enumerate(self.lateral_convs) # 128-->768 256-->768 512-->768
         ]
 
-        # laterals = [[2, 1024, 128, 128], [2, 1024, 64, 64], [2, 1024, 32, 32], [2, 1024, 16, 16]]
-        laterals.append(self.psp_forward(inputs))
+        # laterals = [[2, 768, 128, 128], [2, 768, 64, 64], [2, 768, 32, 32] [2, 768, 16, 16]]
+        laterals.append(self.psp_forward(inputs)) # psp_forward: [2, 1024, 16, 16] --> [2, 768, 16, 16] # 最后一层的特征
 
-        # build top-down path
-        used_backbone_levels = len(laterals)
-        for i in range(used_backbone_levels - 1, 0, -1):
-            prev_shape = laterals[i - 1].shape[2:]
-            laterals[i - 1] = laterals[i - 1] + resize(
-                laterals[i],
-                size=prev_shape,
+        # build top-down path  # 也就这里去做文章吧？
+        # import pdb;pdb.set_trace()
+        used_backbone_levels = len(laterals) # 4
+        for i in range(used_backbone_levels - 1, 0, -1):  #(3,2,1)
+            prev_shape = laterals[i - 1].shape[2:]        # [32,32]
+            laterals[i - 1] = laterals[i - 1] + resize(   # laterals[2] =  laterals[2] + resize(laterals[3],32,32)      # 这里把特征拿过来交互啊？
+                laterals[i],                              # laterals[1] =  laterals[1] + resize(laterals[2],64,64)
+                size=prev_shape,                          # laterals[0] =  laterals[0] + resize(laterals[1],128,128)
                 mode='bilinear',
                 align_corners=self.align_corners)
+        
         # build outputs
-        fpn_outs = [
-            self.fpn_convs[i](laterals[i])
+        fpn_outs = [                                     # [2, 768, 128, 128], [2, 768, 64, 64], [2, 768, 32, 32]
+            self.fpn_convs[i](laterals[i])         
             for i in range(used_backbone_levels - 1)
         ]
 
         # append psp feature
         fpn_outs.append(laterals[-1])
-        # fpn_outs: [[2,1024,128,128],[2,1024,64,64],[2,1024,32,32],[2,1024,16,16]]
-
+        # fpn_outs: [[2,768,128,128],[2,768,64,64],[2,768,32,32],[2,1024,16,16]]
+        # upsample to the same size
         for i in range(used_backbone_levels - 1, 0, -1):
             fpn_outs[i] = resize(
                 fpn_outs[i],
                 size=fpn_outs[0].shape[2:],
                 mode='bilinear',
                 align_corners=self.align_corners)
-        # fpn_outs: [[2,1024,128,128],[2,1024,128,128],[2,1024,128,128],[2,1024,128,128]]
-        fpn_outs = torch.cat(fpn_outs, dim=1)
-        # fpn_outs: [2,4096,128,128]
+        
+        # fpn_outs: [[2,768,128,128],[2,768,128,128],[2,768,128,128],[2,768,128,128]]
+        fpn_outs = torch.cat(fpn_outs, dim=1) # [2,768*4,128,128]
+        # fpn_outs: [2,3072,128,128]
 
-        feats = self.fpn_bottleneck(fpn_outs)
+        feats = self.fpn_bottleneck(fpn_outs)  # [2,3072,128,128] --> [2,768,128,128]
         # ConvModule(
         # (conv): Conv2d(4096, 1024, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
         # (bn): _BatchNormXd(1024, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
@@ -154,6 +159,6 @@ class UPerHead(BaseDecodeHead):
 
     def forward(self, inputs):
         """Forward function."""
-        output = self._forward_feature(inputs)  # [2,1024,128,128]
-        output = self.cls_seg(output)  # [2,65,128,128]
+        output = self._forward_feature(inputs)  # [2,768,128,128]
+        output = self.cls_seg(output)  # [2,4,128,128]
         return output

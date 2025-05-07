@@ -19,7 +19,7 @@ except:
 from timm.models.layers import DropPath
 import torch.utils.checkpoint as cp
 from .convnext_hf_wrapper import ConvNextLayerWrapper
-from .convnext import ConvNeXtBlock
+
 
 class Permute(nn.Module):
     def __init__(self, *dims):
@@ -47,18 +47,19 @@ def get_reference_points(spatial_shapes, device):
     reference_points = reference_points[:, :, None]
     return reference_points
 
-def deform_inputs_1_vit(x1, x2, patch_size1=16, patch_size2=16): # patch_size缩小四倍？
+def deform_inputs_1_vit(x1, x2, patch_size1=16, patch_size2=16):
     # query = small image
     # key = large image
     # x1 is small image
-    # import pdb;pdb.set_trace()
-    _, _, h1, w1 = x1.shape # [1,10,512,512]
-    _, _, h2, w2 = x2.shape # [1,10,512,512] 
-    spatial_shapes = torch.as_tensor([(h2 // patch_size2, w2 // patch_size2)], dtype=torch.long, device=x1.device)
-    level_start_index = torch.cat((spatial_shapes.new_zeros((1,)), spatial_shapes.prod(1).cumsum(0)[:-1]))
+    _, _, h1, w1 = x1.shape
+    _, _, h2, w2 = x2.shape
+    spatial_shapes = torch.as_tensor([(h2 // patch_size2, w2 // patch_size2)], 
+                                     dtype=torch.long, device=x1.device)
+    level_start_index = torch.cat((spatial_shapes.new_zeros(
+        (1,)), spatial_shapes.prod(1).cumsum(0)[:-1]))
     reference_points = get_reference_points([(h1 // patch_size1, w1 // patch_size1)], x1.device)
     deform_inputs1 = [reference_points, spatial_shapes, level_start_index]
-                     # [1,28224,1,2],(224,224),0]
+    
     return deform_inputs1
 
 def deform_inputs_2_vit(x1, x2, patch_size1=16, patch_size2=16):
@@ -67,8 +68,10 @@ def deform_inputs_2_vit(x1, x2, patch_size1=16, patch_size2=16):
     # x1 is large image
     _, _, h1, w1 = x1.shape
     _, _, h2, w2 = x2.shape
-    spatial_shapes = torch.as_tensor([(h2 // patch_size1, w2 // patch_size1)], dtype=torch.long, device=x1.device)
-    level_start_index = torch.cat((spatial_shapes.new_zeros((1,)), spatial_shapes.prod(1).cumsum(0)[:-1]))
+    spatial_shapes = torch.as_tensor([(h2 // patch_size1, w2 // patch_size1)], 
+                                     dtype=torch.long, device=x1.device)
+    level_start_index = torch.cat((spatial_shapes.new_zeros(
+        (1,)), spatial_shapes.prod(1).cumsum(0)[:-1]))
     reference_points = get_reference_points([(h1 // patch_size2, w1 // patch_size2)], x1.device)
     deform_inputs2 = [reference_points, spatial_shapes, level_start_index]
     
@@ -153,12 +156,7 @@ class CrossAttention(nn.Module):
 
 
 class Injector(nn.Module):
-    def __init__(self, 
-                 dim, 
-                 num_heads=6, 
-                 n_points=4, 
-                 n_levels=1, 
-                 deform_ratio=1.0,
+    def __init__(self, dim, num_heads=6, n_points=4, n_levels=1, deform_ratio=1.0,
                  norm_layer=partial(nn.LayerNorm, eps=1e-6), 
                  with_cp=False, with_cffn=False, cffn_ratio=0.25, drop=0., drop_path=0., attn_type='normal',
                  dim_feat=None):
@@ -168,6 +166,7 @@ class Injector(nn.Module):
         if dim_feat is None:
             dim_feat = dim
         self.feat_norm = norm_layer(dim_feat)
+        
         
         self.attn_type = attn_type
         if attn_type == 'normal':
@@ -227,18 +226,10 @@ class Injector(nn.Module):
 
 
 class BidirectionalInteractionUnit(nn.Module):
-    def __init__(self, branch1_dim, branch2_dim, 
-                 branch1_feat_size, branch2_feat_size, 
-                 num_heads=6, 
-                 n_points=4, 
-                 norm_layer=partial(nn.LayerNorm, eps=1e-6),
-                 drop=0., 
-                 drop_path=0., 
-                 with_cffn=False, 
-                 cffn_ratio=0.25, 
-                 deform_ratio=1.0,
-                 with_cp=False, 
-                 attn_type='normal', 
+    def __init__(self, branch1_dim, branch2_dim, branch1_feat_size, branch2_feat_size, 
+                 num_heads=6, n_points=4, norm_layer=partial(nn.LayerNorm, eps=1e-6),
+                 drop=0., drop_path=0., with_cffn=False, cffn_ratio=0.25, 
+                 deform_ratio=1.0, with_cp=False, attn_type='normal', 
                  with_proj=True):
         super().__init__()
         self.attn_type = attn_type
@@ -254,20 +245,20 @@ class BidirectionalInteractionUnit(nn.Module):
             self.branch1to2_proj = nn.Linear(branch1_dim, branch2_dim)
             
         self.branch2to1_injector = Injector(dim=branch1_dim,
-                                            num_heads=num_heads,
-                                            n_points=n_points, norm_layer=norm_layer, deform_ratio=deform_ratio,
-                                            with_cp=with_cp, with_cffn=with_cffn, cffn_ratio=cffn_ratio, drop=drop, 
-                                            drop_path=drop_path,
-                                            attn_type=attn_type,
-                                            dim_feat=branch1_dim if with_proj else branch2_dim)
+                                                num_heads=num_heads,
+                                                n_points=n_points, norm_layer=norm_layer, deform_ratio=deform_ratio,
+                                                with_cp=with_cp, with_cffn=with_cffn, cffn_ratio=cffn_ratio, drop=drop, 
+                                                drop_path=drop_path,
+                                                attn_type=attn_type,
+                                                dim_feat=branch1_dim if with_proj else branch2_dim)
         
         self.branch1to2_injector = Injector(dim=branch2_dim,
-                                            num_heads=num_heads,
-                                            n_points=n_points, norm_layer=norm_layer, deform_ratio=deform_ratio,
-                                            with_cp=with_cp, with_cffn=with_cffn, cffn_ratio=cffn_ratio, drop=drop, 
-                                            drop_path=drop_path,
-                                            attn_type=attn_type,
-                                            dim_feat=branch2_dim if with_proj else branch1_dim)
+                                                num_heads=num_heads,
+                                                n_points=n_points, norm_layer=norm_layer, deform_ratio=deform_ratio,
+                                                with_cp=with_cp, with_cffn=with_cffn, cffn_ratio=cffn_ratio, drop=drop, 
+                                                drop_path=drop_path,
+                                                attn_type=attn_type,
+                                                dim_feat=branch2_dim if with_proj else branch1_dim)
         
     
     def forward(self, x1, x2, deform_inputs1, deform_inputs2, H1, W1, H2, W2):
@@ -290,48 +281,6 @@ class BidirectionalInteractionUnit(nn.Module):
 
      
 
-def forward_blocks_atl(x, H, W, blocks, cls_=None):
-    if len(blocks) == 0:
-        print("!!! no blocks")
-        return x, cls_
-    
-    if cls_ is not None:
-        x = torch.cat((cls_, x), dim=1)
-   
-    if isinstance(blocks[0], ConvNextLayerWrapper):
-        for _, blk in enumerate(blocks):
-            x, H, W = blk(x, H, W)
-    
-    # 包含ConvNextBlock
-    elif any(isinstance(b, ConvNeXtBlock) for b in blocks): 
-        for _, blk in enumerate(blocks):
-            # 分开处理下采样层和 convnext block
-            if isinstance(blk, ConvNeXtBlock):
-                bs, n, dim = x.shape # [1, 16384, 128]
-                x = x.transpose(1,2).reshape(bs, dim, H, W) #[1, 16384, 128]->[1,128,128,128]
-                x = blk(x) # [1, 128, 128, 128]
-                bs, dim_new, H_new, W_new = x.shape
-                x = x.reshape(bs, dim_new, H_new * W_new).transpose(1,2)
-                H, W = H_new, W_new
-            elif isinstance(blk, nn.Sequential): # 下采样层
-                bs, n, dim = x.shape # [1, 16384, 128]
-                x = x.transpose(1,2).reshape(bs, dim, H, W) #[1, 16384, 128]->[1,128,128,128]
-                x = blk(x) # [1, 128, 128, 128] -> [1,256,64,64]
-                bs, dim_new, H_new, W_new = x.shape
-                x = x.reshape(bs, dim_new, H_new * W_new).transpose(1,2) # [1,256,64,64]->[1,4096,256]
-                H, W = H_new, W_new
-                # 下采样层
-
-    else:
-        for _, blk in enumerate(blocks):
-            x = blk(x, H, W)
-    
-    if cls_ is not None:
-        cls_, x = x[:, :1, :], x[:, 1:, :]
-    
-    return x, cls_, H, W
-
-
 def forward_blocks(x, H, W, blocks, cls_=None):
     if len(blocks) == 0:
         print("!!! no blocks")
@@ -340,6 +289,7 @@ def forward_blocks(x, H, W, blocks, cls_=None):
     if cls_ is not None:
         x = torch.cat((cls_, x), dim=1)
     
+            
     if isinstance(blocks[0], ConvNextLayerWrapper):
         for _, blk in enumerate(blocks):
             x, H, W = blk(x, H, W)
@@ -351,7 +301,7 @@ def forward_blocks(x, H, W, blocks, cls_=None):
         cls_, x = x[:, :1, :], x[:, 1:, :]
     return x, cls_, H, W
    
-
+     
 class FourBranchInteractionBlock(nn.Module):
     def __init__(self, branch1_dim, branch2_dim, branch3_dim, branch4_dim, 
                  branch1_feat_size, branch2_feat_size, branch3_feat_size, branch4_feat_size,
@@ -417,11 +367,8 @@ class ThreeBranchInteractionBlock(nn.Module):
         self.branch2_dim = branch2_dim
         self.branch3_dim = branch3_dim
     
-    def forward(self, x1, x2, x3, 
-                branch1_blocks, branch2_blocks, branch3_blocks, 
-                H1, W1, H2, W2, H3, W3, 
-                deform_inputs=None, 
-                cls1=None, cls2=None, cls3=None):
+    def forward(self, x1, x2, x3, branch1_blocks, branch2_blocks, branch3_blocks, 
+                H1, W1, H2, W2, H3, W3, deform_inputs=None, cls1=None, cls2=None, cls3=None):
         x1, cls1, H1, W1 = forward_blocks(x1, H1, W1, branch1_blocks, cls1)
         x2, cls2, H2, W2 = forward_blocks(x2, H2, W2, branch2_blocks, cls2)
         x3, cls3, H3, W3 = forward_blocks(x3, H3, W3, branch3_blocks, cls3)
@@ -455,17 +402,14 @@ class TwoBranchInteractionBlock(nn.Module):
         self.branch1_dim = branch1_dim
         self.branch2_dim = branch2_dim
     
-    def forward(self, x1, x2, 
-                branch1_blocks, branch2_blocks, 
-                H1, W1, H2, W2, 
-                deform_inputs=None, 
-                cls1=None, cls2=None):
-        x1, cls1, H1, W1 = forward_blocks_atl(x1, H1, W1, branch1_blocks, cls1)
-        x2, cls2, H2, W2 = forward_blocks_atl(x2, H2, W2, branch2_blocks, cls2)
-
+    def forward(self, x1, x2, branch1_blocks, branch2_blocks, 
+                H1, W1, H2, W2, deform_inputs=None, cls1=None, cls2=None):
+        x1, cls1, H1, W1 = forward_blocks(x1, H1, W1, branch1_blocks, cls1)
+        x2, cls2, H2, W2 = forward_blocks(x2, H2, W2, branch2_blocks, cls2)
+        
         x1, x2 = self.interaction_units_12(x1, x2, deform_inputs["2to1"], deform_inputs["1to2"], H1, W1, H2, W2)
         
-        return x1, x2, cls1, cls2, H1, W1, H2, W2
+        return x1, x2, cls1, cls2
 
 # ============================= For Segnext =================================
 class BidirectionalInteractionUnit_segnext(nn.Module):

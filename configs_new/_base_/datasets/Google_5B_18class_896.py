@@ -45,7 +45,7 @@ val_pipeline = [  #
 test_pipeline = [  #
     dict(type=LoadSingleRSImageFromFile),
     # dict(type=Resize, scale=crop_size, keep_ratio=True),
-    dict(type=LoadAnnotations),  # 不需要验证，不用添加 Annotations
+    # dict(type=LoadAnnotations),  # 不需要验证，不用添加 Annotations
     # dict(type=Resize, scale=(6800, 7200), keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
@@ -79,6 +79,19 @@ val_dataloader = dict(
             seg_map_path='ann_dir/val'),
         pipeline=val_pipeline))
 # 想用大图去推理
+# test_dataloader = dict(
+#     batch_size=1,
+#     num_workers=4,
+#     persistent_workers=True,
+#     sampler=dict(type=DefaultSampler, shuffle=False),
+#     dataset=dict(
+#         type=dataset_type,
+#         data_root=data_root,
+#         data_prefix=dict(
+#             # img_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/2-多领域地物覆盖基础/小样本数据集推理/img_dir'),
+#             img_path='img_dir/val',
+#             seg_map_path='ann_dir/val'),
+#         pipeline=test_pipeline))
 test_dataloader = dict(
     batch_size=1,
     num_workers=4,
@@ -86,12 +99,11 @@ test_dataloader = dict(
     sampler=dict(type=DefaultSampler, shuffle=False),
     dataset=dict(
         type=dataset_type,
-        data_root=data_root,
+        data_root=None,
         data_prefix=dict(
-            # img_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/2-多领域地物覆盖基础/小样本数据集推理/img_dir'),
-            img_path='img_dir/val',
-            seg_map_path='ann_dir/val'),
+            img_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/2-多领域地物覆盖基础/Google_5B_24类/6-验证集大图裁切成5000x5000-29张'),
         pipeline=test_pipeline))
+
 
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'

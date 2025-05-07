@@ -107,10 +107,8 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
       
         # Build multi backbone 
         self.branch1_backbone_land_use = MODELS.build(branch1_backbone_land_use)
-        import pdb;pdb.set_trace()
-
         self.branch2_backbone_new_task = MODELS.build(branch2_backbone_new_task)
-    
+
         # Build multi decode_head 
         self.branch1_decode_head_land_use = MODELS.build(branch1_decode_head_land_use)
         self.branch2_decode_head_new_task = MODELS.build(branch2_decode_head_new_task)
@@ -132,7 +130,8 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
 
-    # import pdb;pdb.set_trace()
+
+
     def extract_feat(self, inputs: Tensor) -> List[Tensor]:
         """Extract features from images."""
         x_land_use = self.branch1_backbone_land_use(inputs)
@@ -184,7 +183,6 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
         x_land_use = self.branch1_backbone_land_use(inputs)
         x_new_task = self.branch2_backbone_new_task(inputs)
         
-        import pdb;pdb.set_trace()
         batch_img_metas = [
                 dict(
                     ori_shape=inputs.shape[2:],
@@ -205,7 +203,7 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
 
         x_lan_use_seglogits_list = [x_land_use_seglogits_L1, x_land_use_seglogits_L2, x_land_use_seglogits_L3]
         
-        save_results = True
+        save_results = False
         if save_results:
             input0_data_sample = data_samples[0]
             input0_img_path = input0_data_sample.img_path
@@ -220,7 +218,6 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
             L2_pred_mask = x_lan_use_seglogits_list[1].squeeze().argmax(dim=0, keepdim=True).squeeze().cpu().numpy()  # keepdim=True，保留第0维度，大小为1
             L3_pred_mask = x_lan_use_seglogits_list[2].squeeze().argmax(dim=0, keepdim=True).squeeze().cpu().numpy()  # keepdim=True，保留第0维度，大小为1
             
-
             mask2RGB(img_path=input0_img_path, MASK_array=L1_pred_mask, RGB_out_path=save_dir_path, level='L1', backend='gdal')
             mask2RGB(img_path=input0_img_path, MASK_array=L2_pred_mask, RGB_out_path=save_dir_path, level='L2', backend='gdal')
             mask2RGB(img_path=input0_img_path, MASK_array=L3_pred_mask, RGB_out_path=save_dir_path, level='L3', backend='gdal')
@@ -232,21 +229,10 @@ class TwoBranch_EncoderDecoder(BaseSegmentor):
 
             import pdb;pdb.set_trace()
         
-        # 经过softmax之后的值,非常的高,范围更保守！
-        L1_seglogits_softmax = F.softmax(x_lan_use_seglogits_list[0], dim=1)  # [2, 4, 512, 512]
-        L2_seglogits_softmax = F.softmax(x_lan_use_seglogits_list[1], dim=1)  # [2, 9, 512, 512]
-        L3_seglogits_softmax = F.softmax(x_lan_use_seglogits_list[2], dim=1)  # [2, 18, 512, 512]
+        # 经过softmax之后的值,非常的高！
 
-        import pdb;pdb.set_trace()
-        L1_vegetation_seglogits_softmax = L1_seglogits_softmax[:, L1_vegetation_index, :, :]  # [2, 512, 512]
-        L2_crop_seglogits_softmax = L2_seglogits_softmax[:, L2_cropland_index, :, :]  # [2, 512, 512]
 
         
-
-
-
-
-
         # 输出L1, L2, L3 mask
         ## import pdb;pdb.set_trace()
         ## L1_mask = np.argmax(x_land_use_list_np[0][0,:,:,:],axis=0).astype(np.uint8)  # x_land_use_list_np[0] [2,4,128,128]

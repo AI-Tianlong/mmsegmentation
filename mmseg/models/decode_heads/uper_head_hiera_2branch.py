@@ -570,6 +570,24 @@ class UPerHead_Hiera_2branch(BaseDecodeHead):
 
     # =================== Hiera 修改 LOSS 和 predict 方式 ===============
     
+    def loss(self, inputs: Tuple[Tensor], batch_data_samples: SampleList,
+             train_cfg: ConfigType) -> dict:
+        """Forward function for training.
+
+        Args:
+            inputs (Tuple[Tensor]): List of multi-level img features.
+            batch_data_samples (list[:obj:`SegDataSample`]): The seg
+                data samples. It usually includes information such
+                as `img_metas` or `gt_semantic_seg`.
+            train_cfg (dict): The training config.
+
+        Returns:
+            dict[str, Tensor]: a dictionary of loss components
+        """
+        seg_logits = self.forward(inputs)  # [2,40,128,128]
+        losses = self.loss_by_feat(seg_logits, batch_data_samples)
+        return losses
+
     def loss_by_feat(self, 
                      seg_logits: Tensor,
                      batch_data_samples: SampleList) -> dict:
@@ -688,7 +706,31 @@ class UPerHead_Hiera_2branch(BaseDecodeHead):
 
         return loss
     
-    def predict_by_feat(self, seg_logits: Tensor,
+    def predict(self, inputs: Tuple[Tensor], 
+                batch_img_metas: List[dict],
+                test_cfg: ConfigType) -> Tensor:
+        """Forward function for prediction.
+
+        Args:
+            inputs (Tuple[Tensor]): List of multi-level img features.
+            batch_img_metas (dict): List Image info where each dict may also
+                contain: 'img_shape', 'scale_factor', 'flip', 'img_path',
+                'ori_shape', and 'pad_shape'.
+                For details on the values of these keys see
+                `mmseg/datasets/pipelines/formatting.py:PackSegInputs`.
+            test_cfg (dict): The testing config.
+
+        Returns:
+            Tensor: Outputs segmentation logits map.
+        """
+        # import pdb;pdb.set_trace()  # 两个，一个seglogits[L1 L2 L3], 一个embedding，
+        seg_logits_list, embedding = self.forward(inputs)  # 过decode_head的forward--->[2,40,128,128]
+
+        return self.predict_by_feat(seg_logits_list, batch_img_metas)   # [2,40,512,512]
+
+
+    def predict_by_feat(self, 
+                        seg_logits: Tensor,
                         batch_img_metas: List[dict]) -> Tensor:
         """Transform a batch of output seg_logits to the input shape.  # 缩放！
 
@@ -700,32 +742,30 @@ class UPerHead_Hiera_2branch(BaseDecodeHead):
         Returns:
             Tensor: Outputs segmentation logits map.
         """
+        # import pdb;pdb.set_trace()
         if self.test_output_level is None:
             self.test_output_level = 'L3'
 
-        if isinstance(seg_logits, tuple):
-            if len(seg_logits) == 2:
+        if isinstance(seg_logits, tuple) and len(seg_logits) == 2:
                 seg_logits, embedding = seg_logits  #推理只需要 seg_logits
-
-                # 融合 L1+L2+L3 三层
-                if isinstance(seg_logits, list) and len(seg_logits) == 3:
+        elif isinstance(seg_logits, list) and len(seg_logits) == 3: # L1 L2 L3 
                     # 合并L1 L2 L3 级的推理结果
-                    if self.results_merge_hiera:
-                        seg_logits = self.merge_hiera_results(seg_logits)
-                        if self.test_output_level == 'L3':
-                            seg_logits = seg_logits[2] # 仅输出融合后L3的特征图
-                        elif self.test_output_level == 'L2':
-                            seg_logits = seg_logits[1]
-                        elif self.test_output_level == 'L1':
-                            seg_logits = seg_logits[0]
-                    else:   
-                        if self.test_output_level == 'L3':
-                            seg_logits = seg_logits[2] # 仅输出融合后L3的特征图
-                        elif self.test_output_level == 'L2':
-                            seg_logits = seg_logits[1]
-                        elif self.test_output_level == 'L1':
-                            seg_logits = seg_logits[0]
-            else:
+            if self.results_merge_hiera:
+                seg_logits = self.merge_hiera_results(seg_logits)
+                if self.test_output_level == 'L3':
+                    seg_logits = seg_logits[2] # 仅输出融合后L3的特征图
+                elif self.test_output_level == 'L2':
+                    seg_logits = seg_logits[1]
+                elif self.test_output_level == 'L1':
+                    seg_logits = seg_logits[0]
+            else:   
+                if self.test_output_level == 'L3':
+                    seg_logits = seg_logits[2] # 仅输出融合后L3的特征图
+                elif self.test_output_level == 'L2':
+                    seg_logits = seg_logits[1]
+                elif self.test_output_level == 'L1':
+                    seg_logits = seg_logits[0]
+        else:
                 raise TypeError(f'seg_logits 应该是个 tuple',f'但是得到了个 {type(seg_logits)}')
 
         if isinstance(batch_img_metas[0]['img_shape'], torch.Size):
@@ -739,6 +779,7 @@ class UPerHead_Hiera_2branch(BaseDecodeHead):
         seg_logits = resize(
             input=seg_logits,
             size=size,
+            # mode='bilinear',
             mode='bilinear',
             align_corners=self.align_corners)
         

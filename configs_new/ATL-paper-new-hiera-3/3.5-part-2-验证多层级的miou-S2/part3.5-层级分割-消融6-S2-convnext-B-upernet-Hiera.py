@@ -39,7 +39,6 @@ with read_base():
     # from ..._base_.datasets.S2_5B_18class_512 import *
     from ..._base_.datasets.S2_crop10m_18class_512 import *
     from ..._base_.default_runtime import *
-    # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_80k import *
 
 # 训好的权重:/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-S2-deit-L-upernet-Hiera-miou52.52/iter_80000.pth
@@ -54,13 +53,13 @@ L3_num_classes = 18  # number of L1 Level label  # 21
 crop_size = (512, 512)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
+load_from = '/data/AI-Tianlong/openmmlab/mmsegmentation/checkpoints/part3-双分支/S2-18类-Hiera/part2-层级分割-消融6-S2-convnext-B-upernet-Hiera-miou58.47-67.60.pth'
+
 pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-10chan.pth'
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    # mean =[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    # std =[10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
-    mean = None,
-    std = None,
+    mean =[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    std =[10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
     pad_val=0,
     seg_pad_val=255,
     size=crop_size)

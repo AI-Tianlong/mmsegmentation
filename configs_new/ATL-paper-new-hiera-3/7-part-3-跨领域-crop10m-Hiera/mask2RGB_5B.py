@@ -29,10 +29,10 @@ def mask2RGB_with_Geoinfo(
 
     mkdir_or_exist(RGB_path)
 
-    label_suffix = '.tif'
+    label_suffix = '.png'
 
     # 是否包含0类，classes和palette里没包含
-    reduce_zero_label = True
+    reduce_zero_label = False
     # 给生成的RGB图像添加坐标
     add_meta_info = True 
 
@@ -100,7 +100,7 @@ def mask2RGB_with_Geoinfo(
 if __name__ == '__main__':
     
     # 2 mask2RGB
-    MASK_path = './mask'
-    RGB_path = '../4-像素对齐的GF2标签-4m-136张-18类-RGB'
-    img_path = '../4-像素对齐的GF2标签-4m-136张-18类'
+    MASK_path = './5B-Hiera-L3-mask/'
+    RGB_path = './5B-Hiera-L3-RGB/'
+    img_path = '/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/2-多领域地物覆盖-S2-crop作物/5-裁切好的图像/0-S2-crop10m-4-512/img_dir/mini_train_img'
     mask2RGB_with_Geoinfo(MASK_path, RGB_path, img_path, backend='gdal')

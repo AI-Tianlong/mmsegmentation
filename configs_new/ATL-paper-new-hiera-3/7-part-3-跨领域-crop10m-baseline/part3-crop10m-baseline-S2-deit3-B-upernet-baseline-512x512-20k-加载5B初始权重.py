@@ -1,18 +1,20 @@
-# 2024-09-02 测试, 可以跑通,loss-从5开始降低。
+# --------------------------------------------------------
+# InternVL
+# Copyright (c) 2023 OpenGVLab
+# Licensed under The MIT License [see LICENSE for details]
+# --------------------------------------------------------
 
-from mmcv.transforms import (LoadImageFromFile, RandomChoice,
-                             RandomChoiceResize, RandomFlip)
+
 from mmengine.config import read_base
 from mmengine.optim.optimizer import OptimWrapper
 from mmengine.optim.scheduler.lr_scheduler import LinearLR, PolyLR
 from torch.nn.modules.batchnorm import SyncBatchNorm as SyncBN
 from torch.optim import AdamW
-from mmseg.datasets.transforms import (LoadAnnotations, PackSegInputs,
-                                       PhotoMetricDistortion, RandomCrop,
-                                       ResizeShortestEdge)
-from mmseg.datasets.transforms.loading import LoadSingleRSImageFromFile
 
 
+from torch.nn.modules.activation import GELU
+from torch.nn.modules.batchnorm import SyncBatchNorm as SyncBN
+from torch.nn.modules.normalization import GroupNorm as GN
 
 # EncoderDecoder
 from mmseg.models.segmentors.encoder_decoder import EncoderDecoder
@@ -20,32 +22,34 @@ from mmseg.models.segmentors.atl_hiera_37_encoder_decoder import ATL_Hiera_Encod
 # SegDataPreProcessor
 from mmseg.models.data_preprocessor import SegDataPreProcessor
 # Backbone
-from mmpretrain.models.backbones.convnext import ConvNeXt
+from mmseg.models.backbones.deit3 import DeiT3
+# Neck
+from mmseg.models.necks.multilevel_neck import  MultiLevelNeck
 # DecodeHead
 from mmseg.models.decode_heads.uper_head import UPerHead
-from mmseg.models.decode_heads.atl_hiera_37_uper_head_multi_convseg import ATL_hiera_UPerHead_Multi_convseg
 from mmseg.models.decode_heads.fcn_head import FCNHead
 # Loss
-from mmseg.models.losses.atl_hiera_37_loss import ATL_Hiera_Loss
-from mmseg.models.losses.atl_hiera_37_loss_convseg import ATL_Hiera_Loss_convseg
 from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
+from mmseg.models.losses.atl_hiera_37_loss_convseg import ATL_Hiera_Loss_convseg
+#optimizer
+from mmseg.engine.optimizers.piip_layer_decay_optimizer_constructor import CustomLayerDecayOptimizerConstructor
 
-# Optimizer
-from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
-                                     LearningRateDecayOptimizerConstructor)
 # Evaluation
 from mmseg.evaluation import IoUMetric
 
+
 with read_base():
-    from ..._base_.datasets.S2_crop10m_18class_512_debug import *
+    from ..._base_.datasets.S2_crop10m_18class_512 import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_20k import *
 
-L3_num_classes = 4
-crop_size = (512, 512)
-norm_cfg = dict(type=SyncBN, requires_grad=True)
+load_from = '/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-20250327-新篇章/part2-多层级分割/S2-baseline/part2-baseline-S2-deit3-B-upernet-baseline-512x512-miou60.65/iter_80000.pth'
 
-pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-10chan.pth'
+num_classes = 4
+norm_cfg = dict(type=SyncBN, requires_grad=True) # decode_head的 norm_cfg
+pretrained = 'checkpoints/2-对比实验的权重/deit3/10chan/deit3-base-384px-10chan.pth'
+
+crop_size = (512, 512)
 data_preprocessor = dict(
     type=SegDataPreProcessor,
     mean =[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -58,57 +62,55 @@ data_preprocessor = dict(
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
-    # pretrained=None,
     backbone=dict(
-        type=ConvNeXt,
-        in_channels=10,
+        type=DeiT3,
         arch='base',
-        out_indices=[0, 1, 2, 3],
-        drop_path_rate=0.4,
-        layer_scale_init_value=1.0,
-        gap_before_final_norm=False,
-        init_cfg=dict(
-            type='Pretrained', checkpoint=pretrained, prefix='backbone.')),
+        in_channels=10,
+        img_size=crop_size[0],
+        patch_size=16,
+        drop_path_rate=0.15,
+        out_type='featmap',
+        out_indices=(2, 5, 8, 11), # -1 ?测试一下
+        init_cfg=dict(type='Pretrained', checkpoint=pretrained, prefix='backbone.'),
+        ),
+    neck=dict(
+        type=MultiLevelNeck,
+        in_channels=[768, 768, 768, 768],
+        out_channels=768,
+        scales=[4, 2, 1, 0.5]),
     decode_head=dict(
         type=UPerHead,
-        in_channels=[128, 256, 512, 1024],
+        in_channels=[768, 768, 768, 768],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
         channels=768,
         dropout_ratio=0.1,
-        num_classes=L3_num_classes,
+        num_classes=num_classes,
         norm_cfg=norm_cfg,
         align_corners=False,
         loss_decode=dict(
-            type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)),
-    train_cfg=dict(),
-    # test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
-    test_cfg=dict(mode='whole'))
+            type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)
+    ),
+    test_cfg=dict(mode='whole')                                       
+)
 
-
-optimizer=dict(
-        type=AdamW, 
-        lr=0.0001, 
-        betas=(0.9, 0.999), 
-        weight_decay=0.05)
-
+# 和 vit vit_deit的配置一样
 optim_wrapper = dict(
-    # type='AmpOptimWrapper',  # mmengine 混合精度江都训练内存
     type=OptimWrapper,
-    optimizer=optimizer,
-    constructor=LearningRateDecayOptimizerConstructor,
-    paramwise_cfg={
-        'decay_rate': 0.9,
-        'decay_type': 'stage_wise',
-        'num_layers': 12
-    },
-    )
-    # loss_scale='dynamic')
+    optimizer=dict(
+        type=AdamW, lr=0.00006, betas=(0.9, 0.999), weight_decay=0.01),
+    paramwise_cfg=dict(
+        custom_keys={
+            'pos_embed': dict(decay_mult=0.),
+            'cls_token': dict(decay_mult=0.),
+            'norm': dict(decay_mult=0.)
+        }))
+
 param_scheduler = [
     dict(
-        type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=1500),
+        type=LinearLR, start_factor=1e-6, by_epoch=False, begin=0, end=1500),
     dict(
-        type='PolyLR',
+        type=PolyLR,
         power=1.0,
         begin=1500,
         end=20000,
@@ -117,6 +119,7 @@ param_scheduler = [
     )
 ]
 
+# training schedule for 80k
 train_cfg.update(type=IterBasedTrainLoop, max_iters=20000, val_interval=4000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
@@ -125,6 +128,7 @@ default_hooks.update(
     checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=2),
     sampler_seed=dict(type=DistSamplerSeedHook),
     visualization=dict(type=SegVisualizationHook))
+
 
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
