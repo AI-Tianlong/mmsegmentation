@@ -14,7 +14,7 @@ from mmseg.evaluation import IoUMetric
 
 # dataset settings
 dataset_type = ATL_S2_Crop10m_Dataset_4class
-data_root = 'data/1-paper-segmentation/2-多领域地物覆盖-S2-crop作物/5-裁切好的图像/0-S2-crop10m-4-512'
+data_root = 'data/1-paper-segmentation/2-多领域地物覆盖-S2-crop作物-new/5-裁切好的图像/0-S2-crop10m-4-512'
 
 crop_size = (512, 512)
 train_pipeline = [
@@ -66,8 +66,8 @@ tta_pipeline = [
 ]
 
 train_dataloader = dict(
-    batch_size=2,
-    num_workers=4,
+    batch_size=4,
+    num_workers=8,
     persistent_workers=True,
     sampler=dict(type=InfiniteSampler, shuffle=True),
     dataset=dict(
