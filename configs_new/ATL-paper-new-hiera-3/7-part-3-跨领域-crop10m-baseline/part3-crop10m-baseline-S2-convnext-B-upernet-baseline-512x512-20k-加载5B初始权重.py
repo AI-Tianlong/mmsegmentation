@@ -41,7 +41,7 @@ with read_base():
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_20k import *
 
-load_from = '/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-20250327-新篇章/part2-多层级分割/S2-baseline/part2-baseline-S2-convnext-B-upernet-baseline-512x512-miou61.00/iter_80000.pth'
+# load_from = '/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-20250327-新篇章/part2-多层级分割/S2-baseline/part2-baseline-S2-convnext-B-upernet-baseline-512x512-miou61.00/iter_80000.pth'
 
 L3_num_classes = 4
 crop_size = (512, 512)

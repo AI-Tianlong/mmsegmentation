@@ -163,7 +163,7 @@ class Injector(nn.Module):
                  with_cp=False, with_cffn=False, cffn_ratio=0.25, drop=0., drop_path=0., attn_type='normal',
                  dim_feat=None):
         super().__init__()
-        self.with_cp = with_cp
+        self.with_cp = with_cp              #
         self.query_norm = norm_layer(dim)
         if dim_feat is None:
             dim_feat = dim
@@ -180,9 +180,12 @@ class Injector(nn.Module):
             assert has_deform_attn
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                self.attn = MSDeformAttn(d_model=dim, n_levels=n_levels, n_heads=num_heads,
-                                        n_points=n_points, ratio=deform_ratio,
-                                        d_feat=dim_feat)
+                self.attn = MSDeformAttn(d_model=dim, 
+                                         n_levels=n_levels, 
+                                         n_heads=num_heads,
+                                         n_points=n_points,
+                                         ratio=deform_ratio,
+                                         d_feat=dim_feat)
         else:
             raise NotImplementedError(f'Unknown attn_type {attn_type}')
         
@@ -226,6 +229,7 @@ class Injector(nn.Module):
 
 
 
+# branch1 和 branch2之间如何去进行交互？原来的是两个都交互。现在我只让branch1去给branch2交互。branch2不反馈branch1
 class BidirectionalInteractionUnit(nn.Module):
     def __init__(self, branch1_dim, branch2_dim, 
                  branch1_feat_size, branch2_feat_size, 
@@ -288,7 +292,74 @@ class BidirectionalInteractionUnit(nn.Module):
                                     level_start_index=deform_inputs2[2], H=H2, W=W2) 
         return x1, x2
 
-     
+
+class BidirectionalInteractionUnit_atl(nn.Module):
+    def __init__(self, 
+                 branch1_dim, branch2_dim, 
+                 branch1_feat_size, branch2_feat_size, 
+                 num_heads=6, 
+                 n_points=4, 
+                 norm_layer=partial(nn.LayerNorm, eps=1e-6),
+                 drop=0., 
+                 drop_path=0., 
+                 with_cffn=False, 
+                 cffn_ratio=0.25, 
+                 deform_ratio=1.0,
+                 with_cp=False, 
+                 attn_type='normal', 
+                 with_proj=True):
+        super().__init__()
+        # import pdb;pdb.set_trace()
+        self.attn_type = attn_type # deform
+        self.branch1_feat_size = branch1_feat_size # only for calculating flops 128
+        self.branch2_feat_size = branch2_feat_size #                            128
+        self.branch1_dim = branch1_dim  # 128
+        self.branch2_dim = branch2_dim  # 128
+        
+        self.with_proj = with_proj # True
+        
+        if with_proj:
+            self.branch2to1_proj = nn.Linear(branch2_dim, branch1_dim)
+            self.branch1to2_proj = nn.Linear(branch1_dim, branch2_dim)
+            
+        self.branch2to1_injector = Injector(dim=branch1_dim,
+                                            num_heads=num_heads,
+                                            n_points=n_points, norm_layer=norm_layer, deform_ratio=deform_ratio,
+                                            with_cp=with_cp, with_cffn=with_cffn, cffn_ratio=cffn_ratio, drop=drop, 
+                                            drop_path=drop_path,
+                                            attn_type=attn_type,
+                                            dim_feat=branch1_dim if with_proj else branch2_dim)
+        
+        self.branch1to2_injector = Injector(dim=branch2_dim,
+                                            num_heads=num_heads,
+                                            n_points=n_points, norm_layer=norm_layer, deform_ratio=deform_ratio,
+                                            with_cp=with_cp, with_cffn=with_cffn, cffn_ratio=cffn_ratio, drop=drop, 
+                                            drop_path=drop_path,
+                                            attn_type=attn_type,
+                                            dim_feat=branch2_dim if with_proj else branch1_dim)
+        
+    
+    def forward(self, x1, x2, deform_inputs1, deform_inputs2, H1, W1, H2, W2):
+        # x1 is small image (large model), x2 is large image (small model)
+        
+        if self.with_proj:
+            x1_branch1to2_proj = self.branch1to2_proj(x1)
+            x2_branch2to1_proj = self.branch2to1_proj(x2) 
+        else:
+            x1_branch1to2_proj = x1
+            x2_branch2to1_proj = x2
+        
+        x1 = x1  #不需要改变x1的特征，不需要给x1加注意力。
+        # x1 = self.branch2to1_injector(query=x1, reference_points=deform_inputs1[0],
+        #                               feat=x2_branch2to1_proj, spatial_shapes=deform_inputs1[1],
+        #                               level_start_index=deform_inputs1[2], H=H1, W=W1)
+        
+        x2 = self.branch1to2_injector(query=x2, reference_points=deform_inputs2[0],
+                                    feat=x1_branch1to2_proj, spatial_shapes=deform_inputs2[1],
+                                    level_start_index=deform_inputs2[2], H=H2, W=W2) 
+        return x1, x2
+
+
 
 def forward_blocks_atl(x, H, W, blocks, cls_=None):
     if len(blocks) == 0:
@@ -445,7 +516,7 @@ class TwoBranchInteractionBlock(nn.Module):
         super().__init__()
         self.attn_type = attn_type
 
-        self.interaction_units_12 = BidirectionalInteractionUnit(branch1_dim, branch2_dim, branch1_feat_size, branch2_feat_size, attn_type=attn_type, **kwargs)
+        self.interaction_units_12 = BidirectionalInteractionUnit_atl(branch1_dim, branch2_dim, branch1_feat_size, branch2_feat_size, attn_type=attn_type, **kwargs)
         
         # for calculating flops
         self.interaction_units = [
@@ -460,8 +531,8 @@ class TwoBranchInteractionBlock(nn.Module):
                 H1, W1, H2, W2, 
                 deform_inputs=None, 
                 cls1=None, cls2=None):
-        x1, cls1, H1, W1 = forward_blocks_atl(x1, H1, W1, branch1_blocks, cls1)
-        x2, cls2, H2, W2 = forward_blocks_atl(x2, H2, W2, branch2_blocks, cls2)
+        x1, cls1, H1, W1 = forward_blocks_atl(x1, H1, W1, branch1_blocks, cls1)  # x1过block
+        x2, cls2, H2, W2 = forward_blocks_atl(x2, H2, W2, branch2_blocks, cls2)  # x2过block 
 
         x1, x2 = self.interaction_units_12(x1, x2, deform_inputs["2to1"], deform_inputs["1to2"], H1, W1, H2, W2)
         

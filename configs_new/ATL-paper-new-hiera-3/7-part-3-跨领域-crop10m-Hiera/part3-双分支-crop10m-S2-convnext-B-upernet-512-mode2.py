@@ -13,12 +13,6 @@ from mmseg.datasets.transforms import (LoadAnnotations, PackSegInputs,
 from mmseg.datasets.transforms.loading import LoadSingleRSImageFromFile
 
 
-
-# EncoderDecoder
-from mmseg.models.segmentors.encoder_decoder import EncoderDecoder
-from mmseg.models.segmentors.atl_hiera_37_encoder_decoder import ATL_Hiera_EncoderDecoder
-from mmseg.models.segmentors.twobranch_encoder_decoder import TwoBranch_EncoderDecoder
-
 # SegDataPreProcessor
 from mmseg.models.data_preprocessor import SegDataPreProcessor
 # Backbone
@@ -42,12 +36,13 @@ from mmseg.evaluation import IoUMetric
 from mmseg.models.segmentors.twobranch_encoder_decoder_mode2 import TwoBranch_EncoderDecoder_mode2
 from mmseg.models.backbones.atl_twobranch_backbone_mode2 import TwoBranch_backbone_mode2
 from mmseg.models.decode_heads.atl_twobranch_head_mode2 import TwoBranch_decode_head_mode2  
+from mmseg.models.decode_heads.uper_head_hiera_with_gate import UPerHeadWithGate
+
 
 with read_base():
-    from ..._base_.datasets.S2_crop10m_18class_512_debug  import *
+    from ..._base_.datasets.S2_crop10m_18class_512  import *
     from ..._base_.default_runtime import *
-    # from ..._base_.models.upernet_beit_potsdam import *
-    from ..._base_.schedules.schedule_80k import *
+    from ..._base_.schedules.schedule_20k import *
 
 # 训好的权重:/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-S2-deit-L-upernet-Hiera-miou52.52/iter_80000.pth
 test_output_level = 'L1' # 输出L3, 验证L3的精度
@@ -113,10 +108,9 @@ model = dict(
                 [35, 38],
             ],
             ),
-        
         branch2_backbone=dict( # new_task
             type=ConvNeXt,
-            # init_cfg=dict(type='Pretrained', checkpoint=imagenet_pretrained, prefix='backbone.'),  # 这里可以消融一下
+            init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='backbone.'),  # 这里可以消融一下
             in_channels=10,
             arch='base',
             out_indices=[0, 1, 2, 3],
@@ -135,7 +129,7 @@ model = dict(
     ),
     decode_head=dict(
         type=TwoBranch_decode_head_mode2,
-        mode = 'baseline',
+        mode = 'xiaorong2',
         branch1_decode_head=dict(  # land use
             type=UPerHead_Hiera_2branch,
             init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='decode_head.'),
@@ -155,7 +149,7 @@ model = dict(
             align_corners=False),
 
         branch2_decode_head=dict( # new_task
-            type=UPerHead,
+            type=UPerHeadWithGate,
             # init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='decode_head.'),  # 这里也可以消融一下
             in_channels=[128, 256, 512, 1024],
             in_index=[0, 1, 2, 3],
@@ -206,18 +200,18 @@ param_scheduler = [
         type='PolyLR',
         power=1.0,
         begin=1500,
-        end=80000,
+        end=20000,
         eta_min=0.0,
         by_epoch=False,
     )
 ]
 
-train_cfg.update(type=IterBasedTrainLoop, max_iters=20000, val_interval=200)
+train_cfg.update(type=IterBasedTrainLoop, max_iters=20000, val_interval=4000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),
     param_scheduler=dict(type=ParamSchedulerHook),
-    checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=2),
+    checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=4),
     sampler_seed=dict(type=DistSamplerSeedHook),
     visualization=dict(type=SegVisualizationHook))
 
