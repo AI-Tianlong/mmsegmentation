@@ -28,10 +28,13 @@ from PIL import Image
 from torch.nn import functional as F
 
 from mmseg.models.decode_heads.uper_head import UPerHead
+from mmseg.models.decode_heads.uper_head_hiera_with_gate import UPerHeadWithGate
 
 
-L1_vegetation_index = 0
-L2_cropland_index = 0
+
+
+L1_vegetation_index = 0      # L1: 0-vegetation, 2-water, 3-Artificial surface, 4-Bareland
+L2_cropland_index = 0        # L2: 0-cropland, 1-forest, 
 L3_paddy_field_index = 0
 L3_dry_cropland_index = 1
 
@@ -78,22 +81,9 @@ class TwoBranch_decode_head_mode2(BaseModule):
         branch1_inputs = inputs[0]
         branch2_inputs = inputs[1]
         
-
-        # 这里不对，我要的是特征[128,128]的，而不是[512,512]的。用forward，而不是predict
-        # 通过分支1，获取相关的特征mask, 这里有问题，不应该直接获取到512,512 的mask，而应该获得128，128的mask，用forward，而不是predict
-        # self.branch1_decode_head.test_output_level='L1'
-        # x_land_use_seglogits_L1 = self.branch1_decode_head.predict(branch1_inputs, batch_img_metas, test_cfg) # 1, 4, 512, 512
-        # self.branch1_decode_head.test_output_level='L2'
-        # x_land_use_seglogits_L2 = self.branch1_decode_head.predict(branch1_inputs, batch_img_metas, test_cfg) # 1, 9, 512, 512
-        # self.branch1_decode_head.test_output_level='L3'
-        # x_land_use_seglogits_L3 = self.branch1_decode_head.predict(branch1_inputs, batch_img_metas, test_cfg) # 1, 18, 512, 512
-
-        # x_lan_use_seglogits_list = [x_land_use_seglogits_L1, x_land_use_seglogits_L2, x_land_use_seglogits_L3]
-        
         # import pdb; pdb.set_trace()
         x_lan_use_seglogits_list, _ = self.branch1_decode_head.forward(branch1_inputs) # 1, 4, 128, 128 :embedding:[2,256,16,16]
         # [2,128,128,128][2,256,64,64][2,512,32,32][2,1024,16,16] --> [2, 4, 128, 128] [2, 9, 128, 128] [2, 18, 128, 128]
-
 
         # 经过softmax之后的值,非常的高,范围更保守！
         L1_seglogits_softmax = F.softmax(x_lan_use_seglogits_list[0], dim=1)  # [2, 4,  128, 128]
@@ -101,13 +91,21 @@ class TwoBranch_decode_head_mode2(BaseModule):
         L3_seglogits_softmax = F.softmax(x_lan_use_seglogits_list[2], dim=1)  # [2, 18, 128, 128]
 
         # import pdb;pdb.set_trace() # 从land use 中，取出 符合那啥的值。
+        # L1: 植被掩膜
         L1_vegetation_seglogits_softmax = L1_seglogits_softmax[:, L1_vegetation_index, :, :]  # [2, 128, 128]
+        # L2: 耕地掩膜
         L2_crop_seglogits_softmax = L2_seglogits_softmax[:, L2_cropland_index, :, :]          # [2, 128, 128]
-        # mask 有了，如何嵌入到新的任务中去呢？
+        # L3: xxx淹没。
 
-        # import pdb; pdb.set_trace()
-        # 这里可以作为一个消融，直接用branch2_decode_head的forward去获得输出。
-        
+        # L1-->L2-->水稻 是绝对的包含和被包含的关系
+        # 植被-->耕地-->水稻、玉米、大豆。
+        # 所以这里区分水稻的模型，应该去学习三个东西：
+        # L1: 是植被/ 不是植被
+        # L2: 是耕地/ 不是耕地
+        # L3: 是目标地物 / 不是目标地物
+        # L4: 水稻 / 玉米 / 大豆 / 其他 
+
+
         if self.mode == 'xiaorong1':  # head没有交互，只用branch2_decode_head的特征
             branch2_decode_head_seglogits = self.branch2_decode_head.forward(branch2_inputs)  # [2, 4, 128, 128]
             return branch2_decode_head_seglogits
@@ -116,6 +114,10 @@ class TwoBranch_decode_head_mode2(BaseModule):
             if isinstance(self.branch2_decode_head, UPerHead):  # 如果是UperHead的话
                branch2_decode_head_seglogits = self.branch2_decode_head.forward(branch2_inputs)  # [2, 4, 128, 128]
                return branch2_decode_head_seglogits
+            elif isinstance(self.branch2_decode_head, UPerHeadWithGate):
+               branch2_seglogits = self.self.branch2_decode_head._forward_feature(inputs) 
+
+
 
 
 

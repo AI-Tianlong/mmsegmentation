@@ -156,6 +156,7 @@ class TwoBranch_backbone_mode2(BaseModule):
             self.fpn3 = nn.Identity()
             self.fpn4 = nn.Identity()
 
+                
         else: # ViT regular fpn
             # fpns are 4x, 2x, 1x, 1/2x
             dim_fpn1 = dims1[self.branch1_interaction_layer_index[self.out_interaction_indexes[0]]]
@@ -182,7 +183,7 @@ class TwoBranch_backbone_mode2(BaseModule):
 
         if not with_simple_fpn:
             assert out_interaction_indexes is not None
-            for out_idx in self.out_interaction_indexes: 
+            for out_idx in self.out_interaction_indexes:
                 dim1_ = dims1[self.branch1_interaction_layer_index[out_idx]] # [2, 6, 10, 13, 16, 19, 22, 25, 28, 31, 34, 38]
                 dim2_ = dims2[self.branch2_interaction_layer_index[out_idx]]
                 self.create_intermediate_merge_module(out_idx, dim1_, dim2_)
@@ -196,20 +197,14 @@ class TwoBranch_backbone_mode2(BaseModule):
                 nn.GroupNorm(32, dim1),  #dim1: 1024
                 nn.ReLU(inplace=True),
             )                            #dim2: 768 / 1024
-            
-            if dim2 != dim1:
-                self.merge_branch2 = nn.Sequential(
-                    nn.GroupNorm(32, dim1),
-                    nn.ReLU(inplace=True),
-                )
-            else:
-                self.merge_branch2 = nn.Sequential(
-                    nn.GroupNorm(32, dim1),
-                    nn.ReLU(inplace=True),
-                )
+            self.merge_branch2 = nn.Sequential(
+                nn.Conv2d(dim2, dim1, kernel_size=3, stride=1, padding=1, bias=False),
+                nn.GroupNorm(32, dim1),
+                nn.ReLU(inplace=True),
+            )
 
-        else: # ViT的话
-            # 将branch1的维度变到dim1, ViT
+        else:
+            # 将branch1的维度变到dim1
             self.merge_branch1 = nn.Sequential(
                 nn.Conv2d(dim1, dim1, kernel_size=3, stride=1, padding=1, bias=False),
                 nn.GroupNorm(32, dim1),
@@ -247,21 +242,15 @@ class TwoBranch_backbone_mode2(BaseModule):
 
     def create_intermediate_merge_module(self, idx, dim1_, dim2_):
         merge_branch1 = nn.Sequential(
-            nn.GroupNorm(32, dim1_),  # 128维度，32个通道，GroupNorm一下，提升稳定性。
+            nn.GroupNorm(32, dim1_),  # 32-->128
             nn.ReLU(inplace=True),
         )
 
-        if dim2_ != dim1_:
-            merge_branch2 = nn.Sequential(  # 将branch2的维度升到dim1, 如果相同的话，不做这个操作
-                nn.Conv2d(dim2_, dim1_, kernel_size=3, stride=1, padding=1, bias=False),
-                nn.GroupNorm(32, dim1_),  
-                nn.ReLU(inplace=True),
-            )
-        else:
-            merge_branch2 = nn.Sequential(  # 将branch2的维度升到dim1, 如果相同的话，不做这个操作
-                nn.GroupNorm(32, dim1_),  
-                nn.ReLU(inplace=True),
-            )
+        merge_branch2 = nn.Sequential(  # 将branch2的维度升到dim1
+            nn.Conv2d(dim2_, dim1_, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.GroupNorm(32, dim1_),  
+            nn.ReLU(inplace=True),
+        )
 
         merge_branch1.apply(self._init_weights)
         merge_branch2.apply(self._init_weights)
@@ -270,11 +259,11 @@ class TwoBranch_backbone_mode2(BaseModule):
         w2 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
 
         
-        setattr(self, f"intermediate_merging_{idx}_branch1", merge_branch1)  #做一下groupNorm
-        setattr(self, f"intermediate_merging_{idx}_branch2", merge_branch2)  #做一下groupNorm和升维度
+        setattr(self, f"intermediate_merging_{idx}_branch1", merge_branch1)
+        setattr(self, f"intermediate_merging_{idx}_branch2", merge_branch2)
 
-        setattr(self, f"intermediate_merging_{idx}_w1", w1)  # merge两个的权重
-        setattr(self, f"intermediate_merging_{idx}_w2", w2)  # merge两个的权重
+        setattr(self, f"intermediate_merging_{idx}_w1", w1)
+        setattr(self, f"intermediate_merging_{idx}_w2", w2)
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -341,12 +330,11 @@ class TwoBranch_backbone_mode2(BaseModule):
             deform_inputs_list.append(deform_inputs)
 
 
-        # import pdb;pdb.set_trace()
         # Patch embedding and position embedding
         if isinstance(self.branch1_backbone, ConvNeXt):
-            x1 = self.branch1_backbone.downsample_layers[0](x1) # [2,10,512,512] --> [2,128,128,128]# 第一个下采样层
-            bs1, _, H1, W1 = x1.shape # here dim is not the final dim1 [2,128,128,128]
-            x1 = x1.view(bs1, -1, H1*W1).transpose(1, 2) # (B,C,H,W) -> (B,C,N)-> (B,N,C) # [2,128,128,128]->[2,128,16384]->[1,16384,128]
+            x1 = self.branch1_backbone.downsample_layers[0](x1) # [1,128,128,128]# 第一个embedding层
+            bs1, _, H1, W1 = x1.shape # here dim is not the final dim1
+            x1 = x1.view(bs1, -1, H1*W1).transpose(1, 2) # (B,C,H,W) -> (B,C,N)-> (B,N,C) #[1,128,128,128]->[1,128,16384]->[1,16384,128]
         elif isinstance(self.branch1_backbone, DeiT3):
             x1, H1, W1 = self.branch1_backbone.patch_embed(x1) # [2, 576, 1024],24,24  (384/16)^2=24^2=576
             bs1, n1, dim1 = x1.shape # 2, 576, 1024
@@ -356,10 +344,10 @@ class TwoBranch_backbone_mode2(BaseModule):
                                                 (self.branch1_backbone.patch_size, self.branch1_backbone.patch_size), H1, W1) 
                 x1 = x1 + pos_embed1
             x1 = self.branch1_backbone.pos_drop(x1)
-        
+
         if isinstance(self.branch2_backbone, ConvNeXt):
-            x2 = self.branch2_backbone.downsample_layers[0](x2)        # [2,10,512,512] --> [2,128,128,128]# 第一个下采样层
-            bs2, _, H2, W2 = x2.shape # here dim is not the final dim2 [2,128,128,128]
+            x2 = self.branch2_backbone.downsample_layers[0](x2)
+            bs2, _, H2, W2 = x2.shape # here dim is not the final dim1
             x2 = x2.view(bs2, -1, H2*W2).transpose(1, 2) # (B,C,H,W) -> (B,C,N)-> (B,N,C)
         elif isinstance(self.branch2_backbone, DeiT3):
             x2, H2, W2 = self.branch2_backbone.patch_embed(x1) # [2, 576, 1024],24,24  (384/16)^2=24^2=576
@@ -373,72 +361,66 @@ class TwoBranch_backbone_mode2(BaseModule):
 
         outs = [] # 这里的x1 和 x2 已经是过完模型embedding的了
         # Blocks and interactions
-        for i, layer in enumerate(self.interactions): # 12个
-            indexes1 = self.branch1_interaction_indexes[i] # [0,2] [3,6] [7,10] [11,13]
+        for i, layer in enumerate(self.interactions):
+            indexes1 = self.branch1_interaction_indexes[i] #[0,2] 
             branch1_blocks = self.branch1_backbone.blocks[indexes1[0]:indexes1[-1] + 1]\
                 if isinstance(self.branch1_backbone, ConvNeXt) else self.branch1_backbone.layers[indexes1[0]:indexes1[-1] + 1]
-            # 可能叫这个：downsample_block convnext的block: convnext_block convnext_block convnext_block 
+            # 可能叫这个：downsample_layer (convnext) | 
 
             indexes2 = self.branch2_interaction_indexes[i]
-            branch2_blocks = self.branch2_backbone.blocks[indexes2[0]:indexes2[-1] + 1]\
+            branch2_blocks = self.branch1_backbone.blocks[indexes2[0]:indexes2[-1] + 1]\
                 if isinstance(self.branch2_backbone, ConvNeXt) else self.branch2_backbone.layers[indexes2[0]:indexes2[-1] + 1]
             
 
             # 需要反馈回新的H1,W1,H2,W2 因为下采样了,更新长宽
-            x1, x2, _, _, H1, W1, H2, W2 = layer(x1, x2,     #[1,16384,128] [1,16384,128]
-                        branch1_blocks, branch2_blocks,      # 3个convnext bolck 3个 convnext block
-                        H1=H1, W1=W1, H2=H2, W2=W2,          # 128,128  128,128
+            x1, x2, _, _, H1, W1, H2, W2 = layer(x1, x2, #[1,16384,128] [1,16384,128]
+                        branch1_blocks, branch2_blocks, # 3个bolck 3个block
+                        H1=H1, W1=W1, H2=H2, W2=W2,     # 128,128  128,128
                         cls1=None, cls2=None,
                         deform_inputs=deform_inputs_list[i])
 
             # 顺利跑通！
 
-            # import pdb;pdb.set_trace()
-
-            # 代表是CNN的convnext，多个block之后，就要merge一下。
-            if not self.with_simple_fpn and i in self.out_interaction_indexes:  
-                # import pdb;pdb.set_trace()                        # 0 1 2  3456  7:34  35:38
-                # 走这个, 在第几个interaction后输出。[0,1,10]       # 3     3(4)  27(28) 3(4) = 36层+3个下采样层
-                # 共插入了12个交互模块， 0,1,10 3个输出。
-                # 0: block[0],block[1] block[2] blocks[0:2]              # stage 1
-                # 1: block[3],block[4] block[5] block[6]    blocks[3:6]  # stage 2
-                # 10:block[32] block[33] block[34] blocks[32:34]         # stage 3 
-                x1_ = x1.transpose(1, 2).view(bs1, -1, H1, W1) # [2,16384,128]-->[2,128,128,128]
-                x1_ = getattr(self, f"intermediate_merging_{i}_branch1")(x1_) # 单纯的GroupNorm一下 [2, 128, 128, 128]
+            if not self.with_simple_fpn and i in self.out_interaction_indexes:
+                x1_ = x1.transpose(1, 2).view(bs1, -1, H1, W1) # [1,16384,128]-->[1,128,128,128]
+                x1_ = getattr(self, f"intermediate_merging_{i}_branch1")(x1_) # 单纯的GroupNorm一下 [1, 128, 128, 128]
                 x1_ = x1_.type(torch.float32)
                 x1_ = F.interpolate(x1_, size=(H2, W2), mode='bilinear', align_corners=False) # 不动
                 x1_ = x1_.type(self.dtype)
 
                 x2_ = x2.transpose(1, 2).view(bs2, -1, H2, W2) # [1,16384,128]-->[1,128,128,128]
-                x2_ = getattr(self, f"intermediate_merging_{i}_branch2")(x2_) # x2的维度，变道和x1一样，最高,GroupNorm一下
+                x2_ = getattr(self, f"intermediate_merging_{i}_branch2")(x2_) # x2的维度，变道和x1一样，最高
                 x2_ = x2_.type(torch.float32)
-                # x2_ = F.interpolate(x2_, size=(H2, W2), mode='bilinear', align_corners=False) # 不动
-                # x2_ = x2_.type(self.dtype)
-
+                x2_ = F.interpolate(x2_, size=(H2, W2), mode='bilinear', align_corners=False)
+                x2_ = x2_.type(self.dtype)
+                
+                # x3_ = x3.transpose(1, 2).view(bs3, -1, H3, W3)
+                # x3_ = getattr(self, f"intermediate_merging_{i}_branch3")(x3_)
+                
                 # [1,128,128,128] 两个分支合并起来
                 cur_out = x1_ * getattr(self, f"intermediate_merging_{i}_w1") +\
-                          x2_ * getattr(self, f"intermediate_merging_{i}_w2")
+                      x2_ * getattr(self, f"intermediate_merging_{i}_w2")
 
-                outs.append(cur_out) #      
+                outs.append(cur_out)        
 
-        # import pdb;pdb.set_trace()
         # 最终的分支合并。
         # Branch merging
-        # 最终的x1: [2,256,1024]-->[2,1024,16,16]
-        x1 = x1.transpose(1, 2).view(bs1, self.branch1_backbone.embed_dim, H1, W1) # [2, 256, 1024] --> [2, 1024, 16, 16]
-        x1 = self.merge_branch1(x1)   # 特征图维度变到branch1的 [2, 1024, 16, 16]->[2, 1024, 16, 16]            
+        x1 = x1.transpose(1, 2).view(bs1, self.branch1_backbone.embed_dim, H1, W1) # [2, 576, 1024] --> [2, 1024, 24, 24]
+        x1 = self.merge_branch1(x1)   # 特征图维度变到branch1的 [2, 1024, 24, 24]->[2, 1024, 24, 24]            
         x1 = x1.type(torch.float32) 
-        x1 = F.interpolate(x1, size=(H2, W2), mode='bilinear', align_corners=False)  # 特征图尺寸变到branch2的(不动)
+        x1 = F.interpolate(x1, size=(H2, W2), mode='bilinear', align_corners=False)  # 特征图尺寸变到branch3的
         x1 = x1.type(self.dtype) # [2, 1024, 24, 24]->[2, 1024, 40, 40]
 
         x2 = x2.transpose(1, 2).view(bs2, self.branch2_backbone.embed_dim, H2, W2) # [2, 1024, 768] -> [2, 768, 32, 32]
         x2 = self.merge_branch2(x2)  # 特征图维度变到branch1的 [2, 768, 32, 32]->[2, 1024, 32, 32]
         x2 = x2.type(torch.float32)
-        # x2 = F.interpolate(x2, size=(H2, W2), mode='bilinear', align_corners=False) # 特征图尺寸变到branch3的
-        # x2 = x2.type(self.dtype) # [2, 1024, 32, 32]->[2, 1024, 40, 40]
-      
-        out = x1 * self.w1 + x2 * self.w2  # 最终的输出, x1的特征和x2的特征共同作用！ # [2,1024,16,16]
-        # 对于convnext，这里应该是一个多尺度的输出。而不是一个普通
+        x2 = F.interpolate(x2, size=(H2, W2), mode='bilinear', align_corners=False) # 特征图尺寸变到branch3的
+        x2 = x2.type(self.dtype) # [2, 1024, 32, 32]->[2, 1024, 40, 40]
+        
+        # x3 = x3.transpose(1, 2).view(bs3, self.branch3.embed_dim, H3, W3) # [2,1600,384] -> [2, 384, 40, 40]
+        # x3 = self.merge_branch3(x3)  # 特征图维度变到branch1的 
+        
+        out = x1 * self.w1 + x2 * self.w2  # 最终的输出
 
         if self.cal_flops:
             return
@@ -451,7 +433,7 @@ class TwoBranch_backbone_mode2(BaseModule):
         else:
             outs.append(out)
             assert len(outs) == 4
-            f1 = self.fpn1(outs[0]).contiguous().float() # self.fpn1: Identity()
+            f1 = self.fpn1(outs[0]).contiguous().float()
             f2 = self.fpn2(outs[1]).contiguous().float()
             f3 = self.fpn3(outs[2]).contiguous().float()
             f4 = self.fpn4(outs[3]).contiguous().float()
