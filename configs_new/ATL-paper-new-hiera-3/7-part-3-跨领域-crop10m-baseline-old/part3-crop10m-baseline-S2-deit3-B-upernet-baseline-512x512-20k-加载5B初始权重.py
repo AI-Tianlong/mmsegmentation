@@ -43,11 +43,11 @@ with read_base():
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_20k import *
 
+load_from = '/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-20250327-新篇章/part2-多层级分割/S2-baseline/part2-baseline-S2-deit3-B-upernet-baseline-512x512-miou60.65/iter_80000.pth'
 
 num_classes = 4
 norm_cfg = dict(type=SyncBN, requires_grad=True) # decode_head的 norm_cfg
-imagenet_pretrained = 'checkpoints/2-对比实验的权重/deit3/10chan/deit3-base-384px-10chan.pth'
-land_use_pretrained = 'checkpoints/part3-双分支/S2-18类-Hiera/part2-baseline-S2-deit3-B-upernet-baseline-miou60.65-70.13.pth'
+pretrained = 'checkpoints/2-对比实验的权重/deit3/10chan/deit3-base-384px-10chan.pth'
 
 crop_size = (512, 512)
 data_preprocessor = dict(
@@ -71,7 +71,7 @@ model = dict(
         drop_path_rate=0.15,
         out_type='featmap',
         out_indices=(2, 5, 8, 11), # -1 ?测试一下
-        init_cfg=dict(type='Pretrained', checkpoint=land_use_pretrained, prefix='backbone.'),
+        init_cfg=dict(type='Pretrained', checkpoint=pretrained, prefix='backbone.'),
         ),
     neck=dict(
         type=MultiLevelNeck,

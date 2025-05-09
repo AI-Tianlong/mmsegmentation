@@ -71,7 +71,7 @@ model = dict(
         drop_path_rate=0.15,
         out_type='featmap',
         out_indices=(2, 5, 8, 11), # -1 ?测试一下
-        init_cfg=dict(type='Pretrained', checkpoint=land_use_pretrained, prefix='backbone.'),
+        init_cfg=dict(type='Pretrained', checkpoint=imagenet_pretrained, prefix='backbone.'),
         ),
     neck=dict(
         type=MultiLevelNeck,
