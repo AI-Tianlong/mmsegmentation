@@ -172,7 +172,7 @@ class TwoBranch_EncoderDecoder_mode2(BaseSegmentor):
                                             test_cfg=self.test_cfg) # twobranch_decode_mode2
 
         # import pdb;pdb.set_trace()
-        losses.update(add_prefix(loss_decode, 'branch2_decode_'))
+        losses.update(add_prefix(loss_decode, 'branch2_decode'))
         return losses
 
     def loss(self, inputs: Tensor, data_samples: SampleList) -> dict:
@@ -409,12 +409,12 @@ class TwoBranch_EncoderDecoder_mode2(BaseSegmentor):
         return log_vars
     
     def val_step(self, data: Union[tuple, dict, list]) -> list:
-        print_log(f'【ATL-LOG】====>>>> 自定义 val_step', logger='current')
+        # print_log(f'【ATL-LOG】====>>>> 自定义 val_step', logger='current')
         data = self.data_preprocessor(data, False)
         return self._run_forward(data, mode='predict')  # type: ignore
 
     def test_step(self, data: Union[dict, tuple, list]) -> list:
-        print_log(f'【ATL-LOG】====>>>> 自定义  test_step', logger='current')
+        # print_log(f'【ATL-LOG】====>>>> 自定义  test_step', logger='current')
         data = self.data_preprocessor(data, False)
         return self._run_forward(data, mode='predict')  # type: ignore
 

@@ -42,6 +42,9 @@ from mmseg.evaluation import IoUMetric
 from mmseg.models.segmentors.twobranch_encoder_decoder_mode2 import TwoBranch_EncoderDecoder_mode2
 from mmseg.models.backbones.atl_twobranch_backbone_mode2 import TwoBranch_backbone_mode2
 from mmseg.models.decode_heads.atl_twobranch_head_mode2 import TwoBranch_decode_head_mode2  
+from mmseg.models.decode_heads.uper_head_hiera_with_gate import UPerHeadWithGate
+
+
 
 with read_base():
     from ..._base_.datasets.S2_crop10m_18class_512  import *
@@ -113,10 +116,9 @@ model = dict(
                 [35, 38],
             ],
             ),
-        
         branch2_backbone=dict( # new_task
             type=ConvNeXt,
-            # init_cfg=dict(type='Pretrained', checkpoint=imagenet_pretrained, prefix='backbone.'),  # 这里可以消融一下
+            init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='backbone.'),  # 这里可以消融一下
             in_channels=10,
             arch='base',
             out_indices=[0, 1, 2, 3],
@@ -135,7 +137,7 @@ model = dict(
     ),
     decode_head=dict(
         type=TwoBranch_decode_head_mode2,
-        mode = 'xiaorong1',
+        mode = 'xiaorong2',
         branch1_decode_head=dict(  # land use
             type=UPerHead_Hiera_2branch,
             init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='decode_head.'),
@@ -155,7 +157,9 @@ model = dict(
             align_corners=False),
 
         branch2_decode_head=dict( # new_task
-            type=UPerHead,
+            type=UPerHeadWithGate,
+            mode='xiaorong2-3', 
+            land_use_level_num = 2,
             # init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='decode_head.'),  # 这里也可以消融一下
             in_channels=[128, 256, 512, 1024],
             in_index=[0, 1, 2, 3],
@@ -177,8 +181,7 @@ optimizer=dict(
         lr=0.0001, 
         betas=(0.9, 0.999), 
         weight_decay=0.05)
-
-
+        
 # optimizer = dict(type='AdamW', 
 #                  lr=0.0002, 
 #                  betas=(0.9, 0.999),

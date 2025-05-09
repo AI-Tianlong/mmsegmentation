@@ -110,15 +110,21 @@ class TwoBranch_decode_head_mode2(BaseModule):
             branch2_decode_head_seglogits = self.branch2_decode_head.forward(branch2_inputs)  # [2, 4, 128, 128]
             return branch2_decode_head_seglogits
         
-        elif self.mode == 'xiaorong2':
+
+        elif self.mode == 'xiaorong2': # head见有交互
             if isinstance(self.branch2_decode_head, UPerHead):  # 如果是UperHead的话
                branch2_decode_head_seglogits = self.branch2_decode_head.forward(branch2_inputs)  # [2, 4, 128, 128]
                return branch2_decode_head_seglogits
             elif isinstance(self.branch2_decode_head, UPerHeadWithGate):
-               branch2_seglogits = self.self.branch2_decode_head._forward_feature(inputs) 
+                L1_softmask = L1_vegetation_seglogits_softmax # L1 植被掩膜 # [2, 128, 128]
+                L2_softmask = L2_crop_seglogits_softmax       # L2 耕地掩膜 # [2, 128, 128]
 
+                Level_softmask_list = [L1_softmask, L2_softmask]
 
-
+                barnch2_mask_inputs = (Level_softmask_list, branch2_inputs)
+                branch2_decode_head_seglogits = self.branch2_decode_head.forward(barnch2_mask_inputs)  # [2, 4, 128, 128]
+                
+                return branch2_decode_head_seglogits
 
 
         # 这两个mask是很重要的！
@@ -127,11 +133,6 @@ class TwoBranch_decode_head_mode2(BaseModule):
         # 模型之间的交互，还是用可形变注意力？
         # test1：
         # 需要一个interactions，类似于TwoBranch的交互
-
-
-        # branch2_new_task_output = self.branch2_decode_head.forward(branch2_inputs)
-        
-        # 在这里，应该把branch1 和 branch2 的结构拿出来，像piip一样。
 
         debug_save_results = False
         if debug_save_results:
@@ -169,9 +170,6 @@ class TwoBranch_decode_head_mode2(BaseModule):
 
             import pdb; pdb.set_trace()
 
-        
-        
-        # return branch1_land_use_output, branch2_new_task_output
 
 
     def loss(self, 
@@ -197,7 +195,7 @@ class TwoBranch_decode_head_mode2(BaseModule):
         # import pdb; pdb.set_trace()
         # encoder.loss-->decode.loss里面，原始的           batch_data_samples 是有metainfo的！ 所以可以传递！
         # encoder.predict --> deocde.predict 传递的参数是  batch_img_metas, 没有metainfo，所以不要
-        seg_logits = self.forward(inputs)  # [2,4,128,128]
+        seg_logits = self.forward(inputs)  # [2,4,128,128]          # 经过两个特征交互的。
         losses = self.loss_by_feat(seg_logits, batch_data_samples) 
         return losses
         
