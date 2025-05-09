@@ -113,7 +113,6 @@ model = dict(
                 [35, 38],
             ],
             ),
-        
         branch2_backbone=dict( # new_task
             type=ConvNeXt,
             init_cfg=dict(type='Pretrained', checkpoint=imagenet_pretrained, prefix='backbone.'),  # 这里可以消融一下
@@ -177,8 +176,7 @@ optimizer=dict(
         lr=0.0001, 
         betas=(0.9, 0.999), 
         weight_decay=0.05)
-
-
+        
 # optimizer = dict(type='AdamW', 
 #                  lr=0.0002, 
 #                  betas=(0.9, 0.999),
