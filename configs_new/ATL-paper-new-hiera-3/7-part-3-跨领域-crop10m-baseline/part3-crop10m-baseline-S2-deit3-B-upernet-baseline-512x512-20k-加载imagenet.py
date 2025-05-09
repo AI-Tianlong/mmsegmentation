@@ -46,7 +46,8 @@ with read_base():
 
 num_classes = 4
 norm_cfg = dict(type=SyncBN, requires_grad=True) # decode_head的 norm_cfg
-imagenet_pretrained = 'checkpoints/2-对比实验的权重/deit3/10chan/deit3-base-384px-10chan.pth'
+# imagenet_pretrained = 'checkpoints/2-对比实验的权重/deit3/10chan/deit3-base-384px-10chan.pth'
+imagenet_pretrained = 'checkpoints/2-对比实验的权重/deit3-224/10chan/deit3-base-224px-10chan.pth'
 land_use_pretrained = 'checkpoints/part3-双分支/S2-18类-Hiera/part2-baseline-S2-deit3-B-upernet-baseline-miou60.65-70.13.pth'
 
 crop_size = (512, 512)

@@ -187,8 +187,9 @@ class DeiT3TransformerEncoderLayer(BaseModule):
 
 
 @MODELS.register_module()
-class DeiT3(VisionTransformer):
+class DeiT3(VisionTransformer): # copy from mmpretrain.models.backbones.deit3
     """DeiT3 backbone.
+    https://github.com/open-mmlab/mmpretrain/tree/main/configs/deit3
 
     A PyTorch implement of : `DeiT III: Revenge of the ViT
     <https://arxiv.org/pdf/2204.07118.pdf>`_
