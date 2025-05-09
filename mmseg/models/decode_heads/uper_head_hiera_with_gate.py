@@ -82,7 +82,8 @@ class UPerHeadWithGate(BaseDecodeHead):
             conv_cfg=self.conv_cfg,
             norm_cfg=self.norm_cfg,
             act_cfg=self.act_cfg)
-
+        
+        # =====================================================================
         self.mode = mode
         self.land_use_level_num = land_use_level_num # L1植被 L2耕地 
         if self.mode == 'xiaorong2-1':
@@ -96,8 +97,8 @@ class UPerHeadWithGate(BaseDecodeHead):
                               stride=1,        # 步长为1不改变分辨率
                               padding=0  
                               ),
-                    nn.BatchNorm2d(len(self.in_channels) * self.channels),
-                    nn.ReLU(inplace=True)
+                    # nn.BatchNorm2d(len(self.in_channels) * self.channels),
+                    # nn.ReLU(inplace=True)
             )
 
 
