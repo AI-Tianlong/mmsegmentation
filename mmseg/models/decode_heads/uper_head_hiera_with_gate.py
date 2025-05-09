@@ -27,7 +27,11 @@ class UPerHeadWithGate(BaseDecodeHead):
 
     # in_index=[0, 1, 2, 3]
 
-    def __init__(self, pool_scales=(1, 2, 3, 6), **kwargs):
+    def __init__(self, 
+                 pool_scales=(1, 2, 3, 6), 
+                 mode='xiaorong2-1', 
+                 land_use_level_num = 2,
+                 **kwargs):
         super().__init__(input_transform='multiple_select', **kwargs)
         # PSP Module
         self.psp_modules = PPM(
@@ -79,6 +83,24 @@ class UPerHeadWithGate(BaseDecodeHead):
             norm_cfg=self.norm_cfg,
             act_cfg=self.act_cfg)
 
+        self.mode = mode
+        self.land_use_level_num = land_use_level_num # L1植被 L2耕地 
+        if self.mode == 'xiaorong2-1':
+            pass
+        elif self.mode == 'xiaorong2-3':
+            level_feats_channel = (self.land_use_level_num+1) * self.channels * len(self.in_channels) # (2+1)* 768*4 / 3* 768*4
+            self.merge_feats = nn.Sequential(
+                    nn.Conv2d(in_channels=level_feats_channel, 
+                              out_channels=len(self.in_channels) * self.channels,
+                              kernel_size=1,   # 1x1 卷积保持空间尺寸
+                              stride=1,        # 步长为1不改变分辨率
+                              padding=0  
+                              ),
+                    nn.BatchNorm2d(len(self.in_channels) * self.channels),
+                    nn.ReLU(inplace=True)
+            )
+
+
     def psp_forward(self, inputs):
         # import pdb;pdb.set_trace()
         """Forward function of PSP module."""
@@ -101,8 +123,17 @@ class UPerHeadWithGate(BaseDecodeHead):
             feats (Tensor): A tensor of shape (batch_size, self.channels,
                 H, W) which is feature map for last layer of decoder head.
         """
+
+        if isinstance(inputs, tuple):    #tuple(Level_softmask_list, inputs) inputs:四个尺度的特征
+            Level_softmask_list = inputs[0]  # [2,128,128] 需要扩展成[2,1,128,128]才能广播把
+            inputs = inputs[1]
+        elif isinstance(inputs, list) and len(inputs) == 4:  # backbone输出的四个尺度的特征list
+            inputs = inputs
+        else:
+            raise TypeError('inputs must be list or tuple of Tensors')
+        
         # https://blog.csdn.net/yumaomi/article/details/125376320
-        inputs = self._transform_inputs(inputs)  # [1, 128, 128, 128] [1, 256, 64, 64] [1, 512, 32, 32] [1, 1024, 16, 16]
+        inputs = self._transform_inputs(inputs)  # [2, 128, 128, 128] [2, 256, 64, 64] [2, 512, 32, 32] [2, 1024, 16, 16]
 
         # build laterals,
         # 3xConvModule{Conv2d(X, 768, (1,1), (1,1), bias=False) + bn + ReLU}
@@ -116,8 +147,15 @@ class UPerHeadWithGate(BaseDecodeHead):
         # laterals = [[2, 768, 128, 128], [2, 768, 64, 64], [2, 768, 32, 32] [2, 768, 16, 16]]
         laterals.append(self.psp_forward(inputs)) # psp_forward: [2, 1024, 16, 16] --> [2, 768, 16, 16] # 最后一层的特征
 
+        
+        # 可将feat和farmland_mask在通道维拼接后送入self.att_gate卷积生成注意力权重，再sigmoid后作为门控系数，再乘回feat。
+        # 细分类预测：将门控后的特征gated_feat送入细分类卷积self.crop_conv，得到作物类别的logits crop_logit（形状[N, num_crops, H, W]）。
+        # 最后返回两个输出：farmland_logit和crop_logit。整个forward过程将在自定义解码头类中实现。例如：
+
+
         # build top-down path  # 也就这里去做文章吧？
         # import pdb;pdb.set_trace()
+        # 上采样后一层特征，并与当前层做融合
         used_backbone_levels = len(laterals) # 4
         for i in range(used_backbone_levels - 1, 0, -1):  #(3,2,1)
             prev_shape = laterals[i - 1].shape[2:]        # [32,32]
@@ -134,7 +172,7 @@ class UPerHeadWithGate(BaseDecodeHead):
         ]
 
         # append psp feature
-        fpn_outs.append(laterals[-1])
+        fpn_outs.append(laterals[-1])  # 在这里才，全部变成了128
         # fpn_outs: [[2,768,128,128],[2,768,64,64],[2,768,32,32],[2,1024,16,16]]
         # upsample to the same size
         for i in range(used_backbone_levels - 1, 0, -1):
@@ -144,11 +182,42 @@ class UPerHeadWithGate(BaseDecodeHead):
                 mode='bilinear',
                 align_corners=self.align_corners)
         
-        # fpn_outs: [[2,768,128,128],[2,768,128,128],[2,768,128,128],[2,768,128,128]]
+        # fpn_outs: [[2,768,128,128],[2,768,128,128],[2,768,128,128],[2,768,128,128]]    # 在这里，对多级的特征去实施注意力啊！！！！
         fpn_outs = torch.cat(fpn_outs, dim=1) # [2,768*4,128,128]
-        # fpn_outs: [2,3072,128,128]
 
-        feats = self.fpn_bottleneck(fpn_outs)  # [2,3072,128,128] --> [2,768,128,128]
+        # ===========================================================  ATL的修改
+        for i in range(len(Level_softmask_list)):
+            Level_softmask_list[i] = Level_softmask_list[i].unsqueeze(1) # [2,1,128,128]  # 扩展成[2,1,128,128]才能广播把
+        
+        if self.mode == 'xiaorong2-1': 
+            # import pdb;pdb.set_trace()
+            # 消融1：将mask和cropland元素相乘，控制特征
+            fpn_outs = fpn_outs + Level_softmask_list[1] * fpn_outs # 最好再来一个可学习的参数，都要一下原始特征，别全抑制了
+        # elif self.mode == 'xiaorong2-2':
+        #     # 消融2：通过注意力的形式，来提高对特定区域的关注。类似于那个Hiera-Unet。一级的输出*L1的mask  
+        #     # 再合并到特征图上，去输出二级的，在合并到特征图上去输出三级的。或者就类似于本身的Hiera。
+        #     crop_land_seglogit_softmax = Level_softmask_list[1]
+        #     att = torch.sigmoid(self.att_gate(torch.cat([fpn_outs, crop_land_seglogit_softmax], dim=1))) # 这将在门控中引入可学习参数
+        #     gated_feat = fpn_outs * att  # 这将在门控中引入可学习参数，使模型自行调节对mask的依赖程度。
+        elif self.mode == 'xiaorong2-2':
+            # import pdb;pdb.set_trace()
+            # 消融3，在特征提取上面，逐步的去增强相关区域特征的关注度
+            # 如，我关注的是飞机，L1是人造地表 L2是交通设施的区域 L3是机场的区域 L4是飞机。
+            fpn_outs = fpn_outs + Level_softmask_list[0]*fpn_outs + Level_softmask_list[1]*fpn_outs # 植被mask*特征 + 耕地mask*特征 抑制了这些地方的特征，突出了1*植被区和2*耕地区 
+        
+        elif self.mode == 'xiaorong2-3':
+            # import pdb;pdb.set_trace()
+            # 消融3，在特征提取上面，逐步的去增强相关区域特征的关注度
+            # 如，我关注的是飞机，L1是人造地表 L2是交通设施的区域 L3是机场的区域 L4是飞机。
+            # 植被mask*特征 + 耕地mask*特征 抑制了这些地方的特征，突出了1*植被区和2*耕地区 
+            fpn_outs = torch.cat([fpn_outs, 
+                                  Level_softmask_list[0]*fpn_outs, 
+                                  Level_softmask_list[1]*fpn_outs], dim=1)  # [2,768*4,128,128], [2,768*4,128,128] --> [2,768*12,128,128]
+            fpn_outs = self.merge_feats(fpn_outs) # [2,768*8,128,128] --> [2,768*4,128,128]
+
+
+        # fpn_outs: [2,3072,128,128]
+        feats = self.fpn_bottleneck(fpn_outs)  # [2,3072,128,128] --> [2,768,128,128]  #用抑制或者增强后的特征图，再去实施精细作物类别的提取？
         # ConvModule(
         # (conv): Conv2d(4096, 1024, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
         # (bn): _BatchNormXd(1024, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
