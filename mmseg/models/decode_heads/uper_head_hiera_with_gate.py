@@ -88,7 +88,11 @@ class UPerHeadWithGate(BaseDecodeHead):
         self.land_use_level_num = land_use_level_num # L1植被 L2耕地 
         if self.mode == 'xiaorong2-1':
             pass
-        elif self.mode == 'xiaorong2-3':
+        elif self.mode == 'xiaorong2-2-2':
+            self.new_task_weight = nn.Parameter(torch.ones(1), requires_grad=True) # 1*1   # L1的权重
+            self.land_use_L1_weight = nn.Parameter(torch.ones(1), requires_grad=True) # 1*1   # L1的权重
+            self.land_use_L2_weight = nn.Parameter(torch.ones(1), requires_grad=True) # 1*1   # L2的权重
+        elif self.mode == 'xiaorong2-3-1':
             level_feats_channel = (self.land_use_level_num+1) * self.channels * len(self.in_channels) # (2+1)* 768*4 / 3* 768*4
             self.merge_feats = nn.Sequential(
                     nn.Conv2d(in_channels=level_feats_channel, 
@@ -99,6 +103,35 @@ class UPerHeadWithGate(BaseDecodeHead):
                               ),
                     # nn.BatchNorm2d(len(self.in_channels) * self.channels),
                     # nn.ReLU(inplace=True)
+            )
+        elif self.mode == 'xiaorong2-3-2':
+            level_feats_channel = (self.land_use_level_num+1) * self.channels * len(self.in_channels) # (2+1)* 768*4 / 3* 768*4
+            self.merge_feats = nn.Sequential(
+                    nn.Conv2d(in_channels=level_feats_channel, 
+                              out_channels=len(self.in_channels) * self.channels,
+                              kernel_size=1,   # 1x1 卷积保持空间尺寸
+                              stride=1,        # 步长为1不改变分辨率
+                              padding=0  
+                              ),
+                    nn.GroupNorm(num_groups=32,  # 通常设置为 32 或通道数的因子
+                                num_channels=len(self.in_channels) * self.channels),
+                    nn.ReLU(inplace=True)
+            )
+        elif self.mode == 'xiaorong2-3-3':
+            self.new_task_weight = nn.Parameter(torch.ones(1), requires_grad=True) # 1*1   # L1的权重
+            self.land_use_L1_weight = nn.Parameter(torch.ones(1), requires_grad=True) # 1*1   # L1的权重
+            self.land_use_L2_weight = nn.Parameter(torch.ones(1), requires_grad=True) # 1*1   # L2的权重
+            level_feats_channel = (self.land_use_level_num+1) * self.channels * len(self.in_channels) # (2+1)* 768*4 / 3* 768*4
+            self.merge_feats = nn.Sequential(
+                    nn.Conv2d(in_channels=level_feats_channel, 
+                              out_channels=len(self.in_channels) * self.channels,
+                              kernel_size=1,   # 1x1 卷积保持空间尺寸
+                              stride=1,        # 步长为1不改变分辨率
+                              padding=0  
+                              ),
+                    nn.GroupNorm(num_groups=32,  # 通常设置为 32 或通道数的因子
+                                num_channels=len(self.in_channels) * self.channels),
+                    nn.ReLU(inplace=True)
             )
 
 
@@ -205,7 +238,11 @@ class UPerHeadWithGate(BaseDecodeHead):
             # 消融3，在特征提取上面，逐步的去增强相关区域特征的关注度
             # 如，我关注的是飞机，L1是人造地表 L2是交通设施的区域 L3是机场的区域 L4是飞机。
             fpn_outs = fpn_outs + Level_softmask_list[0]*fpn_outs + Level_softmask_list[1]*fpn_outs # 植被mask*特征 + 耕地mask*特征 抑制了这些地方的特征，突出了1*植被区和2*耕地区 
-        
+        elif self.mode == 'xiaorong2-2-2':
+            fpn_outs = fpn_outs*self.new_task_weight +\
+                       Level_softmask_list[0]*fpn_outs*self.land_use_L1_weight +\
+                       Level_softmask_list[1]*fpn_outs*self.land_use_L2_weight # 植被mask*特征 + 耕地mask*特征 抑制了这些地方的特征，突出了1*植被区和2*耕地区 
+
         elif self.mode == 'xiaorong2-3':
             # import pdb;pdb.set_trace()
             # 消融3，在特征提取上面，逐步的去增强相关区域特征的关注度
@@ -215,7 +252,12 @@ class UPerHeadWithGate(BaseDecodeHead):
                                   Level_softmask_list[0]*fpn_outs, 
                                   Level_softmask_list[1]*fpn_outs], dim=1)  # [2,768*4,128,128], [2,768*4,128,128] --> [2,768*12,128,128]
             fpn_outs = self.merge_feats(fpn_outs) # [2,768*8,128,128] --> [2,768*4,128,128]
-
+        
+        elif self.mode == 'xiaorong2-3-3':
+            fpn_outs = torch.cat([fpn_outs*self.new_task_weight, 
+                                  Level_softmask_list[0]*fpn_outs*self.land_use_L1_weight, 
+                                  Level_softmask_list[1]*fpn_outs*self.land_use_L2_weight], dim=1)  # [2,768*4,128,128], [2,768*4,128,128] --> [2,768*12,128,128]
+            fpn_outs = self.merge_feats(fpn_outs) # [2,768*8,128,128] --> [2,768*4,128,128]
 
         # fpn_outs: [2,3072,128,128]
         feats = self.fpn_bottleneck(fpn_outs)  # [2,3072,128,128] --> [2,768,128,128]  #用抑制或者增强后的特征图，再去实施精细作物类别的提取？
