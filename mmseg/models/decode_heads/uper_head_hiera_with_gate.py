@@ -129,9 +129,9 @@ class UPerHeadWithGate(BaseDecodeHead):
                               stride=1,        # 步长为1不改变分辨率
                               padding=0  
                               ),
-                    nn.GroupNorm(num_groups=32,  # 通常设置为 32 或通道数的因子
-                                num_channels=len(self.in_channels) * self.channels),
-                    nn.ReLU(inplace=True)
+                    # nn.GroupNorm(num_groups=32,  # 通常设置为 32 或通道数的因子
+                    #             num_channels=len(self.in_channels) * self.channels),
+                    # nn.ReLU(inplace=True)
             )
 
 
