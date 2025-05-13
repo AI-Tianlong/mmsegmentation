@@ -58,7 +58,7 @@ test_pipeline = [  #
 
 
 train_dataloader = dict(
-    batch_size=4,
+    batch_size=2,
     num_workers=8,  # numworkers 也会影响！
     persistent_workers=True,
     sampler=dict(type=InfiniteSampler, shuffle=True),

@@ -158,7 +158,7 @@ model = dict(
 
         branch2_decode_head=dict( # new_task
             type=UPerHeadWithGate,
-            mode='xiaorong2-3', 
+            mode='xiaorong2-2-2', 
             land_use_level_num = 2,
             # init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='decode_head.'),  # 这里也可以消融一下
             in_channels=[128, 256, 512, 1024],
@@ -209,13 +209,13 @@ param_scheduler = [
         type='PolyLR',
         power=1.0,
         begin=1500,
-        end=20000,
+        end=24000,
         eta_min=0.0,
         by_epoch=False,
     )
 ]
 
-train_cfg.update(type=IterBasedTrainLoop, max_iters=20000, val_interval=4000)
+train_cfg.update(type=IterBasedTrainLoop, max_iters=24000, val_interval=4000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),

@@ -20,7 +20,9 @@ from mmseg.models.segmentors.atl_hiera_37_encoder_decoder import ATL_Hiera_Encod
 # SegDataPreProcessor
 from mmseg.models.data_preprocessor import SegDataPreProcessor
 # Backbone
-from mmpretrain.models.backbones.convnext import ConvNeXt
+from mmseg.models.backbones.deit3 import DeiT3
+# Neck
+from mmseg.models.necks.multilevel_neck import  MultiLevelNeck
 # DecodeHead
 from mmseg.models.decode_heads.uper_head import UPerHead
 from mmseg.models.decode_heads.uper_head_hiera import UPerHead_Hiera
@@ -34,52 +36,56 @@ from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
                                      LearningRateDecayOptimizerConstructor)
 # Evaluation
 from mmseg.evaluation import IoUMetric
-from mmseg.evaluation.metrics.iou_metric_level import IoUMetric_level
 
 with read_base():
-    from ..._base_.datasets.GF2_5B_18class_640 import *
+    from ..._base_.datasets.S2_5B_18class_512 import *
     from ..._base_.default_runtime import *
-    # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_80k import *
 
-test_output_level = 'L2' # 输出L3, 验证L3的精度
+# 训好的权重:/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-S2-deit-L-upernet-Hiera-miou52.52/iter_80000.pth
+test_output_level = 'L1' # 输出L3, 验证L3的精度
 results_merge_hiera = False
-
 
 find_unused_parameters=True
 L1_num_classes = 4  # number of L1 Level label   # 5
 L2_num_classes = 9  # number of L1 Level label  # 11  5+11+21=37类
 L3_num_classes = 18  # number of L1 Level label  # 21
 
-crop_size = (640, 640)
+crop_size = (512, 512)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
+pretrained = 'checkpoints/2-对比实验的权重/deit3/10chan/deit3-base-384px-10chan.pth'
 
-pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-4chan.pth'
 data_preprocessor = dict(
-        type=SegDataPreProcessor,
-        mean = [412.62603765, 317.66892688, 243.74720123, 292.61469172],
-        std = [42.79585263, 45.59081086, 54.94280476, 69.32133677],
-        pad_val=0,
-        seg_pad_val=255,
-        size=crop_size)
+    type=SegDataPreProcessor,
+    mean =[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    std =[10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
+    # bgr_to_rgb=True,
+    pad_val=0,
+    seg_pad_val=255,
+    size=crop_size)
+
 
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
-    # pretrained=None,
     backbone=dict(
-        type=ConvNeXt,
-        in_channels=4,
+        type=DeiT3,
         arch='base',
-        out_indices=[0, 1, 2, 3],
-        drop_path_rate=0.4,
-        layer_scale_init_value=1.0,
-        gap_before_final_norm=False,
-        init_cfg=dict(
-            type='Pretrained', checkpoint=pretrained, prefix='backbone.')),
+        in_channels=10,
+        img_size=crop_size[0],
+        patch_size=16,
+        drop_path_rate=0.15,
+        out_type='featmap',
+        out_indices=(2, 5, 8, 11), # -1 ?测试一下
+        init_cfg=dict(type='Pretrained', checkpoint=pretrained, prefix='backbone.'),
+        ),
+    neck=dict(
+        type=MultiLevelNeck,
+        in_channels=[768, 768, 768, 768],
+        out_channels=768,
+        scales=[4, 2, 1, 0.5]),
     decode_head=dict(
         type=UPerHead_Hiera,
-        test_output_level=test_output_level, #最终输出的层级
         num_classes_level_list = [L1_num_classes, L2_num_classes, L3_num_classes],
         results_merge_hiera = results_merge_hiera,
         hiera_mode = 'xiaorong6',
@@ -87,9 +93,9 @@ model = dict(
             type=ATL_Hiera_Loss_convseg,
             num_classes=[L1_num_classes, L2_num_classes, L3_num_classes],
             loss_weight=1.0),
-        
+
         # type=UPerHead,
-        in_channels=[128, 256, 512, 1024],
+        in_channels=[768, 768, 768, 768],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
         channels=768,
@@ -107,18 +113,18 @@ optimizer=dict(
         betas=(0.9, 0.999), 
         weight_decay=0.05)
 
+# 和 vit vit_deit的配置一样
 optim_wrapper = dict(
-    # type='AmpOptimWrapper',  # mmengine 混合精度江都训练内存
     type=OptimWrapper,
-    optimizer=optimizer,
-    constructor=LearningRateDecayOptimizerConstructor,
-    paramwise_cfg={
-        'decay_rate': 0.9,
-        'decay_type': 'stage_wise',
-        'num_layers': 12
-    },
-    )
-    # loss_scale='dynamic')
+    optimizer=dict(
+        type=AdamW, lr=0.00006, betas=(0.9, 0.999), weight_decay=0.01),
+    paramwise_cfg=dict(
+        custom_keys={
+            'pos_embed': dict(decay_mult=0.),
+            'cls_token': dict(decay_mult=0.),
+            'norm': dict(decay_mult=0.)
+        }))
+
 param_scheduler = [
     dict(
         type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=1500),
@@ -144,10 +150,7 @@ default_hooks.update(
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
-    type=IoUMetric_level,
-    is_baseline = False,
-    test_output_level = test_output_level,
-    num_classes_list = [4,9,18],
+    type=IoUMetric,
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)

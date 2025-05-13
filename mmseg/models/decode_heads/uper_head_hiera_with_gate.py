@@ -92,6 +92,7 @@ class UPerHeadWithGate(BaseDecodeHead):
             self.new_task_weight = nn.Parameter(torch.ones(1), requires_grad=True) # 1*1   # L1的权重
             self.land_use_L1_weight = nn.Parameter(torch.ones(1), requires_grad=True) # 1*1   # L1的权重
             self.land_use_L2_weight = nn.Parameter(torch.ones(1), requires_grad=True) # 1*1   # L2的权重
+
         elif self.mode == 'xiaorong2-3-1':
             level_feats_channel = (self.land_use_level_num+1) * self.channels * len(self.in_channels) # (2+1)* 768*4 / 3* 768*4
             self.merge_feats = nn.Sequential(
@@ -101,8 +102,8 @@ class UPerHeadWithGate(BaseDecodeHead):
                               stride=1,        # 步长为1不改变分辨率
                               padding=0  
                               ),
-                    # nn.BatchNorm2d(len(self.in_channels) * self.channels),
-                    # nn.ReLU(inplace=True)
+                    nn.BatchNorm2d(len(self.in_channels) * self.channels),
+                    nn.ReLU(inplace=True)
             )
         elif self.mode == 'xiaorong2-3-2':
             level_feats_channel = (self.land_use_level_num+1) * self.channels * len(self.in_channels) # (2+1)* 768*4 / 3* 768*4
@@ -129,9 +130,8 @@ class UPerHeadWithGate(BaseDecodeHead):
                               stride=1,        # 步长为1不改变分辨率
                               padding=0  
                               ),
-                    # nn.GroupNorm(num_groups=32,  # 通常设置为 32 或通道数的因子
-                    #             num_channels=len(self.in_channels) * self.channels),
-                    # nn.ReLU(inplace=True)
+                    nn.BatchNorm2d(len(self.in_channels) * self.channels),
+                    nn.ReLU(inplace=True)
             )
 
 

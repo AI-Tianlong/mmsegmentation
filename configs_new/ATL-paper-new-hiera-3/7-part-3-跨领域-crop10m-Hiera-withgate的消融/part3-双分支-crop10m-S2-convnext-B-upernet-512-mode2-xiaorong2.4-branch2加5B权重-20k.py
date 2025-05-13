@@ -158,7 +158,7 @@ model = dict(
 
         branch2_decode_head=dict( # new_task
             type=UPerHeadWithGate,
-            mode='xiaorong2-3', 
+            mode='xiaorong2-3-3', 
             land_use_level_num = 2,
             # init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='decode_head.'),  # 这里也可以消融一下
             in_channels=[128, 256, 512, 1024],
