@@ -92,6 +92,7 @@ test_dataloader = dict(
             img_path='img_dir/val',
             seg_map_path='ann_dir/val'),
         pipeline=test_pipeline))
+
 # test_dataloader = dict(
 #     batch_size=1,
 #     num_workers=4,
@@ -101,7 +102,7 @@ test_dataloader = dict(
 #         type=dataset_type,
 #         data_root=None,
 #         data_prefix=dict(
-#             img_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/2-多领域地物覆盖基础/Google_5B_24类/6-验证集大图裁切成5000x5000-29张'),
+#             img_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/iSAID/1-包含tank的大图/train/images'),
 #         pipeline=test_pipeline))
 
 

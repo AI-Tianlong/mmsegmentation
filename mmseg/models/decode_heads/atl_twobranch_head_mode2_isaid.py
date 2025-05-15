@@ -29,19 +29,31 @@ from torch.nn import functional as F
 
 from mmseg.models.decode_heads.uper_head import UPerHead
 from mmseg.models.decode_heads.uper_head_hiera_with_gate import UPerHeadWithGate
+from mmseg.models.decode_heads.uper_head_hiera_with_gate_isaid import UPerHeadWithGate_iSAID
 
-
+FiveBillion_18Classes_HieraMap_nobackground = dict(
+    # class_L1_{L1中的标签号}_{L1中的标签名称}=[L3级标签的值]
+    Classes_Map_L1=dict(
+        class_L1_2_Artificial_surface=[8,9,10,11,12,13,14,15,16],
+        ),
+    # class_L2_{L1级标签中的标签值}_{L2级标签中的标签值}_{L2级标签中的标签名称}=[L3级标签中的值]
+    Classes_Map_L2=dict(
+        class_L2_4_Factory_Shopping_malls=[8],
+        ),
+    # class_L3_{L1级标签中的标签值}_{L2级标签中的标签值}_{L3级标签中的标签值}_{L3级标签中的标签名称}
+    Classes_Map_L3=dict(
+        class_L3_8_Factory_shopping_malls=[8],
+        )
+    )
 
 # For_crop_land
-L1_vegetation_index = 0      # L1: 0-vegetation, 2-water, 3-Artificial surface, 4-Bareland
-L2_cropland_index = 0        # L2: 0-cropland, 1-forest, 
-L3_paddy_field_index = 0
-L3_dry_cropland_index = 1
-
+L1_index = 2      # L1: 0-vegetation, 1-water, 2-Artificial surface, 4-Bareland
+L2_index = 4      # L2: 0-cropland, 1-forest, 
+L3_index = 8      # L2: 0-cropland, 1-forest, 
 
 @MODELS.register_module()
 # class TwoBranchd_decode_head_mode2(nn.Module):
-class TwoBranch_decode_head_mode2(BaseModule):
+class TwoBranch_decode_head_mode2_iSAID(BaseModule):
     """Unified Perceptual Parsing for Scene Understanding.
 
     This head is the implementation of `UPerNet
@@ -92,11 +104,12 @@ class TwoBranch_decode_head_mode2(BaseModule):
 
         # import pdb;pdb.set_trace() # 从land use 中，取出 符合那啥的值。
         # L1: 植被掩膜
-        L1_vegetation_seglogits_softmax = L1_seglogits_softmax[:, L1_vegetation_index, :, :]  # [2, 128, 128]
+        L1_vegetation_seglogits_softmax = L1_seglogits_softmax[:, L1_index, :, :]  # [2, 128, 128]
         # L2: 耕地掩膜
-        L2_crop_seglogits_softmax = L2_seglogits_softmax[:, L2_cropland_index, :, :]          # [2, 128, 128]
+        L2_crop_seglogits_softmax = L2_seglogits_softmax[:, L2_index, :, :]        # [2, 128, 128]
         # L3: xxx淹没。
 
+        # import pdb;pdb.set_trace()
         # L1-->L2-->水稻 是绝对的包含和被包含的关系
         # 植被-->耕地-->水稻、玉米、大豆。
         # 所以这里区分水稻的模型，应该去学习三个东西：
@@ -105,17 +118,56 @@ class TwoBranch_decode_head_mode2(BaseModule):
         # L3: 是目标地物 / 不是目标地物
         # L4: 水稻 / 玉米 / 大豆 / 其他 
 
+        
+        debug_save_results = True
+        if debug_save_results:
+            import pdb; pdb.set_trace()
+            input0_data_sample = batch_img_metas[0]
+            input0_img_path = input0_data_sample.metainfo['img_path']
+            input0_label_path = input0_data_sample.metainfo['seg_map_path']
+            input0_label_np = np.array(Image.open(input0_label_path))
+
+            img_name = os.path.basename(input0_img_path)
+            save_dir_path = '/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/8-part-3-跨领域-isaid-Hiera/特征输出-2branch-loss'
+            # save_dir_path = os.path.join(save_dir_path,img_name.split('黑龙江省_')[1].split('.tif')[0])
+            save_dir_path = os.path.join(save_dir_path,img_name.split('.png')[0])
+            
+            # copy img & RGB label
+            mkdir_or_exist(save_dir_path)
+            shutil.copy(input0_img_path, os.path.join(save_dir_path, img_name))
+
+            mask2RGB(img_path=input0_img_path, MASK_array=input0_label_np, RGB_out_path=save_dir_path, level='isaid', backend='PIL')
+
+            import pdb; pdb.set_trace()
+            L1_pred_mask = x_lan_use_seglogits_list[0][0].squeeze().argmax(dim=0, keepdim=True).squeeze().cpu().numpy()  # keepdim=True，保留第0维度，大小为1
+            L2_pred_mask = x_lan_use_seglogits_list[1][0].squeeze().argmax(dim=0, keepdim=True).squeeze().cpu().numpy()  # keepdim=True，保留第0维度，大小为1
+            L3_pred_mask = x_lan_use_seglogits_list[2][0].squeeze().argmax(dim=0, keepdim=True).squeeze().cpu().numpy()  # keepdim=True，保留第0维度，大小为1
+            
+            mask2RGB(img_path=input0_img_path, MASK_array=L1_pred_mask, RGB_out_path=save_dir_path, level='L1', backend='PIL')
+            mask2RGB(img_path=input0_img_path, MASK_array=L2_pred_mask, RGB_out_path=save_dir_path, level='L2', backend='PIL')
+            mask2RGB(img_path=input0_img_path, MASK_array=L3_pred_mask, RGB_out_path=save_dir_path, level='L3', backend='PIL')
+
+            x_lan_use_seglogits_list_np_cpu = [x.detach().cpu().numpy() for x in x_lan_use_seglogits_list]
+            np.save(os.path.join(save_dir_path,'L1_seglogits.npy'), x_lan_use_seglogits_list_np_cpu[0])
+            np.save(os.path.join(save_dir_path,'L2_seglogits.npy'), x_lan_use_seglogits_list_np_cpu[1])
+            np.save(os.path.join(save_dir_path,'L3_seglogits.npy'), x_lan_use_seglogits_list_np_cpu[2])
+
+            np.save(os.path.join(save_dir_path,'L1_vegetation_seglogits_softmax.npy'), L1_vegetation_seglogits_softmax.detach().cpu().numpy())
+            np.save(os.path.join(save_dir_path,'L2_crop_seglogits_softmax.npy'), L2_crop_seglogits_softmax.detach().cpu().numpy())
+
+            import pdb; pdb.set_trace()
+
+
 
         if self.mode == 'xiaorong1':  # head没有交互，只用branch2_decode_head的特征
             branch2_decode_head_seglogits = self.branch2_decode_head.forward(branch2_inputs)  # [2, 4, 128, 128]
             return branch2_decode_head_seglogits
         
-
         elif self.mode == 'xiaorong2': # head见有交互
             if isinstance(self.branch2_decode_head, UPerHead):  # 如果是UperHead的话
                branch2_decode_head_seglogits = self.branch2_decode_head.forward(branch2_inputs)  # [2, 4, 128, 128]
                return branch2_decode_head_seglogits
-            elif isinstance(self.branch2_decode_head, UPerHeadWithGate):
+            elif isinstance(self.branch2_decode_head, UPerHeadWithGate_iSAID):  # 如果是UperHeadWithGate的话
                 L1_softmask = L1_vegetation_seglogits_softmax # L1 植被掩膜 # [2, 128, 128]
                 L2_softmask = L2_crop_seglogits_softmax       # L2 耕地掩膜 # [2, 128, 128]
 
@@ -133,43 +185,6 @@ class TwoBranch_decode_head_mode2(BaseModule):
         # 模型之间的交互，还是用可形变注意力？
         # test1：
         # 需要一个interactions，类似于TwoBranch的交互
-
-        debug_save_results = False
-        if debug_save_results:
-            import pdb; pdb.set_trace()
-            input0_data_sample = batch_img_metas[0]
-            input0_img_path = input0_data_sample['img_path']
-            input0_label_path = input0_data_sample['seg_map_path']
-            input0_label_np = np.array(Image.open(input0_label_path))
-
-            img_name = os.path.basename(input0_img_path)
-            save_dir_path = '/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/7-part-3-跨领域-crop10m-Hiera/特征输出-2branch-loss'
-            save_dir_path = os.path.join(save_dir_path+'_'+img_name.split('黑龙江省_')[1].split('.tif')[0])
-            
-            # copy img & RGB label
-            mkdir_or_exist(save_dir_path)
-            shutil.copy(input0_img_path, os.path.join(save_dir_path, img_name))
-            mask2RGB(img_path=input0_img_path, MASK_array=input0_label_np, RGB_out_path=save_dir_path, level='crop', backend='gdal')
-
-
-            L1_pred_mask = x_lan_use_seglogits_list[0].squeeze().argmax(dim=0, keepdim=True).squeeze().cpu().numpy()  # keepdim=True，保留第0维度，大小为1
-            L2_pred_mask = x_lan_use_seglogits_list[1].squeeze().argmax(dim=0, keepdim=True).squeeze().cpu().numpy()  # keepdim=True，保留第0维度，大小为1
-            L3_pred_mask = x_lan_use_seglogits_list[2].squeeze().argmax(dim=0, keepdim=True).squeeze().cpu().numpy()  # keepdim=True，保留第0维度，大小为1
-            
-            mask2RGB(img_path=input0_img_path, MASK_array=L1_pred_mask, RGB_out_path=save_dir_path, level='L1', backend='gdal')
-            mask2RGB(img_path=input0_img_path, MASK_array=L2_pred_mask, RGB_out_path=save_dir_path, level='L2', backend='gdal')
-            mask2RGB(img_path=input0_img_path, MASK_array=L3_pred_mask, RGB_out_path=save_dir_path, level='L3', backend='gdal')
-
-            x_lan_use_seglogits_list_np_cpu = [x.detach().cpu().numpy() for x in x_lan_use_seglogits_list]
-            np.save(os.path.join(save_dir_path,'L1_seglogits.npy'), x_lan_use_seglogits_list_np_cpu[0])
-            np.save(os.path.join(save_dir_path,'L2_seglogits.npy'), x_lan_use_seglogits_list_np_cpu[1])
-            np.save(os.path.join(save_dir_path,'L3_seglogits.npy'), x_lan_use_seglogits_list_np_cpu[2])
-
-            np.save(os.path.join(save_dir_path,'L1_vegetation_seglogits_softmax.npy'), L1_vegetation_seglogits_softmax.detach().cpu().numpy())
-            np.save(os.path.join(save_dir_path,'L2_crop_seglogits_softmax.npy'), L2_crop_seglogits_softmax.detach().cpu().numpy())
-
-            import pdb; pdb.set_trace()
-
 
 
     def loss(self, 
@@ -195,7 +210,8 @@ class TwoBranch_decode_head_mode2(BaseModule):
         # import pdb; pdb.set_trace()
         # encoder.loss-->decode.loss里面，原始的           batch_data_samples 是有metainfo的！ 所以可以传递！
         # encoder.predict --> deocde.predict 传递的参数是  batch_img_metas, 没有metainfo，所以不要
-        seg_logits = self.forward(inputs)  # [2,4,128,128]          # 经过两个特征交互的。
+        seg_logits = self.forward(inputs, batch_data_samples)  # [2,4,128,128]          # 经过两个特征交互的。
+        # import pdb;pdb.set_trace()
         losses = self.loss_by_feat(seg_logits, batch_data_samples) 
         return losses
         
@@ -353,6 +369,8 @@ def mask2RGB(
                 [200, 150, 0  ], [200, 100, 50 ]]                  
     crop_palette = [[255, 255, 255], [0, 200, 250], [250, 200, 0], [150, 150, 250]]
 
+    isaid_palette = [[0,0,0],[255,255,255]]
+
     if level == 'L1':
         palette = L1_palette
     elif level == 'L2':
@@ -361,6 +379,9 @@ def mask2RGB(
         palette = L3_palette
     elif level == 'crop':   
         palette = crop_palette
+    elif level == 'isaid':
+        palette = isaid_palette
+    
 
     if reduce_zero_label:
         new_palette = [[0, 0, 0]] + palette
@@ -368,16 +389,16 @@ def mask2RGB(
     else:
         new_palette = palette
         # print(f"palette: {new_palette}")
-    import numpy as np
     new_palette = np.array(new_palette)
 
     MASK_array[MASK_array == 255] = 0
-    h, w = MASK_array.shape
+
+    h, w = MASK_array.shape[0], MASK_array.shape[1]
 
     RGB_label = new_palette[MASK_array].astype(np.uint8)
     
     if backend == 'PIL':
-
+        # import pdb; pdb.set_trace()
         output_path = os.path.join(RGB_out_path, f'{level}_rgb_{img_name}')
         RGB_label = Image.fromarray(RGB_label).save(output_path)
 

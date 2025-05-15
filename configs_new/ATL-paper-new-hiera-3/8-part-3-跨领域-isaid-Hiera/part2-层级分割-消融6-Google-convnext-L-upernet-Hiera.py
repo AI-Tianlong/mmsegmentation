@@ -36,12 +36,13 @@ from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
 from mmseg.evaluation import IoUMetric
 
 with read_base():
+    # from ..._base_.datasets.part3_isaid_tank import *
     from ..._base_.datasets.Google_5B_18class_896 import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
 # 训好的权重:/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-S2-deit-L-upernet-Hiera-miou52.52/iter_80000.pth
-test_output_level = 'L1' # 输出L3, 验证L3的精度
+test_output_level = 'L3' # 输出L3, 验证L3的精度
 results_merge_hiera = False
 
 find_unused_parameters=True
@@ -76,6 +77,7 @@ model = dict(
             type='Pretrained', checkpoint=pretrained, prefix='backbone.')),
     decode_head=dict(
         type=UPerHead_Hiera,
+        test_output_level=test_output_level,
         num_classes_level_list = [L1_num_classes, L2_num_classes, L3_num_classes],
         results_merge_hiera = results_merge_hiera,
         hiera_mode = 'xiaorong6',

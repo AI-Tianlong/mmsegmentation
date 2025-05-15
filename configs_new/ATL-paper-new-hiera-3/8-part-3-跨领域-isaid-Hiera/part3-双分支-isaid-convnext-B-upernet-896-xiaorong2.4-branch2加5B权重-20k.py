@@ -41,14 +41,14 @@ from mmseg.evaluation import IoUMetric
 # 2branch 相关的
 from mmseg.models.segmentors.twobranch_encoder_decoder_mode2 import TwoBranch_EncoderDecoder_mode2
 from mmseg.models.backbones.atl_twobranch_backbone_mode2 import TwoBranch_backbone_mode2
-from mmseg.models.decode_heads.atl_twobranch_head_mode2 import TwoBranch_decode_head_mode2  
+from mmseg.models.decode_heads.atl_twobranch_head_mode2_isaid import TwoBranch_decode_head_mode2_iSAID  
 from mmseg.models.decode_heads.uper_head_hiera_with_gate import UPerHeadWithGate
 from mmseg.models.decode_heads.uper_head_hiera_with_gate_isaid import UPerHeadWithGate_iSAID
 
 
 
 with read_base():
-    from ..._base_.datasets.a_atl_0_paper_isaid_16  import *
+    from ..._base_.datasets.part3_isaid_tank  import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_20k import *
 
@@ -134,7 +134,7 @@ model = dict(
             ), 
     ),
     decode_head=dict(
-        type=TwoBranch_decode_head_mode2,
+        type=TwoBranch_decode_head_mode2_iSAID,
         mode = 'xiaorong2',
         branch1_decode_head=dict(  # land use
             type=UPerHead_Hiera_2branch,
@@ -217,7 +217,7 @@ param_scheduler = [
 train_cfg.update(type=IterBasedTrainLoop, max_iters=20000, val_interval=4000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
-    logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),
+    logger=dict(type=LoggerHook, interval=1, log_metric_by_epoch=False),
     param_scheduler=dict(type=ParamSchedulerHook),
     checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=4),
     sampler_seed=dict(type=DistSamplerSeedHook),

@@ -16,7 +16,7 @@ from mmseg.evaluation import IoUMetric
 
 # dataset settings
 dataset_type = iSAIDDataset_2_tank
-data_root = 'data/1-paper-segmentation/iSAID/0-裁切好的训练图像/iSAID_896_tank'
+data_root = 'data/1-paper-segmentation/iSAID/0-裁切好的训练图像/iSAID_896_tank_only'
 
 
 """
@@ -85,7 +85,7 @@ train_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(
-            img_path='img_dir/train', seg_map_path='ann_dir/train'),
+            img_path='img_dir/mini_train', seg_map_path='ann_dir/mini_train'),
         pipeline=train_pipeline))
 
 val_dataloader = dict(
