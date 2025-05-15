@@ -14,7 +14,7 @@ from .psp_head import PPM
 
 
 @MODELS.register_module()
-class UPerHeadWithGate(BaseDecodeHead):
+class UPerHeadWithGate_iSAID(BaseDecodeHead):
     """Unified Perceptual Parsing for Scene Understanding.
 
     This head is the implementation of `UPerNet

@@ -36,3 +36,29 @@ class iSAIDDataset_16(BaseSegDataset):
             ignore_index=ignore_index,
             **kwargs)
         assert fileio.exists(self.data_prefix['img_path'], backend_args=self.backend_args)
+
+
+@DATASETS.register_module()
+class iSAIDDataset_2_tank(BaseSegDataset):
+    """ iSAID: A Large-scale Dataset for Instance Segmentation in Aerial Images
+    In segmentation map annotation for iSAID dataset, which is included
+    in 16 categories. ``reduce_zero_label`` is fixed to False. The
+    ``img_suffix`` is fixed to '.png' and ``seg_map_suffix`` is fixed to
+    '_manual1.png'.
+    """
+
+    METAINFO = dict(
+        classes=('background', 'store_tank'),
+        palette=[[0, 0, 0], [255, 255, 255]])
+
+    def __init__(self,
+                 img_suffix='.png',
+                 seg_map_suffix='.png',
+                 ignore_index=255,
+                 **kwargs) -> None:
+        super().__init__(
+            img_suffix=img_suffix,
+            seg_map_suffix=seg_map_suffix,
+            ignore_index=ignore_index,
+            **kwargs)
+        assert fileio.exists(self.data_prefix['img_path'], backend_args=self.backend_args)
