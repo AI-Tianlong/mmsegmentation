@@ -95,7 +95,8 @@ model = dict(
         align_corners=False,
     ),
     train_cfg=dict(),
-    test_cfg=dict(mode='whole'))
+    # test_cfg=dict(mode='whole'))
+    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(512, 512)))
 
 optimizer=dict(
         type=AdamW, 

@@ -42,7 +42,7 @@ with read_base():
     # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_80k import *
 
-test_output_level = 'L2' # 输出L3, 验证L3的精度
+test_output_level = 'L3' # 输出L3, 验证L3的精度
 results_merge_hiera = False
 
 
@@ -99,8 +99,8 @@ model = dict(
     
     ),
     train_cfg=dict(),
-    test_cfg=dict(mode='whole'))
-
+    # test_cfg=dict(mode='whole'))
+    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
 optimizer=dict(
         type=AdamW, 
         lr=0.0001, 

@@ -3,20 +3,28 @@ from mmcv.transforms.processing import (RandomFlip, RandomResize, Resize,
                                         TestTimeAug)
 from mmengine.dataset.sampler import DefaultSampler, InfiniteSampler
 
-from mmseg.datasets.atl_0_paper_crop_10m_s2_4class import \
-    ATL_S2_Crop10m_Dataset_4class
+from mmseg.datasets.atl_whdld import WHDLDDataset_6
 from mmseg.datasets.transforms.formatting import PackSegInputs
 from mmseg.datasets.transforms.loading import (LoadAnnotations,
-                                               LoadSingleRSImageFromFile)
+                                               LoadSingleRSImageFromFile,
+                                               LoadSingleRSImageFromFile_spectral_GPT)
 from mmseg.datasets.transforms.transforms import (PhotoMetricDistortion,
                                                   RandomCrop)
 from mmseg.evaluation import IoUMetric
 
-# dataset settings
-dataset_type = ATL_S2_Crop10m_Dataset_4class
-data_root = 'data/1-paper-segmentation/2-多领域地物覆盖-S2-crop作物-new/5-裁切好的图像/0-S2-crop10m-4-512'
 
-crop_size = (512, 512)
+
+# dataset settings
+dataset_type = WHDLDDataset_6
+data_root = 'data/1-paper-segmentation/WHDLD/0-裁切好的图像'
+
+"""
+This crop_size setting is followed by the implementation of
+`PointFlow: Flowing Semantics Through Points for Aerial Image
+Segmentation <https://arxiv.org/pdf/2103.06564.pdf>`_.
+"""
+
+crop_size = (256, 256)
 train_pipeline = [
     dict(type=LoadSingleRSImageFromFile),
     dict(type=LoadAnnotations),
@@ -25,8 +33,9 @@ train_pipeline = [
     #     scale=crop_size,
     #     ratio_range=(0.5, 2.0),
     #     keep_ratio=True),
-    dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),
-    dict(type=RandomFlip, prob=0.5),
+    # dict(type=RandomCrop, crop_size=crop_size, cat_max_ratio=0.75),
+    # dict(type=RandomFlip, prob=0.5),
+    # dict(type=PhotoMetricDistortion), # 多通道 不太能用这个
     dict(type=PackSegInputs)
 ]
 
@@ -45,9 +54,10 @@ test_pipeline = [  #
     # dict(type=Resize, scale=(6800, 7200), keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
-    dict(type=LoadAnnotations), # 不需要验证，不用添加 Annotations
+    dict(type=LoadAnnotations),  # 不需要验证，不用添加 Annotations
     dict(type=PackSegInputs)
 ]
+
 
 img_ratios = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75]
 tta_pipeline = [
@@ -67,7 +77,7 @@ tta_pipeline = [
 
 train_dataloader = dict(
     batch_size=2,
-    num_workers=8,
+    num_workers=4,
     persistent_workers=True,
     sampler=dict(type=InfiniteSampler, shuffle=True),
     dataset=dict(
@@ -75,7 +85,6 @@ train_dataloader = dict(
         data_root=data_root,
         data_prefix=dict(
             img_path='img_dir/train', seg_map_path='ann_dir/train'),
-            # img_path='img_dir/mini_train_img', seg_map_path='ann_dir/mini_train_label'),
         pipeline=train_pipeline))
 
 val_dataloader = dict(
@@ -88,33 +97,8 @@ val_dataloader = dict(
         data_root=data_root,
         data_prefix=dict(img_path='img_dir/val', seg_map_path='ann_dir/val'),
         pipeline=val_pipeline))
-# 想用大图去推理
-# test_dataloader = dict(
-#     batch_size=1,
-#     num_workers=4,
-#     persistent_workers=True,
-#     sampler=dict(type=DefaultSampler, shuffle=False),
-#     dataset=dict(
-#         type=dataset_type,
-#         data_root=data_root,
-#         data_prefix=dict(
-#             img_path='img_dir/val', seg_map_path='ann_dir/val'),
-#             # img_path='img_dir/mini_train_img', seg_map_path='ann_dir/mini_train_label'),
-#         pipeline=val_pipeline))
 
-
-test_dataloader = dict(
-    batch_size=1,
-    num_workers=4,
-    persistent_workers=True,
-    sampler=dict(type=DefaultSampler, shuffle=False),
-    dataset=dict(
-        type=dataset_type,
-        data_root=None,
-        data_prefix=dict(
-            img_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/论文画图-5-crop10m/6-用来出图的裁切小图/img_dir/val', 
-            seg_map_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/论文画图-5-crop10m/6-用来出图的裁切小图/ann_dir/val'),
-        pipeline=test_pipeline))
+test_dataloader = val_dataloader
 
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'

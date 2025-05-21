@@ -1,18 +1,20 @@
-# 2024-09-02 测试, 可以跑通,loss-从5开始降低。
+# --------------------------------------------------------
+# InternVL
+# Copyright (c) 2023 OpenGVLab
+# Licensed under The MIT License [see LICENSE for details]
+# --------------------------------------------------------
 
-from mmcv.transforms import (LoadImageFromFile, RandomChoice,
-                             RandomChoiceResize, RandomFlip)
+
 from mmengine.config import read_base
 from mmengine.optim.optimizer import OptimWrapper
 from mmengine.optim.scheduler.lr_scheduler import LinearLR, PolyLR
 from torch.nn.modules.batchnorm import SyncBatchNorm as SyncBN
 from torch.optim import AdamW
-from mmseg.datasets.transforms import (LoadAnnotations, PackSegInputs,
-                                       PhotoMetricDistortion, RandomCrop,
-                                       ResizeShortestEdge)
-from mmseg.datasets.transforms.loading import LoadSingleRSImageFromFile
 
 
+from torch.nn.modules.activation import GELU
+from torch.nn.modules.batchnorm import SyncBatchNorm as SyncBN
+from torch.nn.modules.normalization import GroupNorm as GN
 
 # EncoderDecoder
 from mmseg.models.segmentors.encoder_decoder import EncoderDecoder
@@ -25,45 +27,40 @@ from mmseg.models.backbones.deit3 import DeiT3
 from mmseg.models.necks.multilevel_neck import  MultiLevelNeck
 # DecodeHead
 from mmseg.models.decode_heads.uper_head import UPerHead
-from mmseg.models.decode_heads.uper_head_hiera import UPerHead_Hiera
+from mmseg.models.decode_heads.fcn_head import FCNHead
 # Loss
-from mmseg.models.losses.atl_hiera_37_loss import ATL_Hiera_Loss
-from mmseg.models.losses.atl_hiera_37_loss_convseg import ATL_Hiera_Loss_convseg
 from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
+from mmseg.models.losses.atl_hiera_37_loss_convseg import ATL_Hiera_Loss_convseg
+#optimizer
+from mmseg.engine.optimizers.piip_layer_decay_optimizer_constructor import CustomLayerDecayOptimizerConstructor
 
-# Optimizer
-from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
-                                     LearningRateDecayOptimizerConstructor)
 # Evaluation
 from mmseg.evaluation import IoUMetric
 
+
 with read_base():
-    from ..._base_.datasets.S2_5B_18class_512 import *
+    from ..._base_.datasets.Google_5B_18class_896 import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
-# 训好的权重:/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-S2-deit-L-upernet-Hiera-miou52.52/iter_80000.pth
-test_output_level = 'L1' # 输出L3, 验证L3的精度
-results_merge_hiera = False
 
-find_unused_parameters=True
-L1_num_classes = 4  # number of L1 Level label   # 5
-L2_num_classes = 9  # number of L1 Level label  # 11  5+11+21=37类
-L3_num_classes = 18  # number of L1 Level label  # 21
+# 通过os 设置 TORCH_DISTRIBUTED_DEBUG 为 INFO
+# import os 
+# os.environ['TORCH_DISTRIBUTED_DEBUG'] = 'DETAIL'
+# find_unused_parameters = True
 
-crop_size = (512, 512)
-norm_cfg = dict(type=SyncBN, requires_grad=True)
-pretrained = 'checkpoints/2-对比实验的权重/deit3/10chan/deit3-base-384px-10chan.pth'
+num_classes = 18
+norm_cfg = dict(type=SyncBN, requires_grad=True) # decode_head的 norm_cfg
+pretrained = 'checkpoints/2-对比实验的权重/deit3/3chan/deit3-base-384px-3chan.pth'
 
+crop_size = (896, 896)
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    mean =[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    std =[10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
-    # bgr_to_rgb=True,
+    mean = [123.675, 116.28, 103.53],
+    std = [58.395, 57.12, 57.375],
     pad_val=0,
     seg_pad_val=255,
     size=crop_size)
-
 
 model = dict(
     type=EncoderDecoder,
@@ -71,7 +68,7 @@ model = dict(
     backbone=dict(
         type=DeiT3,
         arch='base',
-        in_channels=10,
+        in_channels=3,
         img_size=crop_size[0],
         patch_size=16,
         drop_path_rate=0.15,
@@ -85,34 +82,21 @@ model = dict(
         out_channels=768,
         scales=[4, 2, 1, 0.5]),
     decode_head=dict(
-        type=UPerHead_Hiera,
-        num_classes_level_list = [L1_num_classes, L2_num_classes, L3_num_classes],
-        results_merge_hiera = results_merge_hiera,
-        hiera_mode = 'xiaorong6',
-        loss_decode=dict(
-            type=ATL_Hiera_Loss_convseg,
-            num_classes=[L1_num_classes, L2_num_classes, L3_num_classes],
-            loss_weight=1.0),
-
-        # type=UPerHead,
+        type=UPerHead,
         in_channels=[768, 768, 768, 768],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
         channels=768,
         dropout_ratio=0.1,
+        num_classes=num_classes,
         norm_cfg=norm_cfg,
         align_corners=False,
-    
+        loss_decode=dict(
+            type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)
     ),
-    train_cfg=dict(),
     # test_cfg=dict(mode='whole'))
     test_cfg=dict(mode='slide', crop_size=crop_size, stride=(512, 512)))
 
-optimizer=dict(
-        type=AdamW, 
-        lr=0.0001, 
-        betas=(0.9, 0.999), 
-        weight_decay=0.05)
 
 # 和 vit vit_deit的配置一样
 optim_wrapper = dict(
@@ -128,9 +112,9 @@ optim_wrapper = dict(
 
 param_scheduler = [
     dict(
-        type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=1500),
+        type=LinearLR, start_factor=1e-6, by_epoch=False, begin=0, end=1500),
     dict(
-        type='PolyLR',
+        type=PolyLR,
         power=1.0,
         begin=1500,
         end=80000,
@@ -139,8 +123,12 @@ param_scheduler = [
     )
 ]
 
-train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
-default_hooks.update(
+# training schedule for 80k
+train_cfg = dict(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
+val_cfg = dict(type=ValLoop)
+test_cfg = dict(type=TestLoop)
+
+default_hooks = dict(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),
     param_scheduler=dict(type=ParamSchedulerHook),

@@ -116,8 +116,8 @@ class TwoBranch_EncoderDecoder_mode2(BaseSegmentor):
         for param in self.decode_head.branch1_decode_head.parameters():
             param.requires_grad = False
 
-        self.out_channels = self.decode_head.branch1_decode_head.out_channels
-        self.align_corners = self.decode_head.branch1_decode_head.align_corners
+        self.out_channels = self.decode_head.branch2_decode_head.out_channels
+        self.align_corners = self.decode_head.branch2_decode_head.align_corners
         
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
@@ -238,7 +238,8 @@ class TwoBranch_EncoderDecoder_mode2(BaseSegmentor):
                     padding_size=[0, 0, 0, 0])
             ] * inputs.shape[0]
 
-        seg_logits = self.inference(inputs, batch_img_metas)  # torch.Size([1, 18, 224, 224])
+        # import pdb;pdb.set_trace()
+        seg_logits = self.inference(inputs, batch_img_metas)  # torch.Size([1, 10, 1024, 1024])
         # [1, 18, 512, 512] [1, 4, 512, 512]
         # branch1_的输出     branch2_的输出
 
@@ -293,11 +294,11 @@ class TwoBranch_EncoderDecoder_mode2(BaseSegmentor):
             Tensor: The segmentation results, seg_logits from model of each
                 input image.
         """
-
+        # import pdb;pdb.set_trace()
         h_stride, w_stride = self.test_cfg.stride
         h_crop, w_crop = self.test_cfg.crop_size
-        batch_size, _, h_img, w_img = inputs.size()
-        out_channels = self.out_channels
+        batch_size, _, h_img, w_img = inputs.size() # 1,10,1024,1024
+        out_channels = self.out_channels # 18,这里是4!!!!
         h_grids = max(h_img - h_crop + h_stride - 1, 0) // h_stride + 1
         w_grids = max(w_img - w_crop + w_stride - 1, 0) // w_stride + 1
         preds = inputs.new_zeros((batch_size, out_channels, h_img, w_img))

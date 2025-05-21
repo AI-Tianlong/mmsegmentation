@@ -14,7 +14,7 @@ from .psp_head import PPM
 
 
 @MODELS.register_module()
-class UPerHeadWithGate_iSAID(BaseDecodeHead):
+class UPerHeadWithGate_WHDLD(BaseDecodeHead):
     """Unified Perceptual Parsing for Scene Understanding.
 
     This head is the implementation of `UPerNet
@@ -92,6 +92,7 @@ class UPerHeadWithGate_iSAID(BaseDecodeHead):
         elif self.mode == 'xiaorong2-2-2':
             self.new_task_weight = nn.Parameter(torch.ones(1), requires_grad=True) # 1*1   # L1的权重
             self.land_use_L1_weight = nn.Parameter(torch.ones(1), requires_grad=True) # 1*1   # L1的权重
+            self.land_use_L2_weight = nn.Parameter(torch.ones(1), requires_grad=True) # 1*1   # L2的权重
             self.land_use_L2_weight = nn.Parameter(torch.ones(1), requires_grad=True) # 1*1   # L2的权重
 
         elif self.mode == 'xiaorong2-3-1':
@@ -238,6 +239,16 @@ class UPerHeadWithGate_iSAID(BaseDecodeHead):
             # import pdb;pdb.set_trace()
             # 消融3，在特征提取上面，逐步的去增强相关区域特征的关注度
             # 如，我关注的是飞机，L1是人造地表 L2是交通设施的区域 L3是机场的区域 L4是飞机。
+            # 增强特征图到对应的层级上去。
+
+            # 好复杂啊
+            # 建筑类别- L2的工业区和住宅区
+            # 道路类别- L3的道路类
+            # 人行道类别- 但是可以基于L2的交通设施mask
+            # 植被类别- L1的植被
+            # bare soil - L1的裸地
+            # water L1的水体
+            
             fpn_outs = fpn_outs + Level_softmask_list[0]*fpn_outs + Level_softmask_list[1]*fpn_outs # 植被mask*特征 + 耕地mask*特征 抑制了这些地方的特征，突出了1*植被区和2*耕地区 
         elif self.mode == 'xiaorong2-2-2':
             fpn_outs = fpn_outs*self.new_task_weight +\

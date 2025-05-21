@@ -42,11 +42,15 @@ from mmseg.evaluation import IoUMetric
 from mmseg.models.segmentors.twobranch_encoder_decoder_mode2 import TwoBranch_EncoderDecoder_mode2
 from mmseg.models.backbones.atl_twobranch_backbone_mode2 import TwoBranch_backbone_mode2
 from mmseg.models.decode_heads.atl_twobranch_head_mode2 import TwoBranch_decode_head_mode2  
+from mmseg.models.decode_heads.atl_twobranch_head_mode2_isaid import TwoBranch_decode_head_mode2_iSAID  
+# from mmseg.models.decode_heads.uper_head_hiera_with_gate import UPerHeadWithGate
+# from mmseg.models.decode_heads.uper_head_hiera_with_gate_whdld import UPerHeadWithGate_WHDLD
+
+
 
 with read_base():
-    from ..._base_.datasets.S2_crop10m_18class_512  import *
+    from ..._base_.datasets.part3_whdld  import *
     from ..._base_.default_runtime import *
-    # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_20k import *
 
 # 训好的权重:/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-S2-deit-L-upernet-Hiera-miou52.52/iter_80000.pth
@@ -62,23 +66,23 @@ branch1_L3_num_classes = 18  # number of L1 Level label  # 21
 branch2_L1_num_classes = 2  # number of L1 Level label   # 5
 branch2_L2_num_classes = 2  # number of L1 Level label  # 11  5+11+21=37类
 branch2_L3_num_classes = 4  # 水稻、大豆、玉米
-crop_num_classes = 4
+new_task_classes = 6
 
-crop_size = (512, 512)
+crop_size = (256, 256)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
-imagenet_pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-10chan.pth'
-land_use_checkpoint = 'checkpoints/part3-双分支/S2-18类-Hiera/part2-层级分割-消融6-S2-convnext-B-upernet-Hiera-miou58.47-67.60.pth'
+imagenet_pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-3chan.pth'
+land_use_checkpoint = 'checkpoints/part3-双分支/Google-18类-Hiera/Google-5B-convnext-B-upernet-Hiera-miou56.57-68.65.pth'
 
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    mean =[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    std =[10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
+    # mean = [58.842848228996296, 55.30874234401325, 56.17873877879168],  
+    # std = [26.394018607263266,  21.885492331506306, 21.72762947650889],
+    mean = [123.675, 116.28, 103.53],
+    std = [58.395, 57.12, 57.375],
     pad_val=0,
     seg_pad_val=255,
     size=crop_size)
-
-# load_from = '/data/AI-Tianlong/openmmlab/mmsegmentation/checkpoints/part3-双分支/S2-18类-Hiera/part3-层级分割-消融6-S2-convnext-B-upernet-Hiera-2branche'
 
 model = dict(
     type=TwoBranch_EncoderDecoder_mode2,
@@ -98,7 +102,7 @@ model = dict(
         branch1_backbone=dict(  # land use
             type=ConvNeXt,
             init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='backbone.'),   
-            in_channels=10,
+            in_channels=3,
             arch='base',
             out_indices=[0, 1, 2, 3],
             drop_path_rate=0.4,
@@ -116,7 +120,7 @@ model = dict(
         branch2_backbone=dict( # new_task
             type=ConvNeXt,
             init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='backbone.'),  # 这里可以消融一下
-            in_channels=10,
+            in_channels=3,
             arch='base',
             out_indices=[0, 1, 2, 3],
             drop_path_rate=0.4,
@@ -161,7 +165,7 @@ model = dict(
             pool_scales=(1, 2, 3, 6),
             channels=768,
             dropout_ratio=0.1,
-            num_classes=crop_num_classes,
+            num_classes=new_task_classes,
             norm_cfg=norm_cfg,
             align_corners=False,
             loss_decode=dict(
@@ -169,8 +173,7 @@ model = dict(
         ),
             
     train_cfg=dict(),
-    # test_cfg=dict(mode='whole'))
-    
+    test_cfg=dict(mode='whole'))
 
 optimizer=dict(
         type=AdamW, 

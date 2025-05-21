@@ -50,7 +50,7 @@ with read_base():
     from ..._base_.schedules.schedule_20k import *
 
 # 训好的权重:/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-S2-deit-L-upernet-Hiera-miou52.52/iter_80000.pth
-test_output_level = 'L1' # 输出L3, 验证L3的精度
+test_output_level = 'L3' # 输出L3, 验证L3的精度
 results_merge_hiera = False
 
 find_unused_parameters=True
@@ -170,6 +170,7 @@ model = dict(
             
     train_cfg=dict(),
     # test_cfg=dict(mode='whole'))
+    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
     
 
 optimizer=dict(

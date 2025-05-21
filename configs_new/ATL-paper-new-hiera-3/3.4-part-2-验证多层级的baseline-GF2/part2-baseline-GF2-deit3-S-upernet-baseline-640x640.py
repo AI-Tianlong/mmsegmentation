@@ -98,8 +98,8 @@ model = dict(
         loss_decode=dict(
             type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)
     ),
-    test_cfg=dict(mode='whole')                                       
-)
+    # test_cfg=dict(mode='whole'))
+    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
 
 # 和 vit vit_deit的配置一样
 optim_wrapper = dict(

@@ -41,14 +41,15 @@ from mmseg.evaluation import IoUMetric
 # 2branch 相关的
 from mmseg.models.segmentors.twobranch_encoder_decoder_mode2 import TwoBranch_EncoderDecoder_mode2
 from mmseg.models.backbones.atl_twobranch_backbone_mode2 import TwoBranch_backbone_mode2
+from mmseg.models.decode_heads.atl_twobranch_head_mode2 import TwoBranch_decode_head_mode2  
 from mmseg.models.decode_heads.atl_twobranch_head_mode2_isaid import TwoBranch_decode_head_mode2_iSAID  
-from mmseg.models.decode_heads.uper_head_hiera_with_gate import UPerHeadWithGate
-from mmseg.models.decode_heads.uper_head_hiera_with_gate_isaid import UPerHeadWithGate_iSAID
+# from mmseg.models.decode_heads.uper_head_hiera_with_gate import UPerHeadWithGate
+# from mmseg.models.decode_heads.uper_head_hiera_with_gate_whdld import UPerHeadWithGate_WHDLD
 
 
 
 with read_base():
-    from ..._base_.datasets.part3_isaid_tank  import *
+    from ..._base_.datasets.part3_whdld  import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_20k import *
 
@@ -65,9 +66,9 @@ branch1_L3_num_classes = 18  # number of L1 Level label  # 21
 branch2_L1_num_classes = 2  # number of L1 Level label   # 5
 branch2_L2_num_classes = 2  # number of L1 Level label  # 11  5+11+21=37类
 branch2_L3_num_classes = 4  # 水稻、大豆、玉米
-crop_num_classes = 2
+new_task_classes = 6
 
-crop_size = (896, 896)
+crop_size = (256, 256)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
 imagenet_pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-3chan.pth'
@@ -75,8 +76,8 @@ land_use_checkpoint = 'checkpoints/part3-双分支/Google-18类-Hiera/Google-5B-
 
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    mean=[123.675, 116.28, 103.53],
-    std=[58.395, 57.12, 57.375],
+    mean = [58.842848228996296, 55.30874234401325, 56.17873877879168],  
+    std = [26.394018607263266,  21.885492331506306, 21.72762947650889],
     pad_val=0,
     seg_pad_val=255,
     size=crop_size)
@@ -134,8 +135,8 @@ model = dict(
             ), 
     ),
     decode_head=dict(
-        type=TwoBranch_decode_head_mode2_iSAID,
-        mode = 'xiaorong2',
+        type=TwoBranch_decode_head_mode2,
+        mode = 'xiaorong1',
         branch1_decode_head=dict(  # land use
             type=UPerHead_Hiera_2branch,
             init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='decode_head.'),
@@ -155,17 +156,14 @@ model = dict(
             align_corners=False),
 
         branch2_decode_head=dict( # new_task
-            type=UPerHeadWithGate_iSAID,
-            dataset = 'iSAID',
-            mode='xiaorong2-2-2', 
-            land_use_level_num = 2,
+            type=UPerHead,
             # init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='decode_head.'),  # 这里也可以消融一下
             in_channels=[128, 256, 512, 1024],
             in_index=[0, 1, 2, 3],
             pool_scales=(1, 2, 3, 6),
             channels=768,
             dropout_ratio=0.1,
-            num_classes=crop_num_classes,
+            num_classes=new_task_classes,
             norm_cfg=norm_cfg,
             align_corners=False,
             loss_decode=dict(
@@ -217,7 +215,7 @@ param_scheduler = [
 train_cfg.update(type=IterBasedTrainLoop, max_iters=20000, val_interval=4000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
-    logger=dict(type=LoggerHook, interval=1, log_metric_by_epoch=False),
+    logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),
     param_scheduler=dict(type=ParamSchedulerHook),
     checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=4),
     sampler_seed=dict(type=DistSamplerSeedHook),
