@@ -23,8 +23,9 @@ def accuracy(pred, target, topk=1, thresh=None, ignore_index=None):
             function will return a tuple containing accuracies of
             each ``topk`` number.
     """
+    # pred [2,4,640,640]
     assert isinstance(topk, (int, tuple))
-    if isinstance(topk, int):
+    if isinstance(topk, int):  
         topk = (topk, )
         return_single = True
     else:
@@ -32,13 +33,13 @@ def accuracy(pred, target, topk=1, thresh=None, ignore_index=None):
 
     maxk = max(topk)
     if pred.size(0) == 0:
-        accu = [pred.new_tensor(0.) for i in range(len(topk))]
+        accu = [pred.new_tensor(0.) for i in range(len(topk))] 
         return accu[0] if return_single else accu
     assert pred.ndim == target.ndim + 1
     assert pred.size(0) == target.size(0)
     assert maxk <= pred.size(1), \
         f'maxk {maxk} exceeds pred dimension {pred.size(1)}'
-    pred_value, pred_label = pred.topk(maxk, dim=1)
+    pred_value, pred_label = pred.topk(maxk, dim=1) #取最大值，如果这里给的是merge后的mask的话，判断一下
     # transpose to shape (maxk, N, ...)
     pred_label = pred_label.transpose(0, 1)
     correct = pred_label.eq(target.unsqueeze(0).expand_as(pred_label))
