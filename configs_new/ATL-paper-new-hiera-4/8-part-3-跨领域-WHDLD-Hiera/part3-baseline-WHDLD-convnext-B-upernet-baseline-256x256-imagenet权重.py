@@ -46,8 +46,7 @@ L3_num_classes = 6
 crop_size = (256, 256)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
-imagenet_pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-3chan.pth'
-land_use_checkpoint = 'checkpoints/part3-双分支/Google-18类-Hiera/Google-5B-convnext-B-upernet-Hiera-miou56.57-68.65.pth'
+pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-3chan.pth'
 
 data_preprocessor = dict(
         type=SegDataPreProcessor,
@@ -72,7 +71,7 @@ model = dict(
         layer_scale_init_value=1.0,
         gap_before_final_norm=False,
         init_cfg=dict(
-            type='Pretrained', checkpoint=land_use_checkpoint, prefix='backbone.')),
+            type='Pretrained', checkpoint=pretrained, prefix='backbone.')),
     decode_head=dict(
         type=UPerHead,
         in_channels=[128, 256, 512, 1024],

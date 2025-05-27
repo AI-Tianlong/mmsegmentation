@@ -23,8 +23,7 @@ from mmseg.models.data_preprocessor import SegDataPreProcessor
 from mmpretrain.models.backbones.convnext import ConvNeXt
 # DecodeHead
 from mmseg.models.decode_heads.uper_head import UPerHead
-from mmseg.models.decode_heads.atl_hiera_37_uper_head_multi_convseg import ATL_hiera_UPerHead_Multi_convseg
-from mmseg.models.decode_heads.fcn_head import FCNHead
+from mmseg.models.decode_heads.uper_head_hiera import UPerHead_Hiera
 # Loss
 from mmseg.models.losses.atl_hiera_37_loss import ATL_Hiera_Loss
 from mmseg.models.losses.atl_hiera_37_loss_convseg import ATL_Hiera_Loss_convseg
@@ -39,20 +38,25 @@ from mmseg.evaluation import IoUMetric
 with read_base():
     from ..._base_.datasets.part3_whdld import *
     from ..._base_.default_runtime import *
-    from ..._base_.schedules.schedule_20k import *
+    from ..._base_.schedules.schedule_80k import *
+
+# 训好的权重:/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-S2-deit-L-upernet-Hiera-miou52.52/iter_80000.pth
+test_output_level = 'L3' # 输出L3, 验证L3的精度
+results_merge_hiera = False
 
 find_unused_parameters=True
-L3_num_classes = 6
+L1_num_classes = 4  # number of L1 Level label   # 5
+L2_num_classes = 9  # number of L1 Level label  # 11  5+11+21=37类
+L3_num_classes = 18  # number of L1 Level label  # 21
+
 crop_size = (256, 256)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
-imagenet_pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-3chan.pth'
-land_use_checkpoint = 'checkpoints/part3-双分支/Google-18类-Hiera/Google-5B-convnext-B-upernet-Hiera-miou56.57-68.65.pth'
-
+pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-3chan.pth'
 data_preprocessor = dict(
         type=SegDataPreProcessor,
-        # mean = [123.675, 116.28, 103.53],
-        # std = [58.395, 57.12, 57.375],
+        # mean = [123.675, 116.28, 103.53],  
+        # std = [58.395, 57.12, 57.375],  
         mean = [58.842848228996296, 55.30874234401325, 56.17873877879168],  
         std = [26.394018607263266,  21.885492331506306, 21.72762947650889],
         pad_val=0,
@@ -72,23 +76,29 @@ model = dict(
         layer_scale_init_value=1.0,
         gap_before_final_norm=False,
         init_cfg=dict(
-            type='Pretrained', checkpoint=land_use_checkpoint, prefix='backbone.')),
+            type='Pretrained', checkpoint=pretrained, prefix='backbone.')),
     decode_head=dict(
-        type=UPerHead,
+        type=UPerHead_Hiera,
+        num_classes_level_list = [L1_num_classes, L2_num_classes, L3_num_classes],
+        test_output_level = test_output_level,
+        results_merge_hiera = results_merge_hiera,
+        hiera_mode = 'xiaorong6',
+        loss_decode=dict(
+            type=ATL_Hiera_Loss_convseg,
+            num_classes=[L1_num_classes, L2_num_classes, L3_num_classes],
+            loss_weight=1.0),
+        
+        # type=UPerHead,
         in_channels=[128, 256, 512, 1024],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
         channels=768,
         dropout_ratio=0.1,
-        num_classes=L3_num_classes,
         norm_cfg=norm_cfg,
         align_corners=False,
-        loss_decode=dict(
-            type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)),
+    ),
     train_cfg=dict(),
-    # test_cfg=dict(mode='slide', crop_size=crop_size, stride=(512, 512)))
     test_cfg=dict(mode='whole'))
-
 
 optimizer=dict(
         type=AdamW, 
@@ -115,13 +125,13 @@ param_scheduler = [
         type='PolyLR',
         power=1.0,
         begin=1500,
-        end=20000,
+        end=80000,
         eta_min=0.0,
         by_epoch=False,
     )
 ]
 
-train_cfg.update(type=IterBasedTrainLoop, max_iters=20000, val_interval=4000)
+train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),

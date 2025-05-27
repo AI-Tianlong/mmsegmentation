@@ -1,0 +1,74 @@
+TwoBranch_backbone_mode2(
+  (branch1_backbone): ConvNeXt(
+    (downsample_layers): ModuleList(
+    (stages): ModuleList(
+      (0): Sequential(
+      (1): Sequential(
+      (2): Sequential(
+      (3): Sequential(
+    (norm0): LayerNorm2d((128,), eps=1e-06, elementwise_affine=True)
+    (norm1): LayerNorm2d((256,), eps=1e-06, elementwise_affine=True)
+    (norm2): LayerNorm2d((512,), eps=1e-06, elementwise_affine=True)
+    (norm3): LayerNorm2d((1024,), eps=1e-06, elementwise_affine=True)
+  (branch2_backbone): ConvNeXt(
+    (downsample_layers): ModuleList(
+    (stages): ModuleList(
+      (0): Sequential(
+      (1): Sequential(
+      (2): Sequential(
+      (3): Sequential(
+    (norm0): LayerNorm2d((128,), eps=1e-06, elementwise_affine=True)
+    (norm1): LayerNorm2d((256,), eps=1e-06, elementwise_affine=True)
+    (norm2): LayerNorm2d((512,), eps=1e-06, elementwise_affine=True)
+    (norm3): LayerNorm2d((1024,), eps=1e-06, elementwise_affine=True)
+
+
+  (interactions): Sequential(
+    (0): TwoBranchInteractionBlock(
+      (interaction_units_12): BidirectionalInteractionUnit(
+        (branch2to1_proj): Linear(in_features=128, out_features=128, bias=True)
+        (branch1to2_proj): Linear(in_features=128, out_features=128, bias=True)
+        (branch2to1_injector): Injector(
+        (branch1to2_injector): Injector(
+            
+  (fpn1): Identity()
+  (fpn2): Identity()
+  (fpn3): Identity()
+  (fpn4): Identity()
+  (intermediate_merging_0_branch1): Sequential(
+    (0): GroupNorm(32, 128, eps=1e-05, affine=True)
+    (1): ReLU(inplace=True)
+  )
+  (intermediate_merging_0_branch2): Sequential(
+    (0): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+    (1): GroupNorm(32, 128, eps=1e-05, affine=True)
+    (2): ReLU(inplace=True)
+  )
+  (intermediate_merging_1_branch1): Sequential(
+    (0): GroupNorm(32, 256, eps=1e-05, affine=True)
+    (1): ReLU(inplace=True)
+  )
+  (intermediate_merging_1_branch2): Sequential(
+    (0): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+    (1): GroupNorm(32, 256, eps=1e-05, affine=True)
+    (2): ReLU(inplace=True)
+  )
+  (intermediate_merging_10_branch1): Sequential(
+    (0): GroupNorm(32, 512, eps=1e-05, affine=True)
+    (1): ReLU(inplace=True)
+  )
+  (intermediate_merging_10_branch2): Sequential(
+    (0): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+    (1): GroupNorm(32, 512, eps=1e-05, affine=True)
+    (2): ReLU(inplace=True)
+  )
+  (merge_branch1): Sequential(
+    (0): GroupNorm(32, 1024, eps=1e-05, affine=True)
+    (1): ReLU(inplace=True)
+  )
+  (merge_branch2): Sequential(
+    (0): Conv2d(1024, 1024, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+    (1): GroupNorm(32, 1024, eps=1e-05, affine=True)
+    (2): ReLU(inplace=True)
+  )
+)

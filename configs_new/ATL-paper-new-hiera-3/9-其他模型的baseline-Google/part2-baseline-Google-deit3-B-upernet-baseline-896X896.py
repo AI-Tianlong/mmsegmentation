@@ -34,8 +34,8 @@ from mmseg.models.losses.atl_hiera_37_loss_convseg import ATL_Hiera_Loss_convseg
 #optimizer
 from mmseg.engine.optimizers.piip_layer_decay_optimizer_constructor import CustomLayerDecayOptimizerConstructor
 
-# Evaluation
 from mmseg.evaluation import IoUMetric
+from mmseg.evaluation.metrics.iou_metric_level import IoUMetric_level
 
 
 with read_base():
@@ -52,6 +52,8 @@ with read_base():
 num_classes = 18
 norm_cfg = dict(type=SyncBN, requires_grad=True) # decode_head的 norm_cfg
 pretrained = 'checkpoints/2-对比实验的权重/deit3/3chan/deit3-base-384px-3chan.pth'
+
+test_output_level = 'L3' # 输出L3, 验证L的精度
 
 crop_size = (896, 896)
 data_preprocessor = dict(
@@ -139,7 +141,10 @@ default_hooks = dict(
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
-    type=IoUMetric,
+    type=IoUMetric_level,
+    is_baseline = True,
+    test_output_level = test_output_level,
+    num_classes_list = [4,9,18],
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)

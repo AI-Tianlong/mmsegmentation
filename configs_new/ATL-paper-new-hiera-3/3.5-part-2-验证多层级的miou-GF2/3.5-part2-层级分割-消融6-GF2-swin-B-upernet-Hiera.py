@@ -50,7 +50,7 @@ L1_num_classes = 4  # number of L1 Level label   # 5
 L2_num_classes = 9  # number of L1 Level label  # 11  5+11+21=37类
 L3_num_classes = 18  # number of L1 Level label  # 21
 
-test_output_level = 'L2' # 输出L3, 验证L3的精度
+test_output_level = 'L1' # 输出L3, 验证L3的精度
 results_merge_hiera =   False
 
 

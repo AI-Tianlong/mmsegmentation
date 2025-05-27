@@ -34,13 +34,17 @@ from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
 from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
                                      LearningRateDecayOptimizerConstructor)
 # Evaluation
+# Evaluation
 from mmseg.evaluation import IoUMetric
+from mmseg.evaluation.metrics.iou_metric_level import IoUMetric_level
 
 with read_base():
     from ..._base_.datasets.Google_5B_18class_896 import *
     from ..._base_.default_runtime import *
     # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_80k import *
+
+test_output_level = 'L3' # 输出L3, 验证L的精度
 
 find_unused_parameters=True
 L3_num_classes = 18
@@ -130,7 +134,10 @@ default_hooks.update(
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
-    type=IoUMetric,
+    type=IoUMetric_level,
+    is_baseline = True,
+    test_output_level = test_output_level,
+    num_classes_list = [4,9,18],
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)
