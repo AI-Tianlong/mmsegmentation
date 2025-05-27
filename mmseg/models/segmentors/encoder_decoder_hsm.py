@@ -376,7 +376,7 @@ class EncoderDecoder(BaseSegmentor):
         return seg_pred
 
     def postprocess_result_HSM(self,
-                           seg_logits: Tensor,
+                           seg_logits_tuple: Tensor,
                            data_samples: OptSampleList = None) -> SampleList:
         """ Convert results list to `SegDataSample`.
         Args:
@@ -393,8 +393,11 @@ class EncoderDecoder(BaseSegmentor):
             - ``seg_logits``(PixelData): Predicted logits of semantic
                 segmentation before normalization.
         """
-        seg_logits = seg_logits[0] 
-        pred = seg_logits[1]  # path merge results
+        if len(seg_logits_tuple) == 2:
+            seg_logits = seg_logits_tuple[0] # [1,18,640,640]
+            pred = seg_logits_tuple[1]  # path merge results # [1,640,640]
+        else:
+            raise TypeError(f'请检查seg_logits_tuple的长度，应该为2，但实际为{len(seg_logits_tuple)}')
 
         batch_size, C, H, W = seg_logits.shape  # [1,18,224,224]
 
@@ -420,9 +423,6 @@ class EncoderDecoder(BaseSegmentor):
                                           padding_top:H - padding_bottom,
                                           padding_left:W - padding_right] # torch.Size([1, 18, 224, 224])
 
-
-
-
                 flip = img_meta.get('flip', None)
                 if flip:
                     flip_direction = img_meta.get('flip_direction', None)
@@ -443,14 +443,14 @@ class EncoderDecoder(BaseSegmentor):
                 i_seg_logits = seg_logits[i]
 
             # if C > 1:
-            #     i_seg_pred = i_seg_logits.argmax(
-            #         dim=0, keepdim=True)  # keepdim=True，保留第0维度，大小为1
+            #     i_seg_pred = i_seg_logits.argmax(dim=0, keepdim=True)  # keepdim=True，[1,640,640]
             # else:
             #     i_seg_logits = i_seg_logits.sigmoid()
             #     i_seg_pred = (i_seg_logits >
             #                   self.decode_head.threshold).to(i_seg_logits)
 
-            i_seg_pred = pred[i:i + 1, :,:]
+
+            i_seg_pred = pred[i:i+1,:,:]
             
             data_samples[i].set_data({
                 'seg_logits':
@@ -458,3 +458,5 @@ class EncoderDecoder(BaseSegmentor):
                 'pred_sem_seg':
                 PixelData(**{'data': i_seg_pred})      # torch.Size([1, 594, 594])
             })
+
+        return data_samples

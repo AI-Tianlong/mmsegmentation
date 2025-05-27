@@ -534,6 +534,7 @@ class UPerHead_HSM(BaseDecodeHead):
         if self.test_output_level is None:
             self.test_output_level = 'L3'
 
+        # 这里有问题呀，必须输出的是一个层级的结构，不然没办法后处理
 
         if isinstance(batch_img_metas[0]['img_shape'], torch.Size):
             # slide inference
@@ -542,20 +543,43 @@ class UPerHead_HSM(BaseDecodeHead):
             size = batch_img_metas[0]['pad_shape'][:2]
         else:
             size = batch_img_metas[0]['img_shape']
-            
-        seg_logits = resize(
-            input=seg_logits,
-            size=size,
-            mode='bilinear',
-            align_corners=self.align_corners)
-        
-       
-        if self.results_path_merge:
-            pred_mask = self.results_path_merge_func(seg_logits) #直接是最后的mask啊
 
-            return [seg_logits, pred_mask]
+        if isinstance(seg_logits, list) and len(seg_logits) == 3:
+            for i in range(len(seg_logits)):
+                seg_logits[i] = resize(
+                    input=seg_logits[i],
+                    size=size,
+                    mode='bilinear',
+                    align_corners=self.align_corners)
+                # print(seg_logits[i].shape)
+        elif isinstance(seg_logits, torch.Tensor) and seg_logits.shape[1]==sum(self.num_classes_level_list):
+            seg_logits = resize(
+                    input=seg_logits,
+                    size=size.shape[2:],
+                    mode='bilinear',
+                    align_corners=self.align_corners)
+        
+        if self.test_output_level == 'L3':
+            seg_logit = seg_logits[2] # 仅输出融合后L3的特征图
+        elif self.test_output_level == 'L2':
+            seg_logit = seg_logits[1]
+        elif self.test_output_level == 'L1':
+            seg_logit = seg_logits[0]
+
+
+        if self.results_path_merge:
+            pred_masks = self.results_path_merge_func(seg_logits) #直接是最后的mask啊 #[1,3,640,640]
+            if self.test_output_level == 'L3':
+                pred_mask = pred_masks[:,2,:,:] # 仅输出融合后L3的特征图 #[1,640,640]
+            elif self.test_output_level == 'L2':
+                pred_mask = pred_masks[:,1,:,:]
+            elif self.test_output_level == 'L1':
+                pred_mask = pred_masks[:,0,:,:]
+
+            return [seg_logit, pred_mask] # [1,18,640,640], pred_mask
         # 这里是不是应该写在后处理里啊？  写在这里好像不太对，应为post要的是seglogits然后处理。
-        return seg_logits
+        
+        return seg_logit
     
 
     def results_path_merge_func(self, seg_logits:List[Tensor], sigmoid:bool=True) -> Tensor:
