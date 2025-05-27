@@ -15,8 +15,7 @@ from mmseg.datasets.transforms.loading import LoadSingleRSImageFromFile
 
 
 # EncoderDecoder
-from mmseg.models.segmentors.encoder_decoder import EncoderDecoder
-from mmseg.models.segmentors.atl_hiera_37_encoder_decoder import ATL_Hiera_EncoderDecoder
+from mmseg.models.segmentors.encoder_decoder_hsm import EncoderDecoder
 # SegDataPreProcessor
 from mmseg.models.data_preprocessor import SegDataPreProcessor
 # Backbone
