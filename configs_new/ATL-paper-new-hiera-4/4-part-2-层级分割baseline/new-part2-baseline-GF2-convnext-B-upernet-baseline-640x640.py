@@ -15,19 +15,20 @@ from mmseg.datasets.transforms.loading import LoadSingleRSImageFromFile
 
 
 # EncoderDecoder
-from mmseg.models.segmentors.encoder_decoder_hsm_L1L2L3 import EncoderDecoder
+from mmseg.models.segmentors.encoder_decoder import EncoderDecoder
+from mmseg.models.segmentors.atl_hiera_37_encoder_decoder import ATL_Hiera_EncoderDecoder
 # SegDataPreProcessor
 from mmseg.models.data_preprocessor import SegDataPreProcessor
 # Backbone
-from mmseg.models.backbones.deit3 import DeiT3
 from mmpretrain.models.backbones.convnext import ConvNeXt
-# Neck
-from mmseg.models.necks.multilevel_neck import  MultiLevelNeck
 # DecodeHead
-# from mmseg.models.decode_heads.uper_head_hsm import UPerHead_HSM
-from mmseg.models.decode_heads.uper_head_hsm_L1L2L3 import UPerHead_HSM
+from mmseg.models.decode_heads.uper_head import UPerHead
+from mmseg.models.decode_heads.atl_hiera_37_uper_head_multi_convseg import ATL_hiera_UPerHead_Multi_convseg
+from mmseg.models.decode_heads.fcn_head import FCNHead
 # Loss
-from mmseg.models.losses.hcc_loss import HCC_LOSS
+from mmseg.models.losses.atl_hiera_37_loss import ATL_Hiera_Loss
+from mmseg.models.losses.atl_hiera_37_loss_convseg import ATL_Hiera_Loss_convseg
+from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
 
 # Optimizer
 from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
@@ -38,98 +39,102 @@ from mmseg.evaluation.metrics.iou_metric_hsm import IoUMetric_HSM
 with read_base():
     from ..._base_.datasets.GF2_5B_18class_640 import *
     from ..._base_.default_runtime import *
+    # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_80k import *
 
 # base setting 
 ouput_level = 'L3'  # 输出L3, 验证L3的精度
 results_path_merge = False  # 是否合并层级结果
 
-
 test_evaluator = dict(
     type=IoUMetric_HSM,
-    baseline_or_HSM = 'HSM',  # baseline 会用L3->L2->L1的方式计算, HSM则会按照实际L1 L2 L3去计算,
+    baseline_or_HSM = 'baseline',  # baseline 会用L3->L2->L1的方式计算, HSM则会按照实际L1 L2 L3去计算,
     test_output_level = ouput_level,  # 配合results_path_merge 使用
     num_classes_list = [4,9,18],
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)
 val_evaluator = test_evaluator
-# 只验证L3的话，用val_evaluator就行
-# val_evaluator = dict(
-#     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore' 
 
 
-L1_num_classes = 4  # number of L1 Level label   # 5
-L2_num_classes = 9  # number of L1 Level label  # 11  5+11+21=37类
-L3_num_classes = 18  # number of L1 Level label  # 21
-
+L3_num_classes = 18
 crop_size = (640, 640)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
-pretrained = 'checkpoints/2-对比实验的权重/deit3/4chan/deit3-base-384px-4chan.pth'
+
+pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-4chan.pth'
 data_preprocessor = dict(
         type=SegDataPreProcessor,
         mean = [412.62603765, 317.66892688, 243.74720123, 292.61469172],
         std = [42.79585263, 45.59081086, 54.94280476, 69.32133677],
+        # mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
+        # std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
         pad_val=0,
         seg_pad_val=255,
         size=crop_size)
+
 
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
     # pretrained=None,
     backbone=dict(
-        type=DeiT3,
-        arch='base',
+        type=ConvNeXt,
         in_channels=4,
-        img_size=crop_size[0],
-        patch_size=16,
-        drop_path_rate=0.15,
-        out_type='featmap',
-        out_indices=(2, 5, 8, 11), # -1 ?测试一下
-        init_cfg=dict(type='Pretrained', checkpoint=pretrained, prefix='backbone.'),
-        ),
-    neck=dict(
-        type=MultiLevelNeck,
-        in_channels=[768, 768, 768, 768],
-        out_channels=768,
-        scales=[4, 2, 1, 0.5]),
-    
+        arch='base',
+        out_indices=[0, 1, 2, 3],
+        drop_path_rate=0.4,
+        layer_scale_init_value=1.0,
+        gap_before_final_norm=False,
+        init_cfg=dict(
+            type='Pretrained', checkpoint=pretrained, prefix='backbone.')),
     decode_head=dict(
-        type=UPerHead_HSM,
-        ouput_level = ouput_level,
-        path_merge = results_path_merge,
-        num_classes_level_list = [L1_num_classes, L2_num_classes, L3_num_classes],
-        hiera_mode = 'xiaorong5',
-        loss_decode=dict(
-            type=HCC_LOSS,
-            mode = 'HCC',
-            num_classes=[L1_num_classes, L2_num_classes, L3_num_classes],
-            loss_weight=1.0),
-        # type=UPerHead,
-        in_channels=[768, 768, 768, 768],
+        type=UPerHead,
+        in_channels=[128, 256, 512, 1024],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
         channels=768,
         dropout_ratio=0.1,
+        num_classes=L3_num_classes,
         norm_cfg=norm_cfg,
         align_corners=False,
-    ),
+        loss_decode=dict(
+            type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)),
+    # auxiliary_head=dict(
+    #     type=FCNHead,
+    #     in_channels=512,
+    #     in_index=2,
+    #     channels=256,
+    #     num_convs=1,
+    #     concat_input=False,
+    #     dropout_ratio=0.1,
+    #     num_classes=L3_num_classes,
+    #     norm_cfg=norm_cfg,
+    #     align_corners=False,
+    #     loss_decode=dict(
+    #         type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)),
+    # model training and testing settings
     train_cfg=dict(),
-    test_cfg=dict(mode='whole'))
+    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
+
+
+optimizer=dict(
+        type=AdamW, 
+        lr=0.0001, 
+        betas=(0.9, 0.999), 
+        weight_decay=0.05)
 
 optim_wrapper = dict(
+    # type='AmpOptimWrapper',  # mmengine 混合精度江都训练内存
     type=OptimWrapper,
-    optimizer=dict(
-        type=AdamW, lr=0.00006, betas=(0.9, 0.999), weight_decay=0.01),
-    paramwise_cfg=dict(
-        custom_keys={
-            'pos_embed': dict(decay_mult=0.),
-            'cls_token': dict(decay_mult=0.),
-            'norm': dict(decay_mult=0.)
-        }))
-
+    optimizer=optimizer,
+    constructor=LearningRateDecayOptimizerConstructor,
+    paramwise_cfg={
+        'decay_rate': 0.9,
+        'decay_type': 'stage_wise',
+        'num_layers': 12
+    },
+    )
     # loss_scale='dynamic')
 param_scheduler = [
     dict(
@@ -144,7 +149,7 @@ param_scheduler = [
     )
 ]
 
-train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=10)
+train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),
@@ -152,4 +157,3 @@ default_hooks.update(
     checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=2),
     sampler_seed=dict(type=DistSamplerSeedHook),
     visualization=dict(type=SegVisualizationHook))
-

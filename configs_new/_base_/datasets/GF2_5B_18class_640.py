@@ -82,8 +82,8 @@ val_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(
-            img_path='img_dir/val/',
-            seg_map_path='ann_dir/val/'),
+            img_path='img_dir/test/',
+            seg_map_path='ann_dir/test/'),
         pipeline=val_pipeline))
 # 想用大图去推理
 test_dataloader = dict(
@@ -93,14 +93,24 @@ test_dataloader = dict(
     sampler=dict(type=DefaultSampler, shuffle=False),
     dataset=dict(
         type=dataset_type,
-        # data_root=data_root,
-        data_root=None,
+        data_root=data_root,
         data_prefix=dict(
-            img_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/2-多领域地物覆盖基础/GF2_5B-24类/6-用来出图的裁切小图/img_dir/val',
-            seg_map_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/2-多领域地物覆盖基础/GF2_5B-24类/6-用来出图的裁切小图/ann_dir/val'),
-            # img_path='img_dir/test',
-            # seg_map_path='ann_dir/test'),
+            img_path='img_dir/val',
+            seg_map_path='ann_dir/val'),
         pipeline=test_pipeline))
+
+# test_dataloader = dict(
+#     batch_size=1,
+#     num_workers=4,
+#     persistent_workers=True,
+#     sampler=dict(type=DefaultSampler, shuffle=False),
+#     dataset=dict(
+#         type=dataset_type,
+#         data_root=None,
+#         data_prefix=dict(
+#             img_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/2-多领域地物覆盖基础/GF2_5B-24类/6-用来出图的裁切小图/img_dir/val',
+#             seg_map_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/2-多领域地物覆盖基础/GF2_5B-24类/6-用来出图的裁切小图/ann_dir/val'),
+#         pipeline=test_pipeline))
 
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'

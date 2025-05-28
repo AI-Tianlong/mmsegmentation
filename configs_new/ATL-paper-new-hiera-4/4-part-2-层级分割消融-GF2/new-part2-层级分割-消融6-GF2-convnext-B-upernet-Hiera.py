@@ -15,14 +15,13 @@ from mmseg.datasets.transforms.loading import LoadSingleRSImageFromFile
 
 
 # EncoderDecoder
-from mmseg.models.segmentors.encoder_decoder_hsm import EncoderDecoder
-from mmseg.models.segmentors.atl_hiera_37_encoder_decoder import ATL_Hiera_EncoderDecoder
+from mmseg.models.segmentors.encoder_decoder_hsm_L1L2L3 import EncoderDecoder
 # SegDataPreProcessor
 from mmseg.models.data_preprocessor import SegDataPreProcessor
 # Backbone
 from mmpretrain.models.backbones.convnext import ConvNeXt
 # DecodeHead
-from mmseg.models.decode_heads.uper_head_hsm import UPerHead_HSM
+from mmseg.models.decode_heads.uper_head_hsm_L1L2L3 import UPerHead_HSM
 # Loss
 from mmseg.models.losses.hcc_loss import HCC_LOSS
 
@@ -30,16 +29,27 @@ from mmseg.models.losses.hcc_loss import HCC_LOSS
 from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
                                      LearningRateDecayOptimizerConstructor)
 # Evaluation
-from mmseg.evaluation import IoUMetric
-from mmseg.evaluation.metrics.iou_metric_level import IoUMetric_level
+from mmseg.evaluation.metrics.iou_metric_hsm import IoUMetric_HSM
+
 
 with read_base():
     from ..._base_.datasets.GF2_5B_18class_640 import *
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
+# base setting 
 ouput_level = 'L3'  # 输出L3, 验证L3的精度
 results_path_merge = True  # 是否合并层级结果
+
+test_evaluator = dict(
+    type=IoUMetric_HSM,
+    baseline_or_HSM = 'HSM',  # baseline 会用L3->L2->L1的方式计算, HSM则会按照实际L1 L2 L3去计算,
+    test_output_level = ouput_level,  # 配合results_path_merge 使用
+    num_classes_list = [4,9,18],
+    iou_metrics=['mIoU', 'mFscore'],
+    # format_only=True,
+    keep_results=True)
+val_evaluator = test_evaluator
 
 L1_num_classes = 4  # number of L1 Level label   # 5
 L2_num_classes = 9  # number of L1 Level label  # 11  5+11+21=37类
@@ -134,21 +144,3 @@ default_hooks.update(
     sampler_seed=dict(type=DistSamplerSeedHook),
     visualization=dict(type=SegVisualizationHook))
 
-# val_evaluator = dict(
-#     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
-# test_evaluator = dict(
-#     type=IoUMetric,
-#     iou_metrics=['mIoU', 'mFscore'],
-#     # format_only=True,
-#     keep_results=True)
-
-val_evaluator = dict(
-    type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
-test_evaluator = dict(
-    type=IoUMetric_level,
-    is_baseline = False,
-    test_output_level = ouput_level,
-    num_classes_list = [4,9,18],
-    iou_metrics=['mIoU', 'mFscore'],
-    # format_only=True,
-    keep_results=True)

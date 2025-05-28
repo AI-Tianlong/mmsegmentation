@@ -199,7 +199,7 @@ class HCC_LOSS(nn.Module):
             
             loss_tk = kl[valid_mask].mean()
 
-            alpha = 1
+            alpha = 0.5
             loss = loss_ce + alpha * loss_tk
 
         return loss*self.loss_weight 
