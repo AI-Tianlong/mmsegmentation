@@ -44,8 +44,10 @@ with read_base():
 
 # base setting 
 ouput_level = 'L3'  # 输出L3, 验证L3的精度
-results_path_merge = False  # 是否合并层级结果
+results_path_merge = True  # 是否合并层级结果
 
+val_evaluator = dict(
+    type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
     type=IoUMetric_HSM,
     baseline_or_HSM = 'baseline',  # baseline 会用L3->L2->L1的方式计算, HSM则会按照实际L1 L2 L3去计算,
@@ -54,7 +56,7 @@ test_evaluator = dict(
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)
-val_evaluator = test_evaluator
+
 
 
 L3_num_classes = 18

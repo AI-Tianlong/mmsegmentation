@@ -39,11 +39,11 @@ with read_base():
 
 # base setting 
 ouput_level = 'L3'  # 输出L3, 验证L3的精度
-results_path_merge = True  # 是否合并层级结果
+results_path_merge = False  # 是否合并层级结果
 
 test_evaluator = dict(
     type=IoUMetric_HSM,
-    baseline_or_HSM = 'HSM',  # baseline 会用L3->L2->L1的方式计算, HSM则会按照实际L1 L2 L3去计算,
+    baseline_or_HSM = 'baseline',  # baseline 会用L3->L2->L1的方式计算, HSM则会按照实际L1 L2 L3去计算,
     test_output_level = ouput_level,  # 配合results_path_merge 使用
     num_classes_list = [4,9,18],
     iou_metrics=['mIoU', 'mFscore'],
