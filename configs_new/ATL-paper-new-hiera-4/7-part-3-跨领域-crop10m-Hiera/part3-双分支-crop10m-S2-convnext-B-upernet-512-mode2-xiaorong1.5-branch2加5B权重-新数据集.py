@@ -169,7 +169,7 @@ model = dict(
         ),
             
     train_cfg=dict(),
-    # test_cfg=dict(mode='whole'))
+    test_cfg=dict(mode='whole'))
     
 
 optimizer=dict(
@@ -178,13 +178,6 @@ optimizer=dict(
         betas=(0.9, 0.999), 
         weight_decay=0.05)
         
-# optimizer = dict(type='AdamW', 
-#                  lr=0.0002, 
-#                  betas=(0.9, 0.999),
-#                  weight_decay=0.05,
-#                  constructor='CustomLayerDecayOptimizerConstructorMMDet',
-#                  paramwise_cfg=dict(num_layers=12, layer_decay_rate=0.8, skip_stride=[1, 3])
-#                 )
 
 optim_wrapper = dict(
     # type='AmpOptimWrapper',  # mmengine 混合精度江都训练内存

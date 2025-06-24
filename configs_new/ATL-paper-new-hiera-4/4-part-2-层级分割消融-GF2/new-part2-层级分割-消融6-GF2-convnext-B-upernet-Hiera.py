@@ -39,11 +39,11 @@ with read_base():
 
 # base setting 
 ouput_level = 'L3'  # 输出L3, 验证L3的精度
-results_path_merge = False  # 是否合并层级结果
+results_path_merge = True  # 是否合并层级结果
 
 test_evaluator = dict(
     type=IoUMetric_HSM,
-    baseline_or_HSM = 'baseline',  # baseline 会用L3->L2->L1的方式计算, HSM则会按照实际L1 L2 L3去计算,
+    baseline_or_HSM = 'HSM',  # baseline 会用L3->L2->L1的方式计算, HSM则会按照实际L1 L2 L3去计算,
     test_output_level = ouput_level,  # 配合results_path_merge 使用
     num_classes_list = [4,9,18],
     iou_metrics=['mIoU', 'mFscore'],
@@ -71,16 +71,7 @@ model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
     # pretrained=None,
-    backbone=dict(
-        type=ConvNeXt,
-        in_channels=4,
-        arch='base',
-        out_indices=[0, 1, 2, 3],
-        drop_path_rate=0.4,
-        layer_scale_init_value=1.0,
-        gap_before_final_norm=False,
-        init_cfg=dict(
-            type='Pretrained', checkpoint=pretrained, prefix='backbone.')),
+ 
     decode_head=dict(
         type=UPerHead_HSM,
         ouput_level = ouput_level,

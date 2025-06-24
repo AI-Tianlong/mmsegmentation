@@ -178,7 +178,7 @@ class EncoderDecoder(BaseSegmentor):
         """
 
         # import pdb;pdb.set_trace()
-        x = self.extract_feat(inputs)  
+        x = self.extract_feat(inputs)  # 过完backbone + neclk 的
     
         losses = dict()
 
