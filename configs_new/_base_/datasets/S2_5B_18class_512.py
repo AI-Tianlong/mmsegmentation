@@ -13,7 +13,8 @@ from mmseg.evaluation import IoUMetric
 
 # dataset settings
 dataset_type = ATL_S2_5B_Dataset_18class
-data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-S2-5B-18-512'
+# data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-S2-5B-18-512'
+data_root = '/data/AI-Tianlong/Datasets/1-paper-segmentation/2-多领域地物覆盖基础/S2_5B_19类-官网下载的/5-裁切好的图像/0-S2-5B-18-512'
 
 # mean = [412.62603765, 317.66892688, 243.74720123, 292.61469172],
 # std = [42.79585263, 45.59081086, 54.94280476, 69.32133677],
@@ -90,13 +91,13 @@ test_dataloader = dict(
     sampler=dict(type=DefaultSampler, shuffle=False),
     dataset=dict(
         type=dataset_type,
-        # data_root=data_root,
-        data_root=None,
+        data_root=data_root,
+        # data_root=None,
         data_prefix=dict(
-            img_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/论文画图-4-S2/6-用来出图的裁切小图/img_dir/val',
-            seg_map_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/论文画图-4-S2/6-用来出图的裁切小图/ann_dir/val'),
-            # img_path='img_dir/val',
-            # seg_map_path='ann_dir/val'),
+            # img_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/论文画图-4-S2/6-用来出图的裁切小图/img_dir/val',
+            # seg_map_path='/data/AI-Tianlong/openmmlab/mmsegmentation/data/1-paper-segmentation/论文画图-4-S2/6-用来出图的裁切小图/ann_dir/val'),
+            img_path='img_dir/val',
+            seg_map_path='ann_dir/val'),
         pipeline=test_pipeline))
 
 val_evaluator = dict(

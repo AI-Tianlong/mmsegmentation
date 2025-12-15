@@ -97,7 +97,7 @@ test_dataloader = dict(
         data_root=None,
         data_prefix=dict(
             img_path=
-            '/data/AI-Tianlong/Datasets/PPT-素材/中俄边界',
+            '/data/AI-Tianlong/ZGJ/Datasets/0-S2-IMG-2018年/IMG',
             # seg_map_path=''
         ),
         # ann_file='',

@@ -1071,6 +1071,7 @@ class LoadSingleRSImageFromFile(BaseTransform):
         if self.to_float32:
             img = img.astype(np.float32)
 
+        # print(img)
         img[img==-32768]=0    
         results['img'] = img
         results['img_shape'] = img.shape[:2]
