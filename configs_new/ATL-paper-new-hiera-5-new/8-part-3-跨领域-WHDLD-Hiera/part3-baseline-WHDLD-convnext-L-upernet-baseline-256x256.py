@@ -7,6 +7,11 @@ from mmengine.optim.optimizer import OptimWrapper
 from mmengine.optim.scheduler.lr_scheduler import LinearLR, PolyLR
 from torch.nn.modules.batchnorm import SyncBatchNorm as SyncBN
 from torch.optim import AdamW
+from mmseg.datasets.transforms import (LoadAnnotations, PackSegInputs,
+                                       PhotoMetricDistortion, RandomCrop,
+                                       ResizeShortestEdge)
+from mmseg.datasets.transforms.loading import LoadSingleRSImageFromFile
+
 
 
 # EncoderDecoder
@@ -28,36 +33,30 @@ from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
 # Optimizer
 from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
                                      LearningRateDecayOptimizerConstructor)
-
 # Evaluation
 from mmseg.evaluation import IoUMetric
-from mmseg.evaluation.metrics.iou_metric_level import IoUMetric_level
 
 with read_base():
-    from ..._base_.datasets.GF2_5B_18class_640 import *
+    from ..._base_.datasets.part3_whdld import *
     from ..._base_.default_runtime import *
-    # from ..._base_.models.upernet_beit_potsdam import *
-    from ..._base_.schedules.schedule_80k import *
-
-test_output_level = 'L3' # 输出L3, 验证L的精度
+    from ..._base_.schedules.schedule_20k import *
 
 find_unused_parameters=True
-L3_num_classes = 18
-crop_size = (640, 640)
+L3_num_classes = 6
+crop_size = (256, 256)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
 
-pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-4chan.pth'
+pretrained = 'checkpoints/2-对比实验的权重/convnext/large/convnext-large-3chan.pth'
 data_preprocessor = dict(
         type=SegDataPreProcessor,
-        mean = [412.62603765, 317.66892688, 243.74720123, 292.61469172],
-        std = [42.79585263, 45.59081086, 54.94280476, 69.32133677],
-        # mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
-        # std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
+        # mean = [123.675, 116.28, 103.53],
+        # std = [58.395, 57.12, 57.375],
+        mean = [58.842848228996296, 55.30874234401325, 56.17873877879168],  
+        std = [26.394018607263266,  21.885492331506306, 21.72762947650889],
         pad_val=0,
         seg_pad_val=255,
         size=crop_size)
-
 
 model = dict(
     type=EncoderDecoder,
@@ -65,8 +64,8 @@ model = dict(
     # pretrained=None,
     backbone=dict(
         type=ConvNeXt,
-        in_channels=4,
-        arch='base',
+        in_channels=3,
+        arch='large',
         out_indices=[0, 1, 2, 3],
         drop_path_rate=0.4,
         layer_scale_init_value=1.0,
@@ -75,20 +74,20 @@ model = dict(
             type='Pretrained', checkpoint=pretrained, prefix='backbone.')),
     decode_head=dict(
         type=UPerHead,
-        in_channels=[128, 256, 512, 1024],
+        in_channels=[192, 384, 768, 1536],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
-        channels=768,
+        channels=1024,
         dropout_ratio=0.1,
         num_classes=L3_num_classes,
         norm_cfg=norm_cfg,
         align_corners=False,
         loss_decode=dict(
             type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)),
-    # model training and testing settings
     train_cfg=dict(),
-    test_cfg=dict(mode='whoole'))
-    # test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
+    # test_cfg=dict(mode='slide', crop_size=crop_size, stride=(512, 512)))
+    test_cfg=dict(mode='whole'))
+
 
 optimizer=dict(
         type=AdamW, 
@@ -108,21 +107,20 @@ optim_wrapper = dict(
     },
     )
     # loss_scale='dynamic')
-
 param_scheduler = [
     dict(
-        type=LinearLR, start_factor=1e-6, by_epoch=False, begin=0, end=1500),
+        type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=1500),
     dict(
-        type=PolyLR,
+        type='PolyLR',
         power=1.0,
         begin=1500,
-        end=80000,
+        end=20000,
         eta_min=0.0,
         by_epoch=False,
     )
 ]
 
-train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000)
+train_cfg.update(type=IterBasedTrainLoop, max_iters=20000, val_interval=4000)
 default_hooks.update(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),
@@ -134,10 +132,7 @@ default_hooks.update(
 val_evaluator = dict(
     type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
 test_evaluator = dict(
-    type=IoUMetric_level,
-    is_baseline = True,
-    test_output_level = test_output_level,
-    num_classes_list = [4,9,18],
+    type=IoUMetric,
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)

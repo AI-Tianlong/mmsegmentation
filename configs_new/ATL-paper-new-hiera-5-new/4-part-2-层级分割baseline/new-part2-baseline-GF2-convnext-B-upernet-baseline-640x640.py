@@ -7,6 +7,11 @@ from mmengine.optim.optimizer import OptimWrapper
 from mmengine.optim.scheduler.lr_scheduler import LinearLR, PolyLR
 from torch.nn.modules.batchnorm import SyncBatchNorm as SyncBN
 from torch.optim import AdamW
+from mmseg.datasets.transforms import (LoadAnnotations, PackSegInputs,
+                                       PhotoMetricDistortion, RandomCrop,
+                                       ResizeShortestEdge)
+from mmseg.datasets.transforms.loading import LoadSingleRSImageFromFile
+
 
 
 # EncoderDecoder
@@ -28,10 +33,8 @@ from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
 # Optimizer
 from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
                                      LearningRateDecayOptimizerConstructor)
-
 # Evaluation
-from mmseg.evaluation import IoUMetric
-from mmseg.evaluation.metrics.iou_metric_level import IoUMetric_level
+from mmseg.evaluation.metrics.iou_metric_hsm import IoUMetric_HSM
 
 with read_base():
     from ..._base_.datasets.GF2_5B_18class_640 import *
@@ -39,9 +42,23 @@ with read_base():
     # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_80k import *
 
-test_output_level = 'L3' # 输出L3, 验证L的精度
+# base setting 
+ouput_level = 'L3'  # 输出L3, 验证L3的精度
+results_path_merge = True  # 是否合并层级结果
 
-find_unused_parameters=True
+val_evaluator = dict(
+    type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
+test_evaluator = dict(
+    type=IoUMetric_HSM,
+    baseline_or_HSM = 'baseline',  # baseline 会用L3->L2->L1的方式计算, HSM则会按照实际L1 L2 L3去计算,
+    test_output_level = ouput_level,  # 配合results_path_merge 使用
+    num_classes_list = [4,9,18],
+    iou_metrics=['mIoU', 'mFscore'],
+    # format_only=True,
+    keep_results=True)
+
+
+
 L3_num_classes = 18
 crop_size = (640, 640)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
@@ -85,10 +102,23 @@ model = dict(
         align_corners=False,
         loss_decode=dict(
             type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)),
+    # auxiliary_head=dict(
+    #     type=FCNHead,
+    #     in_channels=512,
+    #     in_index=2,
+    #     channels=256,
+    #     num_convs=1,
+    #     concat_input=False,
+    #     dropout_ratio=0.1,
+    #     num_classes=L3_num_classes,
+    #     norm_cfg=norm_cfg,
+    #     align_corners=False,
+    #     loss_decode=dict(
+    #         type=CrossEntropyLoss, use_sigmoid=False, loss_weight=0.4)),
     # model training and testing settings
     train_cfg=dict(),
-    test_cfg=dict(mode='whoole'))
-    # test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
+    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
+
 
 optimizer=dict(
         type=AdamW, 
@@ -108,12 +138,11 @@ optim_wrapper = dict(
     },
     )
     # loss_scale='dynamic')
-
 param_scheduler = [
     dict(
-        type=LinearLR, start_factor=1e-6, by_epoch=False, begin=0, end=1500),
+        type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=1500),
     dict(
-        type=PolyLR,
+        type='PolyLR',
         power=1.0,
         begin=1500,
         end=80000,
@@ -130,14 +159,3 @@ default_hooks.update(
     checkpoint=dict(type=CheckpointHook, by_epoch=False, interval=2000, max_keep_ckpts=2),
     sampler_seed=dict(type=DistSamplerSeedHook),
     visualization=dict(type=SegVisualizationHook))
-
-val_evaluator = dict(
-    type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
-test_evaluator = dict(
-    type=IoUMetric_level,
-    is_baseline = True,
-    test_output_level = test_output_level,
-    num_classes_list = [4,9,18],
-    iou_metrics=['mIoU', 'mFscore'],
-    # format_only=True,
-    keep_results=True)

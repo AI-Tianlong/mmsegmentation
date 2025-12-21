@@ -41,28 +41,24 @@ with read_base():
 
 test_output_level = 'L3' # 输出L3, 验证L的精度
 
-find_unused_parameters=True
 L3_num_classes = 18
 crop_size = (640, 640)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
 
+# pretrained = 'https://download.openmmlab.com/mmclassification/v0/convnext/convnext-base_3rdparty_32xb128_in1k_20220124-d0915162.pth'
 pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-4chan.pth'
 data_preprocessor = dict(
         type=SegDataPreProcessor,
         mean = [412.62603765, 317.66892688, 243.74720123, 292.61469172],
         std = [42.79585263, 45.59081086, 54.94280476, 69.32133677],
-        # mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
-        # std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
         pad_val=0,
         seg_pad_val=255,
         size=crop_size)
 
-
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,
-    # pretrained=None,
     backbone=dict(
         type=ConvNeXt,
         in_channels=4,
@@ -85,9 +81,8 @@ model = dict(
         align_corners=False,
         loss_decode=dict(
             type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)),
-    # model training and testing settings
     train_cfg=dict(),
-    test_cfg=dict(mode='whoole'))
+    test_cfg=dict(mode='whole'))
     # test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
 
 optimizer=dict(
@@ -107,7 +102,6 @@ optim_wrapper = dict(
         'num_layers': 12
     },
     )
-    # loss_scale='dynamic')
 
 param_scheduler = [
     dict(
