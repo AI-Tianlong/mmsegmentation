@@ -15,17 +15,25 @@ from mmseg.structures import SegDataSample
 
 try:
     from mmengine.analysis import get_model_complexity_info
-    from mmengine.analysis.print_helper import _format_size
+    # from mmengine.analysis.print_helper import _format_size
 except ImportError:
     raise ImportError('Please upgrade mmengine >= 0.6.0 to use this script.')
+
+
+
+# python tools/analysis_tools/get_flops_BHCCM.py 
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/计算FLOPS/part2-baseline-GF2-convnext-B-upernet-baseline-640x640.py
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/BHCCM+LHSC-GF2/BHCCM+LHSC-GF2-convnext-B-upernet.py
+# --shape 640
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
         description='Get the FLOPs of a segmentor')
-    parser.add_argument('config', help='train config file path')
+    parser.add_argument('--config', help='train config file path', default=
+    '/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/计算FLOPS/part2-baseline-GF2-convnext-B-upernet-baseline-640x640.py')
     parser.add_argument(
-        '--shape', type=int, nargs='+', default=None, help='input image size')
+        '--shape', type=int, nargs='+', default=640, help='input image size')
     parser.add_argument(
         '--cfg-options',
         nargs='+',
@@ -39,6 +47,45 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+
+def _format_size(x: int, sig_figs: int = 3, hide_zero: bool = False) -> str:
+    """Formats an integer for printing in a table or model representation.
+
+    Expresses the number in terms of 'kilo', 'mega', etc., using
+    'K', 'M', etc. as a suffix.
+
+    Args:
+        x (int): The integer to format.
+        sig_figs (int): The number of significant figures to keep.
+            Defaults to 3.
+        hide_zero (bool): If True, x=0 is replaced with an empty string
+            instead of '0'. Defaults to False.
+
+    Returns:
+        str: The formatted string.
+    """
+    if hide_zero and x == 0:
+        return ''
+
+    def fmt(x: float) -> str:
+        # use fixed point to avoid scientific notation
+        return f'{{:.{sig_figs}f}}'.format(x).rstrip('0').rstrip('.')
+
+    # if abs(x) > 1e14:
+    #     return fmt(x / 1e15) + 'P'
+    # if abs(x) > 1e11:
+    #     return fmt(x / 1e12) + 'T'
+    if abs(x) > 1e8:
+        return fmt(x / 1e9) + 'G'
+    if abs(x) > 1e5:
+        return fmt(x / 1e6) + 'M'
+    if abs(x) > 1e2:
+        return fmt(x / 1e3) + 'K'
+    return str(x)
+
+def fmt(x: float) -> str:
+    # use fixed point to avoid scientific notation
+    return f'{{:.{4}f}}'.format(x).rstrip('0').rstrip('.')
 
 def inference(args: argparse.Namespace, logger: MMLogger) -> dict:
     config_name = Path(args.config)
@@ -80,14 +127,17 @@ def inference(args: argparse.Namespace, logger: MMLogger) -> dict:
         # TODO: Support MaskFormer and Mask2Former
         raise NotImplementedError('MaskFormer and Mask2Former are not '
                                   'supported yet.')
+
     outputs = get_model_complexity_info(
         model,
         # input_shape, #注释掉这里
-        inputs=data['inputs'],
-        show_table=False,
-        show_arch=False)
-    result['flops'] = _format_size(outputs['flops'])
-    result['params'] = _format_size(outputs['params'])
+        inputs=data['inputs'], # [1,4,640,640]
+        show_table=True, # 默认False
+        show_arch=True)  # 默认False
+    # result['flops'] = _format_size(outputs['flops'])
+    # result['params'] = _format_size(outputs['params'])
+    result['flops'] = fmt(outputs['flops']/ 1e9) + 'G'
+    result['params'] = fmt(outputs['params']/ 1e6) + 'M'
     result['compute_type'] = 'direct: randomly generate a picture'
     return result
 
@@ -103,17 +153,35 @@ def main():
     pad_shape = result['pad_shape']
     flops = result['flops']
     params = result['params']
+
+    # import pdb; pdb.set_trace()
+    # flops_G = f"{result['flops'] / 1e9:.3f}G"
+    # params_M = f"{result['params'] / 1e6:.3f}M"
     compute_type = result['compute_type']
 
     if pad_shape != ori_shape:
         print(f'{split_line}\nUse size divisor set input shape '
               f'from {ori_shape} to {pad_shape}')
-    print(f'{split_line}\nCompute type: {compute_type}\n'
-          f'Input shape: {pad_shape}\nFlops: {flops}\n'
-          f'Params: {params}\n{split_line}')
+    
+    print(f'{split_line}')
+    print(f'Compute type:{compute_type}')
+    print(f'Input shape: {pad_shape}')
+    print(f'Flops: {flops}')
+    print(f'Params: {params}')
+    print(f'{split_line}')
+
     print('!!!Please be cautious if you use the results in papers. '
           'You may need to check if all ops are supported and verify '
           'that the flops computation is correct.')
+
+
+    
+    # print(f'{split_line}\nCompute type: {compute_type}\n'
+    #       f'Input shape: {pad_shape}\nFlops: {flops}\n'
+    #       f'Params: {params}\n{split_line}')
+    # print('!!!Please be cautious if you use the results in papers. '
+    #       'You may need to check if all ops are supported and verify '
+    #       'that the flops computation is correct.')
 
 
 if __name__ == '__main__':

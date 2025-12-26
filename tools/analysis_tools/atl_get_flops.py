@@ -9,7 +9,7 @@ import glob
 
 import torch
 from torch import nn
-
+from mmengine import Config, DictAction
 
 try:
     from mmcv.cnn.utils.flops_counter import flops_to_string, params_to_string, print_model_with_flops
@@ -17,8 +17,7 @@ try:
 except ImportError:
     raise ImportError('Please upgrade mmcv to >0.6.2')
 
-
-from build import read_config
+# from build import read_config
 
 
 def n_params(*args):
@@ -147,6 +146,7 @@ def get_backbone_flops_vit(model, input_shape, model_config):
     return flops_to_string(flops, precision=1), params_to_string(params, precision=1)
 
 def main(config_name, out_file=None):
+    cfg: Config = Config.fromfile(config_name)
     config_backbone, shape, model_cls = read_config(config_name)
     
     if "mlp_type" in config_backbone:

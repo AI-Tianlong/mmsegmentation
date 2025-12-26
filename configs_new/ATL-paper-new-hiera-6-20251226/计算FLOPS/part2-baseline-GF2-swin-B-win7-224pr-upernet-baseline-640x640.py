@@ -39,25 +39,26 @@ from mmseg.evaluation import IoUMetric
 from mmseg.evaluation.metrics.iou_metric_level import IoUMetric_level
 
 with read_base():
-    from ..._base_.datasets.Google_5B_18class_896 import *
+    from ..._base_.datasets.GF2_5B_18class_640 import *
     from ..._base_.default_runtime import *
     # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_80k import *
 
 test_output_level = 'L3' # 输出L3, 验证L的精度
 
+find_unused_parameters = True
 L3_num_classes = 18
+crop_size = (640, 640)
+
 backbone_norm_cfg = dict(type='LN', requires_grad=True)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
 # pretrained  = 'https://download.openmmlab.com/mmclassification/v0/convnext/downstream/convnext-large_3rdparty_in21k_20220301-e6e0ea0a.pth'
-pretrained = 'checkpoints/2-对比实验的权重/swin-224/large/swin_large_win7_224_3chan.pth'
-
-crop_size = (896, 896)
+pretrained = 'checkpoints/2-对比实验的权重/swin-224/base/swin_base_win7_224_4chan.pth'
 data_preprocessor = dict(
     type=SegDataPreProcessor,
-    mean = [123.675, 116.28, 103.53],
-    std = [58.395, 57.12, 57.375],
+    mean = [412.62603765, 317.66892688, 243.74720123, 292.61469172],
+    std = [42.79585263, 45.59081086, 54.94280476, 69.32133677],
     pad_val=0,
     seg_pad_val=255,
     size=crop_size)
@@ -67,14 +68,14 @@ model = dict(
     data_preprocessor=data_preprocessor,
     backbone=dict(
         type=SwinTransformer,
-        in_channels=3,
+        in_channels=4,
         pretrain_img_size=224,
-        embed_dims=192,
+        embed_dims=128,
         patch_size=4,
         window_size=7,
         mlp_ratio=4,
         depths=[2, 2, 18, 2],
-        num_heads=[6, 12, 24, 48],
+        num_heads=[4, 8, 16, 32],
         strides=(4, 2, 2, 2),
         out_indices=(0, 1, 2, 3),
         qkv_bias=True,
@@ -90,20 +91,21 @@ model = dict(
         ),
     decode_head=dict(
         type=UPerHead,
-        in_channels=[192, 384, 768, 1536],
+        in_channels=[128, 256, 512, 1024],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
-        channels=1024,
+        channels=768,
         dropout_ratio=0.1,
         num_classes=L3_num_classes,
         norm_cfg=norm_cfg,
         align_corners=False,
         loss_decode=dict(
             type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)),
-    train_cfg=dict(),
-    test_cfg=dict(mode='whole'))
-    # test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
 
+    train_cfg=dict(),
+    # test_cfg=dict(mode='whole'))
+    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341)))
+    # )
 
 
 optimizer=dict(

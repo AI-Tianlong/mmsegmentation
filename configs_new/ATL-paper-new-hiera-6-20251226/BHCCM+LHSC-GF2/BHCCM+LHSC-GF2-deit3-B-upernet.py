@@ -15,12 +15,12 @@ from mmseg.models.segmentors.encoder_decoder_BHCCM import EncoderDecoder_BHCCM
 # SegDataPreProcessor
 from mmseg.models.data_preprocessor import SegDataPreProcessor
 # Backbone
-from mmpretrain.models.backbones.convnext import ConvNeXt
+from mmseg.models.backbones.deit3 import DeiT3
+# Neck
+from mmseg.models.necks.multilevel_neck import  MultiLevelNeck
 # DecodeHead
 from mmseg.models.decode_heads.uper_head_BHCCM import UPerHead_BHCCM
-
 # Loss
-# from mmseg.models.losses.hcc_loss import HCC_LOSS
 from mmseg.models.losses.atl_hsc_loss import HSC_LOSS
 # Optimizer
 from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
@@ -54,7 +54,7 @@ L3_num_classes = 18  # number of L1 Level label  # 21
 crop_size = (640, 640)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
-pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-4chan.pth'
+pretrained = 'checkpoints/2-对比实验的权重/deit3/4chan/deit3-base-384px-4chan.pth'
 data_preprocessor = dict(
         type=SegDataPreProcessor,
         mean = [412.62603765, 317.66892688, 243.74720123, 292.61469172],
@@ -68,15 +68,21 @@ model = dict(
     data_preprocessor=data_preprocessor,
     # pretrained=None,
     backbone=dict(
-        type=ConvNeXt,
-        in_channels=4,
+        type=DeiT3,
         arch='base',
-        out_indices=[0, 1, 2, 3],
-        drop_path_rate=0.4,
-        layer_scale_init_value=1.0,
-        gap_before_final_norm=False,
-        init_cfg=dict(
-            type='Pretrained', checkpoint=pretrained, prefix='backbone.')),
+        in_channels=4,
+        img_size=crop_size[0],
+        patch_size=16,
+        drop_path_rate=0.15,
+        out_type='featmap',
+        out_indices=(2, 5, 8, 11), # -1 ?测试一下
+        init_cfg=dict(type='Pretrained', checkpoint=pretrained, prefix='backbone.'),
+        ),
+    neck=dict(
+        type=MultiLevelNeck,
+        in_channels=[768, 768, 768, 768],
+        out_channels=768,
+        scales=[4, 2, 1, 0.5]),
     decode_head=dict(
         type=UPerHead_BHCCM,
         ouput_level = ouput_level,
@@ -88,9 +94,9 @@ model = dict(
             mode = 'L_HSC',
             num_classes=[L1_num_classes, L2_num_classes, L3_num_classes],
             loss_weight=1.0),
-        
+
         # type=UPerHead,
-        in_channels=[128, 256, 512, 1024],
+        in_channels=[768, 768, 768, 768],
         in_index=[0, 1, 2, 3],
         pool_scales=(1, 2, 3, 6),
         channels=768,
@@ -101,29 +107,23 @@ model = dict(
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
 
-optimizer=dict(
-        type=AdamW, 
-        lr=0.0001, 
-        betas=(0.9, 0.999), 
-        weight_decay=0.05)
-
+# 和 vit vit_deit的配置一样
 optim_wrapper = dict(
-    # type='AmpOptimWrapper',  # mmengine 混合精度江都训练内存
     type=OptimWrapper,
-    optimizer=optimizer,
-    constructor=LearningRateDecayOptimizerConstructor,
-    paramwise_cfg={
-        'decay_rate': 0.9,
-        'decay_type': 'stage_wise',
-        'num_layers': 12
-    },
-    )
-    # loss_scale='dynamic')
+    optimizer=dict(
+        type=AdamW, lr=0.00006, betas=(0.9, 0.999), weight_decay=0.01),
+    paramwise_cfg=dict(
+        custom_keys={
+            'pos_embed': dict(decay_mult=0.),
+            'cls_token': dict(decay_mult=0.),
+            'norm': dict(decay_mult=0.)
+        }))
+
 param_scheduler = [
     dict(
-        type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=1500),
+        type=LinearLR, start_factor=1e-6, by_epoch=False, begin=0, end=1500),
     dict(
-        type='PolyLR',
+        type=PolyLR,
         power=1.0,
         begin=1500,
         end=80000,
