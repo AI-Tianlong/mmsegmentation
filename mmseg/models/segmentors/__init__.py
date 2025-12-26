@@ -13,6 +13,7 @@ from .atl_encoder_decoder_Membedding_Sdecoder_stack_after_patch_embedding import
 
 from .atl_multi_encoder_multi_decoder import ATL_Multi_Encoder_Multi_Decoder
 from .atl_multi_encoder_multi_decoder_cfglist import ATL_Multi_Encoder_Multi_Decoder_cfglist
+from .encoder_decoder_hsm_L1L2L3 import EncoderDecoder_HSM
 
 __all__ = [
     'BaseSegmentor', 'EncoderDecoder', 'CascadeEncoderDecoder', 'SegTTAModel',
@@ -20,4 +21,5 @@ __all__ = [
     'ATL_Multi_Embedding_EncoderDecoder', 'ATL_Multi_Embedding_Multi_Decoder_EncoderDecoder',
     'ATL_Multi_Embedding_Single_Decoder_AfterPatchEmbedding_stack_EncoderDecoder',
     'ATL_Multi_Encoder_Multi_Decoder','ATL_Multi_Encoder_Multi_Decoder_cfglist',
+    'EncoderDecoder_HSM'
 ]

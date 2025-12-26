@@ -66,5 +66,5 @@ __all__ = [
     'ATL_Hiera_LightHamHead_Multi_convseg',
     'ATL_multi_embedding_FCNHead',
     'ATL_Multi_Encoder_Multi_Decoder_UPerHead',
-    'ATL_Multi_Encoder_Multi_Decoder_LightHamHead'
+    'ATL_Multi_Encoder_Multi_Decoder_LightHamHead',
 ]

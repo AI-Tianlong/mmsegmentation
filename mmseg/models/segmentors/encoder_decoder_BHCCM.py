@@ -17,7 +17,7 @@ from ..utils import resize
 
 
 # @MODELS.register_module()
-class EncoderDecoder_HSM(BaseSegmentor):
+class EncoderDecoder_BHCCM(BaseSegmentor):
     """Encoder Decoder segmentors.
 
     EncoderDecoder typically consists of backbone, decode_head, auxiliary_head.
@@ -102,7 +102,6 @@ class EncoderDecoder_HSM(BaseSegmentor):
 
     def _init_decode_head(self, decode_head: ConfigType) -> None:
         """Initialize ``decode_head``"""
-        import pdb; pdb.set_trace()
         self.decode_head = MODELS.build(decode_head)
         self.align_corners = self.decode_head.align_corners
         self.num_classes = self.decode_head.num_classes

@@ -29,7 +29,7 @@ with read_base():
     from ..._base_.default_runtime import *
     from ..._base_.schedules.schedule_80k import *
 
-test_output_level = 'L3' # 输出L3, 验证L的精度
+test_output_level = 'L2' # 输出L3, 验证L的精度
 
 num_classes = 18 #倒是也不太影像，这里该改成19的
 # randomness=dict(seed=42, deterministic=True)   # 同时要去改test.py文件

@@ -16,11 +16,14 @@ from .utils import reduce_loss, weight_reduce_loss, weighted_loss
 from .atl_hiera_37_loss import ATL_Hiera_Loss
 from .atl_hiera_37_loss_convseg import ATL_Hiera_Loss_convseg
 
+from .atl_hsc_loss import HSC_LOSS
+
 __all__ = [
     'accuracy', 'Accuracy', 'cross_entropy', 'binary_cross_entropy',
     'mask_cross_entropy', 'CrossEntropyLoss', 'reduce_loss',
     'weight_reduce_loss', 'weighted_loss', 'LovaszLoss', 'DiceLoss',
     'FocalLoss', 'TverskyLoss', 'OhemCrossEntropy', 'BoundaryLoss',
     'HuasdorffDisstanceLoss', 'SiLogLoss', 'ATL_Loss',
-    'ATL_Hiera_Loss','ATL_Hiera_Loss_convseg'
+    'ATL_Hiera_Loss','ATL_Hiera_Loss_convseg',
+    'HSC_LOSS'
 ]
