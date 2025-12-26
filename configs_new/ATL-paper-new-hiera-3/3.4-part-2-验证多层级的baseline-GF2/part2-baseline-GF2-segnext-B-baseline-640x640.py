@@ -64,6 +64,7 @@ model = dict(
         attention_kernel_paddings=[2, [0, 3], [0, 5], [0, 10]],
         act_cfg=dict(type=GELU),
         norm_cfg=dict(type=SyncBN, requires_grad=True)),
+        
     decode_head=dict(
         type=LightHamHead,
         in_channels=[128, 320, 512],

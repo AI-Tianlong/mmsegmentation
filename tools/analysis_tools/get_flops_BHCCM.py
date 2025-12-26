@@ -23,7 +23,9 @@ except ImportError:
 
 # python tools/analysis_tools/get_flops_BHCCM.py 
 # /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/计算FLOPS/part2-baseline-GF2-convnext-B-upernet-baseline-640x640.py
-# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/BHCCM+LHSC-GF2/BHCCM+LHSC-GF2-convnext-B-upernet.py
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/计算FLOPS/part2-baseline-GF2-convnext-L-upernet-baseline-640x640.py
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/计算FLOPS/part2-baseline-GF2-convnext-L-upernet-baseline-640x640.py
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/计算FLOPS/BHCCM+LHSC-GF2-convnext-L-upernet.py
 # --shape 640
 
 
@@ -31,7 +33,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='Get the FLOPs of a segmentor')
     parser.add_argument('--config', help='train config file path', default=
-    '/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/计算FLOPS/part2-baseline-GF2-convnext-B-upernet-baseline-640x640.py')
+    '/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/计算FLOPS/BHCCM+LHSC-GF2-convnext-L-upernet.py')
     parser.add_argument(
         '--shape', type=int, nargs='+', default=640, help='input image size')
     parser.add_argument(
