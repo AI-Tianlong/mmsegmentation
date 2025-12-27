@@ -9,15 +9,19 @@ from mmseg.datasets.transforms import (LoadAnnotations, PackSegInputs,
                                        PhotoMetricDistortion, RandomCrop,
                                        ResizeShortestEdge)
 from mmseg.datasets.transforms.loading import LoadSingleRSImageFromFile
+from torch.nn.modules.activation import GELU
+from torch.nn.modules.normalization import GroupNorm as GN
+
 
 # EncoderDecoder
 from mmseg.models.segmentors.encoder_decoder_BHCCM import EncoderDecoder_BHCCM
 # SegDataPreProcessor
 from mmseg.models.data_preprocessor import SegDataPreProcessor
 # Backbone
-from mmpretrain.models.backbones.convnext import ConvNeXt
+from mmseg.models.backbones import MSCAN
 # DecodeHead
 from mmseg.models.decode_heads.uper_head_BHCCM import UPerHead_BHCCM
+from mmseg.models.decode_heads.ham_head_BHCCM import LightHamHead_BHCCM
 
 # Loss
 # from mmseg.models.losses.hcc_loss import HCC_LOSS
@@ -28,6 +32,8 @@ from mmseg.engine.optimizers import (LayerDecayOptimizerConstructor,
 # Evaluation
 from mmseg.evaluation.metrics.iou_metric_hsm import IoUMetric_HSM
 
+
+
 with read_base():
     from ..._base_.datasets.S2_5B_18class_512 import *
     from ..._base_.default_runtime import *
@@ -35,7 +41,7 @@ with read_base():
 
 # base setting 
 ouput_level = 'L3'  # 输出L3, 验证L3的精度
-results_with_JSPS = False  # 是否合并层级结果
+results_with_JSPS = True  # 是否合并层级结果
 
 test_evaluator = dict(
     type=IoUMetric_HSM,
@@ -45,6 +51,9 @@ test_evaluator = dict(
     iou_metrics=['mIoU', 'mFscore'],
     # format_only=True,
     keep_results=True)
+
+
+
 val_evaluator = test_evaluator
 
 L1_num_classes = 4  # number of L1 Level label   # 5
@@ -54,7 +63,8 @@ L3_num_classes = 18  # number of L1 Level label  # 21
 crop_size = (512, 512)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
-pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-10chan.pth'
+pretrained = 'checkpoints/2-对比实验的权重/segnext/base/segnext_mscan_b_10chan.pth' 
+ham_norm_cfg = dict(type=GN, num_groups=32, requires_grad=True)
 data_preprocessor = dict(
     type=SegDataPreProcessor,
     mean =[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -69,17 +79,21 @@ model = dict(
     data_preprocessor=data_preprocessor,
     # pretrained=None,
     backbone=dict(
-        type=ConvNeXt,
+        type=MSCAN,
+        init_cfg=dict(type='Pretrained', checkpoint=pretrained),
         in_channels=10,
-        arch='base',
-        out_indices=[0, 1, 2, 3],
-        drop_path_rate=0.4,
-        layer_scale_init_value=1.0,
-        gap_before_final_norm=False,
-        init_cfg=dict(
-            type='Pretrained', checkpoint=pretrained, prefix='backbone.')),
+        embed_dims=[64, 128, 320, 512],
+        mlp_ratios=[8, 8, 4, 4],
+        drop_rate=0.0,
+        drop_path_rate=0.1,
+        depths=[3, 3, 12, 3],
+        attention_kernel_sizes=[5, [1, 7], [1, 11], [1, 21]],
+        attention_kernel_paddings=[2, [0, 3], [0, 5], [0, 10]],
+        act_cfg=dict(type=GELU),
+        norm_cfg=dict(type=SyncBN, requires_grad=True)),
+
     decode_head=dict(
-        type=UPerHead_BHCCM,
+        type=LightHamHead_BHCCM,
         ouput_level = ouput_level,
         results_with_JSPS = results_with_JSPS,
         num_classes_level_list = [L1_num_classes, L2_num_classes, L3_num_classes],
@@ -91,34 +105,34 @@ model = dict(
             loss_weight=1.0),
         
         # type=UPerHead,
-        in_channels=[128, 256, 512, 1024],
-        in_index=[0, 1, 2, 3],
-        pool_scales=(1, 2, 3, 6),
-        channels=768,
+        in_channels=[128, 320, 512],
+        in_index=[1, 2, 3], # 为啥不要第一个？
+        channels=512,
+        ham_channels=512,
         dropout_ratio=0.1,
-        norm_cfg=norm_cfg,
+        norm_cfg=ham_norm_cfg,
         align_corners=False,
-    ),
+        ham_kwargs=dict(
+            MD_S=1,
+            MD_R=16,
+            train_steps=6,
+            eval_steps=7,
+            inv_t=100,
+            rand_init=True)),
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
 
-optimizer=dict(
-        type=AdamW, 
-        lr=0.0001, 
-        betas=(0.9, 0.999), 
-        weight_decay=0.05)
-
 optim_wrapper = dict(
-    # type='AmpOptimWrapper',  # mmengine 混合精度江都训练内存
     type=OptimWrapper,
-    optimizer=optimizer,
-    constructor=LearningRateDecayOptimizerConstructor,
-    paramwise_cfg={
-        'decay_rate': 0.9,
-        'decay_type': 'stage_wise',
-        'num_layers': 12
-    },
-    )
+    optimizer=dict(
+        type=AdamW, lr=0.00006, betas=(0.9, 0.999), weight_decay=0.01),
+    paramwise_cfg=dict(
+        custom_keys={
+            'pos_block': dict(decay_mult=0.),
+            'norm': dict(decay_mult=0.),
+            'head': dict(lr_mult=10.)
+        }))
+
     # loss_scale='dynamic')
 param_scheduler = [
     dict(

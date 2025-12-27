@@ -161,6 +161,7 @@ class IoUMetric_HSM(BaseMetric):
             # 根据uperhead的输出，这里是L1、L2、L3
             pred_label = data_sample[f'pred_sem_seg_{level}']['data'].squeeze()  #经过Encode_Decoder的predict的结果 [594,594]
             label = data_sample['gt_sem_seg']['data'].squeeze().to(pred_label)
+
             # import pdb; pdb.set_trace()
             label_list = convert_low_level_label_to_High_level(label, MM_5B_18_hiera_structure)
 
@@ -546,7 +547,6 @@ class IoUMetric_HSM(BaseMetric):
         # reset the results list
         self.results.clear()
         return metrics[0] #最后的那个，这里直接打印出来得了
-
 
 def _to_cpu(data: Any) -> Any:
     """transfer all tensors and BaseDataElement to cpu."""
