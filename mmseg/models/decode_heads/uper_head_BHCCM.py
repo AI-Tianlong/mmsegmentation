@@ -14,11 +14,12 @@ from .psp_head import PPM
 
 import torch.nn.functional as F
 from mmcv.cnn import ConvModule, DepthwiseSeparableConvModule, build_norm_layer
-from mmseg.models.losses import accuracy
+
+import torch.nn.functional as F
+from torch import Tensor
 from mmseg.utils import SampleList, ConfigType
 from typing import List, Tuple
-
-
+from mmseg.models.losses import accuracy
 from mmseg.models.losses.atl_hsc_loss import (convert_low_level_label_to_High_level,
                                           L1_L2map, L2_L3map,
                                           MM_5B_18_hiera_structure)
@@ -69,8 +70,6 @@ class BHCCM_MergeBlock(nn.Module):
         convseg_outputs_att = channel_att_out * convseg_outputs_att * spatial_att_out
 
         return convseg_outputs_att
-
-
 
 # @MODELS.register_module()
 class UPerHead_BHCCM(BaseDecodeHead):
@@ -132,19 +131,19 @@ class UPerHead_BHCCM(BaseDecodeHead):
         if isinstance(num_classes_level_list, list):
             self.num_classes_level_list = num_classes_level_list  # [5,9,10]
 
-
             if self.hiera_mode == 'xiaorong2':
-                # 消融实验2  # 多层级间没有交互。只是输出三个通道，然后去独立计算CEloss。
+                # 消融实验2  # 多层级间没有交互。只是输出三个通道，然后去独立计算3个CEloss L_HCE。
                 self.conv_seg_L1 = nn.Conv2d(self.channels, num_classes_level_list[0], kernel_size=1) #(1024-->4)
                 self.conv_seg_L2 = nn.Conv2d(self.channels, num_classes_level_list[1], kernel_size=1) #(1024-->9)
                 self.conv_seg_L3 = self.conv_seg                                                      #(1024-->9)
             
             elif self.hiera_mode == 'xiaorong3':
-                # 消融实验3  # 多层级间只有从粗到细交互，然后独立计算CELoss。
+                # 消融实验3  # 多层级间只有从粗到细交互，然后去独立计算3个CEloss L_HCE。
                 self.conv_seg_L1 = nn.Conv2d(self.channels, num_classes_level_list[0], kernel_size=1) #(1024-->5)
                 self.conv_seg_L2 = nn.Conv2d(self.channels, num_classes_level_list[1], kernel_size=1)
                 self.conv_seg_L3 = self.conv_seg
                 # stage1: coarse to fine 4-->9 | 4->18 9->18
+
                 self.stage1_1to2_MB = BHCCM_MergeBlock(num_classes_level_list[0], num_classes_level_list[1])# For L2
                 self.stage1_w12 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
                 self.stage1_w22 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
@@ -201,6 +200,39 @@ class UPerHead_BHCCM(BaseDecodeHead):
                 self.stage2_y21 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
                 self.stage2_y11 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
                 
+            elif self.hiera_mode == 'xiaorong6': # BHCCM
+                # 消融实验6  # 多层级间双向交互，然后最后一个的输出，是原始输出特征，叠加交互后的特征，然后用L_HSC作为损失函数。
+                self.conv_seg_L1 = nn.Conv2d(self.channels, num_classes_level_list[0], kernel_size=1) #[2,1024,128,128]->[2,4,128,128]
+                self.conv_seg_L2 = nn.Conv2d(self.channels, num_classes_level_list[1], kernel_size=1) #(1024-->9)
+                self.conv_seg_L3 = self.conv_seg                                                      #(1024-->18) # 默认的conv_seg
+                
+                # stage1: coarse to fine 4-->9 | 4->18 9->18
+                self.stage1_1to2_MB = BHCCM_MergeBlock(num_classes_level_list[0], num_classes_level_list[1])# For L2
+                self.stage1_w12 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
+                self.stage1_w22 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
+                
+                self.stage1_1to3_MB = BHCCM_MergeBlock(num_classes_level_list[0], num_classes_level_list[2])# For L3
+                self.stage1_2to3_MB = BHCCM_MergeBlock(num_classes_level_list[1], num_classes_level_list[2])
+                self.stage1_w13 = nn.Parameter(torch.tensor(1.0), requires_grad=True) 
+                self.stage1_w23 = nn.Parameter(torch.tensor(1.0), requires_grad=True) 
+                self.stage1_w33 = nn.Parameter(torch.tensor(1.0), requires_grad=True) 
+                
+                # stage2: fine to coarse 18-->9 | 18-->4  9-->4
+                self.stage2_3to2_MB = BHCCM_MergeBlock(num_classes_level_list[2], num_classes_level_list[1])# For L2
+                self.stage2_y32 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
+                self.stage2_y22 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
+
+                self.stage2_3to1_MB = BHCCM_MergeBlock(num_classes_level_list[2], num_classes_level_list[0])# For L1
+                self.stage2_2to1_MB = BHCCM_MergeBlock(num_classes_level_list[1], num_classes_level_list[0])# For L1
+                self.stage2_y31 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
+                self.stage2_y21 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
+                self.stage2_y11 = nn.Parameter(torch.tensor(1.0), requires_grad=True) 
+
+                self.stage2_z11 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
+                self.stage2_z22 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
+                self.stage2_z33 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
+
+
             else:
                 raise ValueError(f'不支持的 hiera_mode: {self.hiera_mode}, 请检查消融实验配置')
             
@@ -420,7 +452,38 @@ class UPerHead_BHCCM(BaseDecodeHead):
 
             # [[2, 4, 160, 160],[2, 9, 160, 160],[2,18,160,160]]
             return output_list
-        
+
+        elif self.hiera_mode == 'xiaorong6':
+            # 消融实验6  # 多层级间双向交互，把原始特征，再给一个给交互后的，然后一起输出用L_HSC loss。
+            # original feature
+            L1_in = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L1) # [2,1024,128,128]->[2,4,128,128]
+            L2_in = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L2) # [2,1024,128,128]->[2,9,128,128]
+            L3_in = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L3) # [2,1024,128,128]->[2,18,128,128]
+
+            # stage1 coarse to fine
+            L1_mid  = L1_in
+            L2_mid  = self.stage1_w12 * self.stage1_1to2_MB(L1_in) + self.stage1_w22 * L2_in 
+            L3_mid  = self.stage1_w13 * self.stage1_1to3_MB(L1_in) + \
+                      self.stage1_w23 * self.stage1_2to3_MB(L2_in) + \
+                      self.stage1_w33 * L3_in
+
+            # stage2: fine to coarse
+            L1_out = self.stage2_y31*self.stage2_3to1_MB(L3_mid) + \
+                     self.stage2_y21*self.stage2_2to1_MB(L2_mid) + \
+                     self.stage2_y11*L1_mid
+            L2_out = self.stage2_y32*self.stage2_3to2_MB(L3_mid) + \
+                     self.stage2_y22*L2_mid
+            L3_out = L3_mid
+            
+            L1_out = L1_in + self.stage2_z11 * L1_out
+            L2_out = L2_in + self.stage2_z22 * L2_out
+            L3_out = L3_in + self.stage2_z33 * L3_out
+
+
+            output_list = [L1_out, L2_out, L3_out]  # TODO:双向信息融合完的特征。用不用把这个融合完的特征，再和没融合之前的特征，做个交互/叠加？
+
+            # [[2, 4, 160, 160],[2, 9, 160, 160],[2,18,160,160]]
+            return output_list
         else:
             raise ValueError(f'不支持的 hiera_mode: {self.hiera_mode}, 请检查消融实验配置')
 
@@ -529,14 +592,6 @@ class UPerHead_BHCCM(BaseDecodeHead):
         loss['acc_seg_L2'] = accuracy(seg_logits_L2, seg_label_list[1], ignore_index=self.ignore_index)
         loss['acc_seg_L3'] = accuracy(seg_logits_L3, seg_label_list[2], ignore_index=self.ignore_index)
         loss['acc_seg'] = accuracy(seg_logits_L3, seg_label, ignore_index=self.ignore_index)
-
-
-        # if self.results_path_merge:
-        #     path_merge_mask = self.results_path_merge_func(seg_logits) # 选择最优路径的mask，获得的是mask，而不是seglogits？
-        #     # seg_logits = seg_logits[2] # 输出融合后L3的特征图, 去计算精度
-        #     path_merge_mask_L1 = path_merge_mask[:,0:1,:,:]
-        #     path_merge_mask_L2 = path_merge_mask[:,1:2,:,:]
-        #     path_merge_mask_L3 = path_merge_mask[:,2:3,:,:]
 
         # # import pdb; pdb.set_trace()
         if self.results_with_JSPS:

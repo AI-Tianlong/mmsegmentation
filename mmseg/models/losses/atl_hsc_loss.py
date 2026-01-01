@@ -305,7 +305,7 @@ class HSC_LOSS(nn.Module):
                 L_HPC = pred_seg_logits[0].sum() * 0.0
 
             # ======================= L_HSC ==========================
-            alpha = 2.0
+            alpha = 1.0
             L_HSC = L_HCE + alpha * L_HPC
             loss = L_HSC
 

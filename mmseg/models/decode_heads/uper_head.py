@@ -159,6 +159,11 @@ class UPerHead(BaseDecodeHead):
 
     def forward(self, inputs):
         """Forward function."""
-        output = self._forward_feature(inputs)  # [2,768,128,128]
+
+        # import pdb; pdb.set_trace()
+        output = self._forward_feature(inputs)  # [2,768,128,128] 
         output = self.cls_seg(output)  # [2,4,128,128]
         return output
+    
+    # ViT: [2,768,160,160][2,768,80,80][2,768,40,40][2,768,20,20]
+    # ConvNeXt: [2,128,160,160][2,256,80,80][2,512,40,40][2,1024,20,20]

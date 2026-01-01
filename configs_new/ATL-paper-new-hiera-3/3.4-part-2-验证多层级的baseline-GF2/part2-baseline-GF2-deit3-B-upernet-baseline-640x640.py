@@ -4,9 +4,8 @@
 # Licensed under The MIT License [see LICENSE for details]
 # --------------------------------------------------------
 
-
 from mmengine.config import read_base
-from mmengine.optim.optimizer import OptimWrapper
+from mmengine.optim.optimizer import OptimWrappers
 from mmengine.optim.scheduler.lr_scheduler import LinearLR, PolyLR
 from torch.nn.modules.batchnorm import SyncBatchNorm as SyncBN
 from torch.optim import AdamW

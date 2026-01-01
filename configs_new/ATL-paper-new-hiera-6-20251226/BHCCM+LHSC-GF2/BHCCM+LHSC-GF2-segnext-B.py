@@ -41,7 +41,7 @@ with read_base():
 
 # base setting 
 ouput_level = 'L3'  # 输出L3, 验证L3的精度
-results_with_JSPS = True  # 是否合并层级结果
+results_with_JSPS = False  # 是否合并层级结果
 
 test_evaluator = dict(
     type=IoUMetric_HSM,

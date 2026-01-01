@@ -47,7 +47,6 @@ test_evaluator = dict(
     keep_results=True)
 
 
-
 val_evaluator = test_evaluator
 
 L1_num_classes = 4  # number of L1 Level label   # 5

@@ -22,10 +22,15 @@ except ImportError:
 
 
 # python tools/analysis_tools/get_flops_BHCCM.py 
-# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/计算FLOPS/part2-baseline-GF2-convnext-B-upernet-baseline-640x640.py
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/3.4-part-2-验证多层级的baseline-Google/part2-baseline-Google-convnext-B-upernet-baseline-896x896.py
 # /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/计算FLOPS/part2-baseline-GF2-convnext-L-upernet-baseline-640x640.py
 # /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/计算FLOPS/part2-baseline-GF2-convnext-L-upernet-baseline-640x640.py
 # /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/计算FLOPS/BHCCM+LHSC-GF2-convnext-L-upernet.py
+
+# # /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/3.4-part-2-验证多层级的baseline-GF2/part2-baseline-GF2-segnext-B-baseline-640x640.py
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/3.4-part-2-验证多层级的baseline-GF2/part2-baseline-GF2-segnext-L-baseline-640x640.py
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/BHCCM+LHSC-GF2/BHCCM+LHSC-GF2-segnext-B.py
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/BHCCM+LHSC-GF2/BHCCM+LHSC-GF2-segnext-L.py
 # --shape 640
 
 
@@ -33,9 +38,11 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='Get the FLOPs of a segmentor')
     parser.add_argument('--config', help='train config file path', default=
-    '/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/计算FLOPS/BHCCM+LHSC-GF2-convnext-L-upernet.py')
+    '/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/BHCCM+LHSC-GF2/BHCCM+LHSC-GF2-segnext-L.py')
     parser.add_argument(
         '--shape', type=int, nargs='+', default=640, help='input image size')
+    parser.add_argument(
+    '--channel', type=int, default=4, help='input image size')
     parser.add_argument(
         '--cfg-options',
         nargs='+',
@@ -92,6 +99,8 @@ def fmt(x: float) -> str:
 def inference(args: argparse.Namespace, logger: MMLogger) -> dict:
     config_name = Path(args.config)
 
+    input_channel = args.channel
+
     if not config_name.exists():
         logger.error(f'Config file {config_name} does not exist')
 
@@ -104,9 +113,9 @@ def inference(args: argparse.Namespace, logger: MMLogger) -> dict:
     init_default_scope(cfg.get('scope', 'mmseg'))
 
     if len(args.shape) == 1:
-        input_shape = (4, args.shape[0], args.shape[0])
+        input_shape = (input_channel, args.shape[0], args.shape[0])
     elif len(args.shape) == 2:
-        input_shape = (4 ) + tuple(args.shape)
+        input_shape = (input_channel, ) + tuple(args.shape)
     else:
         raise ValueError('invalid input shape')
     result = {}
@@ -141,6 +150,7 @@ def inference(args: argparse.Namespace, logger: MMLogger) -> dict:
     result['flops'] = fmt(outputs['flops']/ 1e9) + 'G'
     result['params'] = fmt(outputs['params']/ 1e6) + 'M'
     result['compute_type'] = 'direct: randomly generate a picture'
+    print(data['inputs'].shape)
     return result
 
 
