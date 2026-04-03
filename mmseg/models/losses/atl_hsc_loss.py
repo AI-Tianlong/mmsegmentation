@@ -284,7 +284,7 @@ class HSC_LOSS(nn.Module):
                 path_scores = torch.zeros((B, H, W, T), device=device, dtype=logp1.dtype) # torch.Size([2, 640, 640, 18])
 
                 idx1 = valid_paths[:, 0].view(1, 1, 1, T).expand(B, H, W, T)
-                idx2 = valid_paths[:, 1].view(1, 1, 1, T).expand(B, H, W, T)
+                idx2 = valid_paths[:, 1].view(1, 1, 1, T).expand(B, H, W, T) 
                 idx3 = valid_paths[:, 2].view(1, 1, 1, T).expand(B, H, W, T)
 
                 path_scores += torch.gather(logp1, dim=-1, index=idx1)
@@ -292,7 +292,7 @@ class HSC_LOSS(nn.Module):
                 path_scores += torch.gather(logp3, dim=-1, index=idx3)  # torch.Size([2, 640, 640, 18])
 
                 # 5) 路径维 softmax 得到 log P(t)
-                logP = F.log_softmax(path_scores, dim=-1)  # (B,H,W,T) # [2,640,640,18]
+                logP = F.log_softmax(path_scores, dim=-1)  # (B,H,W,T) # [2,640,640,18] 
 
                 # 6) one-hot 目标下 KL(Phat||P) 等价于 -log P(t_gt)
                 gt_path_idx_safe = gt_path_idx.clone()

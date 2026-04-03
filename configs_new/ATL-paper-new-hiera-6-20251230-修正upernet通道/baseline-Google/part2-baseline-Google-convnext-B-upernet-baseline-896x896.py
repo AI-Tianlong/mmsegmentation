@@ -46,7 +46,7 @@ with read_base():
 
 test_output_level = 'L3' # 输出L3, 验证L的精度
 
-find_unused_parameters=True
+# find_unused_parameters=True
 L3_num_classes = 18
 crop_size = (896, 896)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
@@ -87,8 +87,8 @@ model = dict(
         loss_decode=dict(
             type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)),
     train_cfg=dict(),
-    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(512, 512)))
-    # test_cfg=dict(mode='whole'))
+    # test_cfg=dict(mode='slide', crop_size=crop_size, stride=(512, 512)))
+    test_cfg=dict(mode='whole'))
 
 
 optimizer=dict(

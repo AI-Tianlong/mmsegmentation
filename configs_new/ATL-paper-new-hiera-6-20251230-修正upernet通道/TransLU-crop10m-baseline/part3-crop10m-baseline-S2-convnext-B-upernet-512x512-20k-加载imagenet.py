@@ -20,7 +20,7 @@ from mmseg.models.segmentors.atl_hiera_37_encoder_decoder import ATL_Hiera_Encod
 # SegDataPreProcessor
 from mmseg.models.data_preprocessor import SegDataPreProcessor
 # Backbone
-from mmpretrain.models.backbones.convnext import ConvNeXt
+from mmpretrain.models.backbones.convnext import ConvNeXt #mmpretrain的 backbone
 # DecodeHead
 from mmseg.models.decode_heads.uper_head import UPerHead
 from mmseg.models.decode_heads.atl_hiera_37_uper_head_multi_convseg import ATL_hiera_UPerHead_Multi_convseg

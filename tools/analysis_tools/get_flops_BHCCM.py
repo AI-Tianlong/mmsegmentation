@@ -21,16 +21,20 @@ except ImportError:
 
 
 
-# python tools/analysis_tools/get_flops_BHCCM.py 
-# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/3.4-part-2-验证多层级的baseline-Google/part2-baseline-Google-convnext-B-upernet-baseline-896x896.py
-# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/计算FLOPS/part2-baseline-GF2-convnext-L-upernet-baseline-640x640.py
-# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/计算FLOPS/part2-baseline-GF2-convnext-L-upernet-baseline-640x640.py
-# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/计算FLOPS/BHCCM+LHSC-GF2-convnext-L-upernet.py
+# python tools/analysis_tools/get_flops_BHCCM.py --shape 640
 
-# # /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/3.4-part-2-验证多层级的baseline-GF2/part2-baseline-GF2-segnext-B-baseline-640x640.py
-# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-3/3.4-part-2-验证多层级的baseline-GF2/part2-baseline-GF2-segnext-L-baseline-640x640.py
-# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/BHCCM+LHSC-GF2/BHCCM+LHSC-GF2-segnext-B.py
-# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/BHCCM+LHSC-GF2/BHCCM+LHSC-GF2-segnext-L.py
+# baseline
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251230-修正upernet通道/baseline-GF2/part2-baseline-GF2-convnext-B-upernet-baseline-640x640.py
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251230-修正upernet通道/baseline-GF2/part2-baseline-GF2-convnext-L-upernet-baseline-640x640.py
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251230-修正upernet通道/baseline-GF2/part2-baseline-GF2-segnext-S-baseline-640x640.py
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251230-修正upernet通道/baseline-GF2/part2-baseline-GF2-segnext-B-baseline-640x640.py
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251230-修正upernet通道/baseline-GF2/part2-baseline-GF2-segnext-L-baseline-640x640.py
+
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251230-修正upernet通道/BHCCM+LHSC-GF2/BHCCM+LHSC-GF2-convnext-B-upernet-消融6-不加relu.py
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251230-修正upernet通道/BHCCM+LHSC-GF2/BHCCM+LHSC-GF2-convnext-L-upernet-消融6-不加relu.py
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251230-修正upernet通道/BHCCM+LHSC-GF2/BHCCM+LHSC-GF2-segnext-S-消融6.py
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251230-修正upernet通道/BHCCM+LHSC-GF2/BHCCM+LHSC-GF2-segnext-B-消融6.py
+# /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251230-修正upernet通道/BHCCM+LHSC-GF2/BHCCM+LHSC-GF2-segnext-L-消融6.py
 # --shape 640
 
 
@@ -38,7 +42,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='Get the FLOPs of a segmentor')
     parser.add_argument('--config', help='train config file path', default=
-    '/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251226/BHCCM+LHSC-GF2/BHCCM+LHSC-GF2-segnext-L.py')
+    '/data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251230-修正upernet通道/BHCCM+LHSC-GF2/BHCCM+LHSC-GF2-segnext-S-消融6.py')
     parser.add_argument(
         '--shape', type=int, nargs='+', default=640, help='input image size')
     parser.add_argument(

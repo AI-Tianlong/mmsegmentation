@@ -55,7 +55,6 @@ data_preprocessor = dict(
         seg_pad_val=255,
         size=crop_size)
 
-
 model = dict(
     type=EncoderDecoder,
     data_preprocessor=data_preprocessor,

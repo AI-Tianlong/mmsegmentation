@@ -63,7 +63,7 @@ L3_num_classes = 18  # number of L1 Level label  # 21
 crop_size = (640, 640)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
-pretrained = 'checkpoints/2-对比实验的权重/segnext/base/segnext_mscan_b_4chan.pth' 
+pretrained = 'checkpoints/2-对比实验的权重/segnext/small/segnext_mscan_s_4chan.pth'
 ham_norm_cfg = dict(type=GN, num_groups=32, requires_grad=True)
 data_preprocessor = dict(
         type=SegDataPreProcessor,
@@ -85,7 +85,7 @@ model = dict(
         mlp_ratios=[8, 8, 4, 4],
         drop_rate=0.0,
         drop_path_rate=0.1,
-        depths=[3, 3, 12, 3],
+        depths=[2, 2, 4, 2],
         attention_kernel_sizes=[5, [1, 7], [1, 11], [1, 21]],
         attention_kernel_paddings=[2, [0, 3], [0, 5], [0, 10]],
         act_cfg=dict(type=GELU),
@@ -106,8 +106,8 @@ model = dict(
         # type=UPerHead,
         in_channels=[128, 320, 512],
         in_index=[1, 2, 3], # 为啥不要第一个？
-        channels=512,
-        ham_channels=512,
+        channels=256,
+        ham_channels=256,
         dropout_ratio=0.1,
         norm_cfg=ham_norm_cfg,
         align_corners=False,

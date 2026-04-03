@@ -320,7 +320,7 @@ class BidirectionalInteractionUnit_atl(nn.Module):
         
         if with_proj:
             self.branch2to1_proj = nn.Linear(branch2_dim, branch1_dim)
-            self.branch1to2_proj = nn.Linear(branch1_dim, branch2_dim)
+            # self.branch1to2_proj = nn.Linear(branch1_dim, branch2_dim)
             
         self.branch2to1_injector = Injector(dim=branch1_dim,
                                             num_heads=num_heads,
@@ -330,33 +330,33 @@ class BidirectionalInteractionUnit_atl(nn.Module):
                                             attn_type=attn_type,
                                             dim_feat=branch1_dim if with_proj else branch2_dim)
         
-        self.branch1to2_injector = Injector(dim=branch2_dim,
-                                            num_heads=num_heads,
-                                            n_points=n_points, norm_layer=norm_layer, deform_ratio=deform_ratio,
-                                            with_cp=with_cp, with_cffn=with_cffn, cffn_ratio=cffn_ratio, drop=drop, 
-                                            drop_path=drop_path,
-                                            attn_type=attn_type,
-                                            dim_feat=branch2_dim if with_proj else branch1_dim)
+        # self.branch1to2_injector = Injector(dim=branch2_dim,
+        #                                     num_heads=num_heads,
+        #                                     n_points=n_points, norm_layer=norm_layer, deform_ratio=deform_ratio,
+        #                                     with_cp=with_cp, with_cffn=with_cffn, cffn_ratio=cffn_ratio, drop=drop, 
+        #                                     drop_path=drop_path,
+        #                                     attn_type=attn_type,
+        #                                     dim_feat=branch2_dim if with_proj else branch1_dim)
         
     
     def forward(self, x1, x2, deform_inputs1, deform_inputs2, H1, W1, H2, W2):
         # x1 is small image (large model), x2 is large image (small model)
         
         if self.with_proj:
-            x1_branch1to2_proj = self.branch1to2_proj(x1)
+            # x1_branch1to2_proj = self.branch1to2_proj(x1)
             x2_branch2to1_proj = self.branch2to1_proj(x2) 
         else:
-            x1_branch1to2_proj = x1
+            # x1_branch1to2_proj = x1
             x2_branch2to1_proj = x2
         
-        x1 = x1  #不需要改变x1的特征，不需要给x1加注意力。
-        # x1 = self.branch2to1_injector(query=x1, reference_points=deform_inputs1[0],
-        #                               feat=x2_branch2to1_proj, spatial_shapes=deform_inputs1[1],
-        #                               level_start_index=deform_inputs1[2], H=H1, W=W1)
+        x1 = self.branch2to1_injector(query=x1, reference_points=deform_inputs1[0],
+                                      feat=x2_branch2to1_proj, spatial_shapes=deform_inputs1[1],
+                                      level_start_index=deform_inputs1[2], H=H1, W=W1)
         
-        x2 = self.branch1to2_injector(query=x2, reference_points=deform_inputs2[0],
-                                    feat=x1_branch1to2_proj, spatial_shapes=deform_inputs2[1],
-                                    level_start_index=deform_inputs2[2], H=H2, W=W2) 
+        x2 = x2
+        # x2 = self.branch1to2_injector(query=x2, reference_points=deform_inputs2[0],
+        #                             feat=x1_branch1to2_proj, spatial_shapes=deform_inputs2[1],
+        #                             level_start_index=deform_inputs2[2], H=H2, W=W2) 
         return x1, x2
 
 
@@ -515,7 +515,7 @@ class TwoBranchInteractionBlock(nn.Module):
                  attn_type='deform', **kwargs):
         super().__init__()
         self.attn_type = attn_type
-
+                                     # 只有branch2 给 branch1 
         self.interaction_units_12 = BidirectionalInteractionUnit_atl(branch1_dim, branch2_dim, branch1_feat_size, branch2_feat_size, attn_type=attn_type, **kwargs)
         
         # for calculating flops
@@ -578,7 +578,7 @@ class BidirectionalInteractionUnit_segnext(nn.Module):
         
         if with_proj:
             self.branch2to1_proj = nn.Linear(branch2_dim, branch1_dim) # 简单的变换维度
-            self.branch1to2_proj = nn.Linear(branch1_dim, branch2_dim) # 简单的变换维度
+            # self.branch1to2_proj = nn.Linear(branch1_dim, branch2_dim) # 简单的变换维度
         
         # 2to1, 最后输出x1的特征,小的模型给大的模型
         # 输入的维度是1的维度
@@ -616,10 +616,10 @@ class BidirectionalInteractionUnit_segnext(nn.Module):
         # x1 is small image (large model), x2 is large image (small model)
         
         if self.with_proj:
-            x1_branch1to2_proj = self.branch1to2_proj(x1) # 简单的变换维度
+            # x1_branch1to2_proj = self.branch1to2_proj(x1) # 简单的变换维度
             x2_branch2to1_proj = self.branch2to1_proj(x2) # 简单的变换维度
         else:
-            x1_branch1to2_proj = x1
+            # x1_branch1to2_proj = x1
             x2_branch2to1_proj = x2
         # import pdb;pdb.set_trace()                                          # base的
         x1 = self.branch2to1_injector(query=x1,                             # x1[2, 16384, 64]
@@ -630,13 +630,13 @@ class BidirectionalInteractionUnit_segnext(nn.Module):
                                       H=H1,                                 # 128
                                       W=W1)                                 # 128
         
-        x2 = self.branch1to2_injector(query=x2,                             # x2[2,25600,64]
-                                      reference_points=deform_inputs2[0],   # [1,25600,1,2]
-                                      feat=x1_branch1to2_proj,              # x1[2,16384,64]  
-                                      spatial_shapes=deform_inputs2[1],     # [128,128]
-                                      level_start_index=deform_inputs2[2],  # 0  
-                                      H=H2,                                 # 160
-                                      W=W2)                                 # 160
+        # x2 = self.branch1to2_injector(query=x2,                             # x2[2,25600,64]
+        #                               reference_points=deform_inputs2[0],   # [1,25600,1,2]
+        #                               feat=x1_branch1to2_proj,              # x1[2,16384,64]  
+        #                               spatial_shapes=deform_inputs2[1],     # [128,128]
+        #                               level_start_index=deform_inputs2[2],  # 0  
+        #                               H=H2,                                 # 160
+        #                               W=W2)                                 # 160
         return x1, x2
 
 class ThreeBranchInteractionBlock_segnext(nn.Module):

@@ -4,6 +4,6 @@ PORT=12345 CUDA_VISIBLE_DEVICES=0,1 bash tools/dist_train.sh  /data/AI-Tianlong/
 
 PORT=12346 CUDA_VISIBLE_DEVICES=2,3 bash tools/dist_train.sh /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251230-修正upernet通道/BHCCM+LHSC-GF2/BHCCM+LHSC-GF2-swin-B-upernet-消融6.py 2 
 
-PORT=12349 CUDA_VISIBLE_DEVICES=4,5 bash tools/dist_train.sh /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251230-修正upernet通道/BHCCM+LHSC-GF2/BHCCM+LHSC-GF2-deeplabv3-消融6.py 2
+PORT=12350 CUDA_VISIBLE_DEVICES=4,5 bash tools/dist_train.sh /data/AI-Tianlong/openmmlab/mmsegmentation/configs_new/ATL-paper-new-hiera-6-20251230-修正upernet通道/TransLU-crop10m-CDKS+CDSA/TransLU-双分支-crop10m-S2-convnext-B-upernet-512-仅CDKS-branch2加5B权重.py 2
 
 ```

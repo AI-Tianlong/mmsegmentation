@@ -215,7 +215,8 @@ class BHCCM_MergeBlock(nn.Module):
         self.avg_pool = nn.AdaptiveAvgPool2d(output_size=1) # [2,4,128,128]-->[2,4,1,1]  
         self.mlp=nn.Sequential(
             nn.Linear(in_features=in_channels, out_features=out_channels,bias=False), # [2,4,1,1]-->[2,1024,1,1]
-            nn.ReLU())
+            # nn.ReLU(),
+            )
         # L1 spatial_attentation
         self.spatial_conv = nn.Conv2d(in_channels=2, 
                                         out_channels=1, 

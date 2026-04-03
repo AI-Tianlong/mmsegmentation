@@ -227,9 +227,9 @@ class EncoderDecoder_BHCCM(BaseSegmentor):
         seg_logits = self.inference(inputs, batch_img_metas)  # torch.Size([1, 18, 224, 224])
         
         # 是个 tuple！
-        if isinstance(seg_logits, tuple):  # seglogits_list + pred_masks   # 进行merge的
+        if isinstance(seg_logits, tuple):  # seglogits_list + pred_masks   # 进行JSPS的
             postprocess_result = self.postprocess_result_HSM_PathMerge(seg_logits, data_samples)
-        elif isinstance(seg_logits, list) and len(seg_logits)==3:          # 不进行merge的
+        elif isinstance(seg_logits, list) and len(seg_logits)==3:          # 不进行JSPS的
             postprocess_result = self.postprocess_result_HSM(seg_logits, data_samples)
         elif isinstance(seg_logits, Tensor):
             postprocess_result = self.postprocess_result(seg_logits, data_samples) #普通的baseline，L2-->L2-->L1
@@ -398,9 +398,10 @@ class EncoderDecoder_BHCCM(BaseSegmentor):
         """
         
         # seg_logits_tuple:  [[1,4,640,640],[1,9,640,640],[1,18,640,640]]    [1,L1L2L3, 640,640]
+        # BHCCM的输出
         if len(seg_logits_tuple) == 2 and isinstance(seg_logits_tuple[0], list) and isinstance(seg_logits_tuple[1], Tensor):
             seg_logits_list = seg_logits_tuple[0] # [1,18,640,640]
-            pred_masks = seg_logits_tuple[1]  # path merge results # [1,640,640]
+            pred_masks = seg_logits_tuple[1]  # path merge results # [1,640,640] # 经过JSPS处理的
         else:
             raise TypeError(f'请检查seg_logits_tuple的长度，应该为2，但实际为{len(seg_logits_tuple)}')
 
@@ -429,7 +430,6 @@ class EncoderDecoder_BHCCM(BaseSegmentor):
                 i_seg_logits_list = []
                 for level in range(len(seg_logits_list)):
                     i_seg_logits_list.append(seg_logits_list[level][i:i + 1, :, padding_top:H - padding_bottom, padding_left:W - padding_right])
-
 
                 flip = img_meta.get('flip', None)
                 if flip:

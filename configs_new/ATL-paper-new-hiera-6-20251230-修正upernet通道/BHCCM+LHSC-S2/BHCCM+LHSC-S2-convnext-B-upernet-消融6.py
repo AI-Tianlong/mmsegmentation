@@ -133,7 +133,7 @@ param_scheduler = [
     )
 ]
 
-train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=8000) # 4000
+train_cfg.update(type=IterBasedTrainLoop, max_iters=80000, val_interval=10) # 4000
 default_hooks.update(
     timer=dict(type=IterTimerHook),
     logger=dict(type=LoggerHook, interval=50, log_metric_by_epoch=False),

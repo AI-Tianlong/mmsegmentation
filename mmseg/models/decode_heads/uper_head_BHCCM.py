@@ -34,7 +34,8 @@ class BHCCM_MergeBlock(nn.Module):
         self.avg_pool = nn.AdaptiveAvgPool2d(output_size=1) # [2,4,128,128]-->[2,4,1,1]  
         self.mlp=nn.Sequential(
             nn.Linear(in_features=in_channels, out_features=out_channels,bias=False), # [2,4,1,1]-->[2,1024,1,1]
-            nn.ReLU())
+            # nn.ReLU() # 这个应不应该有? 试试没有的。用convnext,没有 效果好！
+            )
         # L1 spatial_attentation
         self.spatial_conv = nn.Conv2d(in_channels=2, 
                                         out_channels=1, 
@@ -57,14 +58,15 @@ class BHCCM_MergeBlock(nn.Module):
         avg_out_channel_att = self.avg_pool(convseg_outputs)
         avg_out_channel_att = self.mlp(avg_out_channel_att.view(avg_out_channel_att.size(0),-1)) # [2,4,1,1]-->[2,9]-->[2,18] or 反过来
         channel_att_out = self.sigmoid(max_out_channel_att+avg_out_channel_att) # [2,9]-->[2,18] or 反过来
-        # import pdb;pdb.set_trace()
         channel_att_out = channel_att_out.view(channel_att_out.size(0), channel_att_out.size(1),1,1) #[2,9]-->[2,9,1,1]
+        
         # spatial
         max_out_spatial_att, _ = torch.max(convseg_outputs, dim=1, keepdim=True) # [2,4,128,128]-->[2,1,128,128]
         mean_out_spatial_att = torch.mean(convseg_outputs, dim=1, keepdim=True) # [2,4,128,128]-->[2,1,128,128]
         spatial_att_out = torch.cat((max_out_spatial_att, mean_out_spatial_att), dim=1) #[2,2,128,128]
         spatial_att_out = self.sigmoid(self.spatial_conv(spatial_att_out)) #[2,2,128,128]-->[2,1,128,128]
                         # [2,9,1,1] * [2,9,128,128] * [2,1,128,128] #用了广播机制
+        
         # 原始特征  1x1 # 这里有个问题，没用原始特征了啊？
         convseg_outputs_att = self.channel_conv_1x1(convseg_outputs) # [2,4,128,128]-->[2,9,128,128]
         convseg_outputs_att = channel_att_out * convseg_outputs_att * spatial_att_out
@@ -620,8 +622,9 @@ class UPerHead_BHCCM(BaseDecodeHead):
         Returns:
             Tensor: Outputs segmentation logits map.
         """
+
         if self.test_output_level is None:
-            self.test_output_level = 'L3'
+            self.test_output_level = 'L3' # 传给了Encoder_decoder
 
         # 这里有问题呀，必须输出的是一个层级的结构，不然没办法后处理
 
@@ -634,7 +637,7 @@ class UPerHead_BHCCM(BaseDecodeHead):
             size = batch_img_metas[0]['img_shape']
 
         if isinstance(seg_logits, list) and len(seg_logits) == 3:
-            for i in range(len(seg_logits)):
+            for i in range(len(seg_logits)):  # [1,4,128,128] (S2)
                 seg_logits[i] = resize(
                     input=seg_logits[i],
                     size=size,
@@ -659,6 +662,7 @@ class UPerHead_BHCCM(BaseDecodeHead):
 
             return (seg_logits, final_pred) # [1,18,640,640], pred_mask # 传递给了Encder和Decoder的 predict
         # 这里是不是应该写在后处理里啊？  写在这里好像不太对，应为post要的是seglogits然后处理。
+        
         return seg_logits  # 输入 seg_logits的list，然后去自动处理成三个mask
     
     def jsps_inference_from_logits(self, pred_seg_logits, valid_paths: torch.Tensor):

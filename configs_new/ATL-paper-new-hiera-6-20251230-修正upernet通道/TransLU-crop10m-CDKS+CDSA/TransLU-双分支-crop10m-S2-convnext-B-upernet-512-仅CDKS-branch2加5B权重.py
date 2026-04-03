@@ -1,5 +1,3 @@
-# 2024-09-02 测试, 可以跑通,loss-从5开始降低。
-
 from mmcv.transforms import (LoadImageFromFile, RandomChoice,
                              RandomChoiceResize, RandomFlip)
 from mmengine.config import read_base
@@ -13,6 +11,7 @@ from mmseg.datasets.transforms import (LoadAnnotations, PackSegInputs,
 from mmseg.datasets.transforms.loading import LoadSingleRSImageFromFile
 
 
+
 # EncoderDecoder
 from mmseg.models.segmentors.encoder_decoder import EncoderDecoder
 from mmseg.models.segmentors.twobranch_encoder_decoder import TwoBranch_EncoderDecoder
@@ -21,7 +20,7 @@ from mmseg.models.segmentors.twobranch_encoder_decoder import TwoBranch_EncoderD
 from mmseg.models.data_preprocessor import SegDataPreProcessor
 # Backbone
 # from mmpretrain.models.backbones.convnext import ConvNeXt
-from mmseg.models.backbones.convnext import ConvNeXt
+from mmseg.models.backbones.convnext import ConvNeXt #mmseg的convnext!自建的！
 # DecodeHead
 from mmseg.models.decode_heads.uper_head import UPerHead
 from mmseg.models.decode_heads.uper_head_hiera import UPerHead_Hiera
@@ -30,44 +29,61 @@ from mmseg.models.decode_heads.uper_head_hiera_2branch import UPerHead_Hiera_2br
 from mmseg.models.losses.atl_hiera_37_loss import ATL_Hiera_Loss
 from mmseg.models.losses.atl_hiera_37_loss_convseg import ATL_Hiera_Loss_convseg
 from mmseg.models.losses.cross_entropy_loss import CrossEntropyLoss
-
 # Optimizer
 from mmseg.engine.optimizers.layer_decay_optimizer_constructor_atl import LearningRateDecayOptimizerConstructor
 # Evaluation
 from mmseg.evaluation import IoUMetric
 
 # 2branch 相关的
-from mmseg.models.segmentors.twobranch_encoder_decoder_mode2 import TwoBranch_EncoderDecoder_mode2
-from mmseg.models.backbones.atl_twobranch_backbone_mode2 import TwoBranch_backbone_mode2
-from mmseg.models.decode_heads.atl_twobranch_head_mode2 import TwoBranch_decode_head_mode2  
+# from mmseg.models.segmentors.twobranch_encoder_decoder_mode2 import TwoBranch_EncoderDecoder_mode2
+# from mmseg.models.backbones.atl_twobranch_backbone_mode2 import TwoBranch_backbone_mode2
+# from mmseg.models.decode_heads.atl_twobranch_head_mode2 import TwoBranch_decodeee_head_mode2  
+
+# TransLU 相关的
+from mmseg.models.losses.atl_hsc_loss import HSC_LOSS
+
+from mmseg.models.segmentors.encoder_decoder_TransLU_only_CDKS import EncoderDecoder_TransLU_only_CDKS
+from mmseg.models.backbones.TransLU_backbone_CDKS import TransLU_backbone_CDKS # 这个两分支正常CDKS交互
+from mmseg.models.decode_heads.uper_head import UPerHead                       # 这里只要一个正常的uperhead
+
+# from mmseg.models.decode_heads.TransLU_decode_head_noCDSA import TransLU_decode_head  # 这个只需要一个branch1的decode_head 
+
+# from mmseg.models.decode_heads.uper_head_BHCCM_TransLU import UPerHead_BHCCM_TransLU
 
 with read_base():
     from ..._base_.datasets.S2_crop10m_18class_512  import *
     from ..._base_.default_runtime import *
-    # from ..._base_.models.upernet_beit_potsdam import *
     from ..._base_.schedules.schedule_20k import *
 
-# 训好的权重:/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-最终论文里可用的结果/1月30日之后的结果/part2-层级分割-xiaorong4-1-S2-deit-L-upernet-Hiera-miou52.52/iter_80000.pth
-test_output_level = 'L1' # 输出L3, 验证L3的精度
-results_merge_hiera = False
+test_output_level = 'L3' # 输出L3, 验证L3的精度
+results_with_JSPS = True  # 是否合并层级结果
 
-find_unused_parameters=True
-branch1_L1_num_classes = 4  # number of L1 Level label   # 5
-branch1_L2_num_classes = 9  # number of L1 Level label  # 11  5+11+21=37类
-branch1_L3_num_classes = 18  # number of L1 Level label  # 21
+val_evaluator = dict(
+    type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
+test_evaluator = dict(
+    type=IoUMetric,
+    iou_metrics=['mIoU', 'mFscore'],
+    # format_only=True,
+    keep_results=True)
 
+# find_unused_parameters=True
 
-branch2_L1_num_classes = 2  # number of L1 Level label   # 5
-branch2_L2_num_classes = 2  # number of L1 Level label  # 11  5+11+21=37类
-branch2_L3_num_classes = 4  # 水稻、大豆、玉米
+branch1_L1_num_classes = 2  # 其他 植被
+branch1_L2_num_classes = 2  # 其他 耕地
+branch1_L3_num_classes = 4  # 其他、水稻、大豆、玉米  
 crop_num_classes = 4
+
+branch2_L1_num_classes = 4   #  MM-5B L1
+branch2_L2_num_classes = 9   #  MM-5B L2
+branch2_L3_num_classes = 18  #  MM-5B L3
 
 crop_size = (512, 512)
 norm_cfg = dict(type=SyncBN, requires_grad=True)
 
 imagenet_pretrained = 'checkpoints/2-对比实验的权重/convnext/base/convnext-base-10chan.pth'
-land_use_checkpoint = 'checkpoints/part3-双分支/S2-18类-Hiera/part2-层级分割-消融6-S2-convnext-B-upernet-Hiera-miou58.47-67.60.pth'
+MM5B_checkpoint = '/data/AI-Tianlong/openmmlab/mmsegmentation/work_dirs/0-20251230-BHCCM/BHCCM-S2/BHCCM+LHSC-S2-convnext-B-upernet-消融6-61.16-70.58/iter_80000.pth'
 
+# load_from = MM5B_checkpoint
 data_preprocessor = dict(
     type=SegDataPreProcessor,
     mean =[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -76,13 +92,11 @@ data_preprocessor = dict(
     seg_pad_val=255,
     size=crop_size)
 
-# load_from = '/data/AI-Tianlong/openmmlab/mmsegmentation/checkpoints/part3-双分支/S2-18类-Hiera/part3-层级分割-消融6-S2-convnext-B-upernet-Hiera-2branche'
-
 model = dict(
-    type=TwoBranch_EncoderDecoder_mode2,
+    type=EncoderDecoder_TransLU_only_CDKS,
     data_preprocessor=data_preprocessor,
     backbone=dict(
-        type=TwoBranch_backbone_mode2,
+        type=TransLU_backbone_CDKS,
         n_points=4,
         deform_num_heads=16,
         cffn_ratio=0.25,
@@ -95,7 +109,7 @@ model = dict(
         
         branch1_backbone=dict(  # land use
             type=ConvNeXt,
-            init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='backbone.'),   
+            init_cfg=dict(type='Pretrained', checkpoint=MM5B_checkpoint, prefix='backbone.'),   
             in_channels=10,
             arch='base',
             out_indices=[0, 1, 2, 3],
@@ -113,7 +127,7 @@ model = dict(
             ),
         branch2_backbone=dict( # new_task
             type=ConvNeXt,
-            init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='backbone.'),  # 这里可以消融一下
+            init_cfg=dict(type='Pretrained', checkpoint=MM5B_checkpoint, prefix='backbone.'),  # 这里可以消融一下
             in_channels=10,
             arch='base',
             out_indices=[0, 1, 2, 3],
@@ -130,41 +144,18 @@ model = dict(
             ],
             ), 
     ),
-    decode_head=dict(
-        type=TwoBranch_decode_head_mode2,
-        mode = 'xiaorong1',
-        branch1_decode_head=dict(  # land use
-            type=UPerHead_Hiera_2branch,
-            init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='decode_head.'),
-            num_classes_level_list = [branch1_L1_num_classes, branch1_L2_num_classes, branch1_L3_num_classes],
-            results_merge_hiera = False,
-            hiera_mode = 'xiaorong6',
-            loss_decode=dict(
-                type=ATL_Hiera_Loss_convseg,
-                num_classes=[branch1_L1_num_classes, branch1_L2_num_classes, branch1_L3_num_classes],
-                loss_weight=1.0),
-            in_channels=[128, 256, 512, 1024],
-            in_index=[0, 1, 2, 3],
-            pool_scales=(1, 2, 3, 6),
-            channels=768,
-            dropout_ratio=0.1,
-            norm_cfg=dict(type=SyncBN, requires_grad=False),
-            align_corners=False),
-
-        branch2_decode_head=dict( # new_task
+    decode_head=dict(  # branch1的 decode就是一个 普通的uperhead
             type=UPerHead,
-            # init_cfg=dict(type='Pretrained', checkpoint=land_use_checkpoint, prefix='decode_head.'),  # 这里也可以消融一下
             in_channels=[128, 256, 512, 1024],
             in_index=[0, 1, 2, 3],
             pool_scales=(1, 2, 3, 6),
-            channels=768,
+            channels=512, #原来768
             dropout_ratio=0.1,
-            num_classes=crop_num_classes,
+            num_classes=branch1_L3_num_classes,
             norm_cfg=norm_cfg,
             align_corners=False,
             loss_decode=dict(
                 type=CrossEntropyLoss, use_sigmoid=False, loss_weight=1.0)),
-        ),
             
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
@@ -176,14 +167,6 @@ optimizer=dict(
         betas=(0.9, 0.999), 
         weight_decay=0.05)
         
-# optimizer = dict(type='AdamW', 
-#                  lr=0.0002, 
-#                  betas=(0.9, 0.999),
-#                  weight_decay=0.05,
-#                  constructor='CustomLayerDecayOptimizerConstructorMMDet',
-#                  paramwise_cfg=dict(num_layers=12, layer_decay_rate=0.8, skip_stride=[1, 3])
-#                 )
-
 optim_wrapper = dict(
     # type='AmpOptimWrapper',  # mmengine 混合精度江都训练内存
     type=OptimWrapper,
@@ -192,10 +175,10 @@ optim_wrapper = dict(
     paramwise_cfg={
         'decay_rate': 0.9,
         'decay_type': 'stage_wise',
-        'num_layers': 12,
-        }
+        'num_layers': 12
+    },
     )
-    # loss_scale='dynamic')
+
 param_scheduler = [
     dict(
         type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=1500),
@@ -218,11 +201,5 @@ default_hooks.update(
     sampler_seed=dict(type=DistSamplerSeedHook),
     visualization=dict(type=SegVisualizationHook))
 
-val_evaluator = dict(
-    type=IoUMetric, iou_metrics=['mIoU', 'mFscore'])  # 'mDice', 'mFscore'
-test_evaluator = dict(
-    type=IoUMetric,
-    iou_metrics=['mIoU', 'mFscore'],
-    # format_only=True,
-    keep_results=True)
+
 

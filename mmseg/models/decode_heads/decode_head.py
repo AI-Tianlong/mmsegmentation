@@ -351,8 +351,7 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
                     ignore_index=self.ignore_index)
                 # pdb.set_trace()
         # pdb.set_trace()
-        loss['acc_seg'] = accuracy(
-            seg_logits, seg_label, ignore_index=self.ignore_index)
+        loss['acc_seg'] = accuracy(seg_logits, seg_label, ignore_index=self.ignore_index)
         # pdb.set_trace()
         return loss
 

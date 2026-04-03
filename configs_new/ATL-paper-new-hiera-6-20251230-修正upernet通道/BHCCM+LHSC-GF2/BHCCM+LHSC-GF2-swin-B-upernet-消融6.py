@@ -69,7 +69,6 @@ data_preprocessor = dict(
 model = dict(
     type=EncoderDecoder_BHCCM,
     data_preprocessor=data_preprocessor,
-    # pretrained=None,
     backbone=dict(
         type=SwinTransformer,
         in_channels=4,

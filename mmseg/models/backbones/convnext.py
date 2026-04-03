@@ -365,7 +365,7 @@ class ConvNeXt(BaseBackbone):
         
         self.out_dims=[]
         for blk in self.blocks:
-            if isinstance(blk, nn.Sequential): # downsampling layer
+            if isinstance(blk, nn.Sequential):              # downsampling layer
                 self.out_dims.append(blk[-1].out_channels)  # downsampling_layer(LayerNorm2d->Conv2d)的 conv2d的输出通道
             elif isinstance(blk, ConvNeXtBlock):
                 self.out_dims.append(blk.depthwise_conv.in_channels)
@@ -379,6 +379,7 @@ class ConvNeXt(BaseBackbone):
             x = stage(x)                         # x: [2, 128, 160, 160]
             if i in self.out_indices:
                 norm_layer = getattr(self, f'norm{i}')
+                
                 if self.gap_before_final_norm:
                     gap = x.mean([-2, -1], keepdim=True)
                     outs.append(norm_layer(gap).flatten(1))
