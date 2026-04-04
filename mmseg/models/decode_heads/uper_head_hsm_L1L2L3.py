@@ -23,7 +23,7 @@ from mmseg.models.losses.hcc_loss import (convert_low_level_label_to_High_level,
                                           L1_L2map, L2_L3map,
                                           MM_5B_18_hiera_structure)
 
-class HSM_MergeBlock(nn.Module):
+class BHCCM_MergeBlock(nn.Module):
     def __init__(self, in_channels, out_channels):
 
         super().__init__()
@@ -73,7 +73,7 @@ class HSM_MergeBlock(nn.Module):
 
 
 # @MODELS.register_module()
-class UPerHead_HSM(BaseDecodeHead):
+class UPerHead_BHCCM(BaseDecodeHead):
     """Unified Perceptual Parsing for Scene Understanding.
     This head is the implementation of `UPerNet <https://arxiv.org/abs/1807.10221>`_.
 
@@ -92,11 +92,33 @@ class UPerHead_HSM(BaseDecodeHead):
     def __init__(self, 
                  pool_scales=(1, 2, 3, 6), 
                  ouput_level: str = 'L3',  # 推理时输出的层级，训练时该参数无效
-                 num_classes_level_list: List[int] = [4,9,18],    # 层级的类别
-                 path_merge: bool = True,   # 输出结果，融合hiera的输出
+                 num_classes_level_list: List[int] = [4,9,18],    # device
+                 results_with_JSPS: bool = True,   # 输出结果，用JSPS严格约束
                  hiera_mode:str = 'xiaorong1',       # 用来修改消融实验的结构的
                  **kwargs):
         
+        self.valid_paths = torch.tensor([
+            [0,0,0],
+            [0,0,1],
+            [0,1,2],
+            [0,2,3],
+            [0,2,4],
+            [1,3,5],
+            [1,3,6],
+            [1,3,7],
+            [2,4,8],
+            [2,5,9],
+            [2,5,10],
+            [2,6,11],
+            [2,6,12],
+            [2,7,13],
+            [2,7,14],
+            [2,7,15],
+            [2,7,16],
+            [3,8,17],
+        ], dtype=torch.long)
+
+
         # PSP Module
         num_classes = num_classes_level_list[-1]  # 【ATL-LOG】去创建 self.conv_seg
         super().__init__(num_classes=num_classes, # 【ATL-LOG】去创建 self.conv_seg
@@ -105,7 +127,7 @@ class UPerHead_HSM(BaseDecodeHead):
         
         #============= 创建Hiera需要用到的模块。=======================
         self.test_output_level = ouput_level  # 测试推理时输出的层级
-        self.results_path_merge = path_merge
+        self.results_with_JSPS = results_with_JSPS
         self.hiera_mode = hiera_mode
         if isinstance(num_classes_level_list, list):
             self.num_classes_level_list = num_classes_level_list  # [5,9,10]
@@ -123,12 +145,12 @@ class UPerHead_HSM(BaseDecodeHead):
                 self.conv_seg_L2 = nn.Conv2d(self.channels, num_classes_level_list[1], kernel_size=1)
                 self.conv_seg_L3 = self.conv_seg
                 # stage1: coarse to fine 4-->9 | 4->18 9->18
-                self.stage1_1to2_MB = HSM_MergeBlock(num_classes_level_list[0], num_classes_level_list[1])# For L2
+                self.stage1_1to2_MB = BHCCM_MergeBlock(num_classes_level_list[0], num_classes_level_list[1])# For L2
                 self.stage1_w12 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
                 self.stage1_w22 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
                 
-                self.stage1_1to3_MB = HSM_MergeBlock(num_classes_level_list[0], num_classes_level_list[2])# For L3
-                self.stage1_2to3_MB = HSM_MergeBlock(num_classes_level_list[1], num_classes_level_list[2])
+                self.stage1_1to3_MB = BHCCM_MergeBlock(num_classes_level_list[0], num_classes_level_list[2])# For L3
+                self.stage1_2to3_MB = BHCCM_MergeBlock(num_classes_level_list[1], num_classes_level_list[2])
                 self.stage1_w13 = nn.Parameter(torch.tensor(1.0), requires_grad=True) 
                 self.stage1_w23 = nn.Parameter(torch.tensor(1.0), requires_grad=True) 
                 self.stage1_w33 = nn.Parameter(torch.tensor(1.0), requires_grad=True) 
@@ -141,40 +163,40 @@ class UPerHead_HSM(BaseDecodeHead):
                 self.conv_seg_L3 = self.conv_seg
 
                 # stage2: fine to coarse 18-->9 | 18-->4  9-->4
-                self.stage2_3to2_MB = HSM_MergeBlock(num_classes_level_list[2], num_classes_level_list[1])# For L2
+                self.stage2_3to2_MB = BHCCM_MergeBlock(num_classes_level_list[2], num_classes_level_list[1])# For L2
                 self.stage2_y32 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
                 self.stage2_y22 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
 
-                self.stage2_3to1_MB = HSM_MergeBlock(num_classes_level_list[2], num_classes_level_list[0])# For L1
-                self.stage2_2to1_MB = HSM_MergeBlock(num_classes_level_list[1], num_classes_level_list[0])# For L1
+                self.stage2_3to1_MB = BHCCM_MergeBlock(num_classes_level_list[2], num_classes_level_list[0])# For L1
+                self.stage2_2to1_MB = BHCCM_MergeBlock(num_classes_level_list[1], num_classes_level_list[0])# For L1
                 self.stage2_y31 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
                 self.stage2_y21 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
                 self.stage2_y11 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
 
-            elif self.hiera_mode == 'xiaorong5':
-                # 消融实验5  # 多层级间双向交互，然后独立计算CELoss/用HCC。
+            elif self.hiera_mode == 'xiaorong5': # BHCCM
+                # 消融实验5  # 多层级间双向交互，然后用L_HSC作为损失函数。
                 self.conv_seg_L1 = nn.Conv2d(self.channels, num_classes_level_list[0], kernel_size=1) #[2,1024,128,128]->[2,4,128,128]
                 self.conv_seg_L2 = nn.Conv2d(self.channels, num_classes_level_list[1], kernel_size=1) #(1024-->9)
-                self.conv_seg_L3 = self.conv_seg #(1024-->18)
+                self.conv_seg_L3 = self.conv_seg                                                      #(1024-->18) # 默认的conv_seg
                 
                 # stage1: coarse to fine 4-->9 | 4->18 9->18
-                self.stage1_1to2_MB = HSM_MergeBlock(num_classes_level_list[0], num_classes_level_list[1])# For L2
+                self.stage1_1to2_MB = BHCCM_MergeBlock(num_classes_level_list[0], num_classes_level_list[1])# For L2
                 self.stage1_w12 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
                 self.stage1_w22 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
                 
-                self.stage1_1to3_MB = HSM_MergeBlock(num_classes_level_list[0], num_classes_level_list[2])# For L3
-                self.stage1_2to3_MB = HSM_MergeBlock(num_classes_level_list[1], num_classes_level_list[2])
+                self.stage1_1to3_MB = BHCCM_MergeBlock(num_classes_level_list[0], num_classes_level_list[2])# For L3
+                self.stage1_2to3_MB = BHCCM_MergeBlock(num_classes_level_list[1], num_classes_level_list[2])
                 self.stage1_w13 = nn.Parameter(torch.tensor(1.0), requires_grad=True) 
                 self.stage1_w23 = nn.Parameter(torch.tensor(1.0), requires_grad=True) 
                 self.stage1_w33 = nn.Parameter(torch.tensor(1.0), requires_grad=True) 
                 
                 # stage2: fine to coarse 18-->9 | 18-->4  9-->4
-                self.stage2_3to2_MB = HSM_MergeBlock(num_classes_level_list[2], num_classes_level_list[1])# For L2
+                self.stage2_3to2_MB = BHCCM_MergeBlock(num_classes_level_list[2], num_classes_level_list[1])# For L2
                 self.stage2_y32 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
                 self.stage2_y22 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
 
-                self.stage2_3to1_MB = HSM_MergeBlock(num_classes_level_list[2], num_classes_level_list[0])# For L1
-                self.stage2_2to1_MB = HSM_MergeBlock(num_classes_level_list[1], num_classes_level_list[0])# For L1
+                self.stage2_3to1_MB = BHCCM_MergeBlock(num_classes_level_list[2], num_classes_level_list[0])# For L1
+                self.stage2_2to1_MB = BHCCM_MergeBlock(num_classes_level_list[1], num_classes_level_list[0])# For L1
                 self.stage2_y31 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
                 self.stage2_y21 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
                 self.stage2_y11 = nn.Parameter(torch.tensor(1.0), requires_grad=True)
@@ -373,7 +395,7 @@ class UPerHead_HSM(BaseDecodeHead):
             return output_list
 
         elif self.hiera_mode == 'xiaorong5':
-            # 消融实验5  # 多层级间双向交互，然后独立计算CELoss/用HCC。
+            # 消融实验5  # 多层级间双向交互，然后用L_HSC loss。
             # original feature
             L1_in = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L1) # [2,1024,128,128]->[2,4,128,128]
             L2_in = self.cls_seg_hiear(decode_head_outputs, self.conv_seg_L2) # [2,1024,128,128]->[2,9,128,128]
@@ -394,7 +416,7 @@ class UPerHead_HSM(BaseDecodeHead):
                      self.stage2_y22*L2_mid
             L3_out = L3_mid
             
-            output_list = [L1_out, L2_out, L3_out]
+            output_list = [L1_out, L2_out, L3_out]  # 双向信息融合完的特征。用不用把这个融合完的特征，再和没融合之前的特征，做个交互/叠加？
             return output_list
         
         else:
@@ -402,8 +424,8 @@ class UPerHead_HSM(BaseDecodeHead):
 
     def forward(self, inputs):
         """Forward function."""
-        output = self._forward_feature(inputs)  # [2,1024,128,128]
-        output_list = self.hiera_module(inputs, output)  # [2,65,128,128]
+        output = self._forward_feature(inputs)     # [2, 128, 160, 160][2, 256, 80, 80][2, 512, 40, 40][2, 1024, 20, 20] -->  [2,768,160,160]
+        output_list = self.hiera_module(inputs, output)  # [2,4,160,160] [2,9,160,160] [2,18,160,160]
 
         return output_list
         # output = self.cls_seg(output)  # [2,65,128,128]
@@ -411,9 +433,10 @@ class UPerHead_HSM(BaseDecodeHead):
 
 
     # =================== Hiera 修改 LOSS 和 predict 方式 ===============
-    
+
+    #  ==================================================
     def loss_by_feat(self, 
-                     seg_logits: Tensor,
+                     seg_logits: Tensor, # forward 输出的结果
                      batch_data_samples: SampleList) -> dict:
         """Compute segmentation loss.
 
@@ -492,9 +515,9 @@ class UPerHead_HSM(BaseDecodeHead):
         # 融合 L1+L2+L3 三层
         if isinstance(seg_logits, list) and len(seg_logits) == 3:
             # 合并L1 L2 L3 级的推理结果
-            seg_logits_L1 = seg_logits[0] # 直接输出L3的特征图
-            seg_logits_L2 = seg_logits[1]
-            seg_logits_L3 = seg_logits[2]
+            seg_logits_L1 = seg_logits[0] # L1的特征图
+            seg_logits_L2 = seg_logits[1] # L2的特征图
+            seg_logits_L3 = seg_logits[2] # L3的特征图
         else:
             raise TypeError(f'seg_logits 应该是个 list ',f'但是得到了个 {type(seg_logits)}')
 
@@ -505,18 +528,28 @@ class UPerHead_HSM(BaseDecodeHead):
         loss['acc_seg_L3'] = accuracy(seg_logits_L3, seg_label_list[2], ignore_index=self.ignore_index)
         loss['acc_seg'] = accuracy(seg_logits_L3, seg_label, ignore_index=self.ignore_index)
 
-        if self.results_path_merge:
-            path_merge_mask = self.results_path_merge_func(seg_logits) # 选择最优路径的mask，获得的是mask，而不是seglogits？
-            # seg_logits = seg_logits[2] # 输出融合后L3的特征图, 去计算精度
 
-            path_merge_mask_L1 = path_merge_mask[:,0:1,:,:]
-            path_merge_mask_L2 = path_merge_mask[:,1:2,:,:]
-            path_merge_mask_L3 = path_merge_mask[:,2:3,:,:]
+        # if self.results_path_merge:
+        #     path_merge_mask = self.results_path_merge_func(seg_logits) # 选择最优路径的mask，获得的是mask，而不是seglogits？
+        #     # seg_logits = seg_logits[2] # 输出融合后L3的特征图, 去计算精度
 
-            loss['acc_seg_path_merge_L1'] = accuracy_path_merge_results(path_merge_mask_L1, seg_label_list[0], ignore_index=self.ignore_index)
-            loss['acc_seg_path_merge_L2'] = accuracy_path_merge_results(path_merge_mask_L2, seg_label_list[1], ignore_index=self.ignore_index)
-            loss['acc_seg_path_merge_L3'] = accuracy_path_merge_results(path_merge_mask_L3, seg_label_list[2], ignore_index=self.ignore_index)
+        #     path_merge_mask_L1 = path_merge_mask[:,0:1,:,:]
+        #     path_merge_mask_L2 = path_merge_mask[:,1:2,:,:]
+        #     path_merge_mask_L3 = path_merge_mask[:,2:3,:,:]
+
+        
+        # # import pdb; pdb.set_trace()
+        # if self.results_with_JSPS:
+        #     JSPS_preds_L1, JSPS_preds_L2, JSPS_preds_L3, best_path_idx, _ = self.jsps_inference_from_logits(pred_seg_logits=seg_logits, valid_paths=self.valid_paths)
             
+        #     JSPS_preds_L1 = JSPS_preds_L1.unsqueeze(1)
+        #     JSPS_preds_L2 = JSPS_preds_L2.unsqueeze(1)
+        #     JSPS_preds_L3 = JSPS_preds_L3.unsqueeze(1)
+
+        #     loss['acc_seg_JSPS_preds_L1'] = accuracy_path_merge_results(JSPS_preds_L1, seg_label_list[0], ignore_index=self.ignore_index)
+        #     loss['acc_seg_JSPS_preds_L2'] = accuracy_path_merge_results(JSPS_preds_L2, seg_label_list[1], ignore_index=self.ignore_index)
+        #     loss['acc_seg_JSPS_preds_L3'] = accuracy_path_merge_results(JSPS_preds_L3, seg_label_list[2], ignore_index=self.ignore_index)
+
         return loss
     
     def predict_by_feat(self, seg_logits: Tensor,
@@ -558,73 +591,53 @@ class UPerHead_HSM(BaseDecodeHead):
                     size=size.shape[2:],
                     mode='bilinear',
                     align_corners=self.align_corners)
-        
 
-        if self.results_path_merge:
-            pred_masks = self.results_path_merge_func(seg_logits) #直接是最后的mask啊 #[1,3,640,640]
+        if self.results_with_JSPS:
+            JSPS_preds_L1, JSPS_preds_L2, JSPS_preds_L3, best_path_idx, _ = self.jsps_inference_from_logits(pred_seg_logits=seg_logits, valid_paths=self.valid_paths)
 
-            return (seg_logits, pred_masks) # [1,18,640,640], pred_mask
+            B, H, W = JSPS_preds_L1.shape
+            final_pred = torch.zeros(B, len(seg_logits), H, W, dtype=torch.long, device=JSPS_preds_L1.device).fill_(255)
+            final_pred[:, 0] = JSPS_preds_L1
+            final_pred[:, 1] = JSPS_preds_L2
+            final_pred[:, 2] = JSPS_preds_L3
+
+            return (seg_logits, final_pred) # [1,18,640,640], pred_mask # 传递给了Encder和Decoder的 predict
         # 这里是不是应该写在后处理里啊？  写在这里好像不太对，应为post要的是seglogits然后处理。
         return seg_logits  # 输入 seg_logits的list，然后去自动处理成三个mask
     
+    def jsps_inference_from_logits(self, pred_seg_logits, valid_paths: torch.Tensor):
+        device = pred_seg_logits[0].device
+        valid_paths = valid_paths.to(device=device, dtype=torch.long)
 
-    def results_path_merge_func(self, seg_logits:List[Tensor], sigmoid:bool=True) -> Tensor:
-        """Path-based hierarchical inference via joint score maximization.
-        
-        Args: 
-            seg_logits (List[Tensor]): The output from decode head forward function.
-            sigmoid (bool): Whether to use sigmoid to normalize the logits. Default: False.
-        
-        Returns:
-            Tensor: Final segmentation logits map.
-        """
+        logits1, logits2, logits3 = pred_seg_logits
+        B, _, H, W = logits1.shape
+        T = valid_paths.shape[0]
 
-        
-        # === 1. Normalize ===
-        if sigmoid:
-            seg_logits = [F.sigmoid(logit) for logit in seg_logits]
-        
-        seg_L1, seg_L2, seg_L3 = seg_logits  # shapes: [B, C1, H, W], etc.
-        B, _, H, W = seg_L1.shape
+        # 1) log-prob per level: (B,C,H,W) -> (B,H,W,C)
+        logp1 = F.log_softmax(logits1, dim=1).permute(0, 2, 3, 1)
+        logp2 = F.log_softmax(logits2, dim=1).permute(0, 2, 3, 1)
+        logp3 = F.log_softmax(logits3, dim=1).permute(0, 2, 3, 1)
 
+        # 2) enumerate paths and sum log probs: path_scores (B,H,W,T)
+        path_scores = torch.zeros((B, H, W, T), device=device, dtype=logp1.dtype)
 
-        # 找出每一条合法路径的顺序和结果。
-        # === 3. Generate all valid hierarchical paths ===
-        path_list = []  # List of (L1_idx, L2_idx, L3_idx)
-        for L1_idx, L2_group in enumerate(L1_L2map):  # 0, [0,1,2] （L1的index 和L2的index）
-            for L2_idx in L2_group:  # [0,1],[2],[3,4](列表代表这些L3index是一组的)
-                for L3_idx in L2_L3map[L2_idx]:
-                    path_list.append((L1_idx, L2_idx, L3_idx))
-        
-        # [(0, 0, 0), (0, 0, 1), (0, 1, 2), (0, 2, 3), 
-        # (0, 2, 4), (1, 3, 5), (1, 3, 6), (1, 3, 7), 
-        # (2, 4, 8), (2, 5, 9), (2, 5, 10), (2, 6, 11), 
-        # (2, 6, 12), (2, 7, 13), (2, 7, 14), (2, 7, 15),
-        #  (2, 7, 16), (3, 8, 17)]
+        idx1 = valid_paths[:, 0].view(1, 1, 1, T).expand(B, H, W, T)
+        idx2 = valid_paths[:, 1].view(1, 1, 1, T).expand(B, H, W, T)
+        idx3 = valid_paths[:, 2].view(1, 1, 1, T).expand(B, H, W, T)
 
-        num_paths = len(path_list) #合法路径的个数
-        path_scores = torch.zeros(B, num_paths, H, W, device=seg_L1.device) #每一个像素上，每一条路径的得分
-        
-        # === 4. Compute joint score for each path ===
-        for idx, (l1, l2, l3) in enumerate(path_list):
-            score = 0.3*seg_L1[:, l1, :, :] + 0.3 * seg_L2[:, l2, :, :] + 0.4 * seg_L3[:, l3, :, :] #调节因子，平衡三个通道的权重
-            path_scores[:, idx, :, :] = score
+        path_scores += torch.gather(logp1, dim=-1, index=idx1)
+        path_scores += torch.gather(logp2, dim=-1, index=idx2)
+        path_scores += torch.gather(logp3, dim=-1, index=idx3)
 
-        # === 5. Argmax over all valid paths ===
-        best_path_idx = torch.argmax(path_scores, dim=1)  # shape: [B, H, W], 每个像素上，最优路径
-        # best_path_idx 的值是路径的索引，0的话，代表0-0-0 最优，则l1=0, l2=0, l3=0
-        
-        # === 6. Convert path index to hierarchical labels ===
-        final_pred = torch.zeros(B, len(seg_logits), H, W, dtype=torch.long, device=seg_L1.device).fill_(255)
-        for idx, (l1, l2, l3) in enumerate(path_list):
-            mask = (best_path_idx == idx)  # idx = 0，代表 0-0-0 最优
-            final_pred[:, 0][mask] = l1
-            final_pred[:, 1][mask] = l2
-            final_pred[:, 2][mask] = l3
+        # 3) best path per pixel
+        best_path_idx = path_scores.argmax(dim=-1)  # (B,H,W)
 
-        return final_pred  # shape: [B, 3, H, W] #最后merge后的结果
+        # 4) decode per-level predictions from best path
+        preds_L1 = valid_paths[best_path_idx, 0]  # (B,H,W)
+        preds_L2 = valid_paths[best_path_idx, 1]
+        preds_L3 = valid_paths[best_path_idx, 2]
 
-
+        return preds_L1, preds_L2, preds_L3, best_path_idx, path_scores
 
 def accuracy_path_merge_results(pred, target, topk=1, thresh=None, ignore_index=None):
     """Calculate accuracy according to the prediction and target.

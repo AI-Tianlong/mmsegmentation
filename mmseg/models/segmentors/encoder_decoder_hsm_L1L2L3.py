@@ -17,7 +17,7 @@ from ..utils import resize
 
 
 # @MODELS.register_module()
-class EncoderDecoder(BaseSegmentor):
+class EncoderDecoder_BHCCM(BaseSegmentor):
     """Encoder Decoder segmentors.
 
     EncoderDecoder typically consists of backbone, decode_head, auxiliary_head.

@@ -597,7 +597,7 @@ class ATL_Hiera_Loss_convseg(nn.Module):
                                                 hiera_label_list[2],
                                                 weight=None,
                                                 ignore_index=self.ignore_index)
-            loss = ce_loss_L1 + ce_loss_L2 + ce_loss_L3  
+            loss = ce_loss_L1 + ce_loss_L2 + ce_loss_L3  # LHCE
         
         # loss 消融2 
         elif self.mode == 'xiaorong2':
