@@ -28,7 +28,7 @@ from mmengine.runner.checkpoint import CheckpointLoader, load_state_dict
 
 
 try:
-    from flash_attn.flash_attention import FlashAttention
+    from flash_attn.flash_attention import FlashAttention # pip install flash_attn==0.2.8
     from flash_attn.modules.mlp import FusedMLP
     has_flash_attn = True
 except:

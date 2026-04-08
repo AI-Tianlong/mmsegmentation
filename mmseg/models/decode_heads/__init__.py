@@ -39,8 +39,12 @@ from .vpd_depth_head import VPDDepthHead
 
 from .atl_hiera_37_uper_head_multi_convseg import ATL_UPerHead, ATL_hiera_UPerHead_Multi_convseg
 from .atl_fcn_head import ATL_FCNHead
-from .atl_sep_aspp_head_hyp import DepthwiseSeparableASPPHead_hyp
 from .atl_fcn_head_multi_embedding import ATL_multi_embedding_FCNHead
+
+try:
+    from .atl_sep_aspp_head_hyp import DepthwiseSeparableASPPHead_hyp
+except ModuleNotFoundError:
+    DepthwiseSeparableASPPHead_hyp = None
 
 # Hiera
 from .atl_hiera_37_sep_aspp_head_multi_convseg import ATL_Hiera_DepthwiseSeparableASPPHead_Multi_convseg
@@ -60,7 +64,6 @@ __all__ = [
     'KernelUpdateHead', 'KernelUpdator', 'MaskFormerHead', 'Mask2FormerHead',
     'LightHamHead', 'PIDHead', 'DDRHead', 'VPDDepthHead',
     'SideAdapterCLIPHead', 'ATL_UPerHead','ATL_FCNHead',
-    'DepthwiseSeparableASPPHead_hyp',
     'ATL_Hiera_DepthwiseSeparableASPPHead_Multi_convseg',
     'ATL_hiera_UPerHead_Multi_convseg',
     'ATL_Hiera_LightHamHead_Multi_convseg',
@@ -68,3 +71,6 @@ __all__ = [
     'ATL_Multi_Encoder_Multi_Decoder_UPerHead',
     'ATL_Multi_Encoder_Multi_Decoder_LightHamHead'
 ]
+
+if DepthwiseSeparableASPPHead_hyp is not None:
+    __all__.append('DepthwiseSeparableASPPHead_hyp')

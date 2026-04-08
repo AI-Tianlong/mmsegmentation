@@ -20,8 +20,7 @@ with read_base():
     from ..._base_.models.mask2former_beit_potsdam import *
     from ..._base_.schedules.schedule_80k import *
 
-# 训练好的权重：/data/AI-Tianlong/ZGJ/mmsegmentation/work_dirs/ZGJ-S2-BEiTv2-mask2former-18类-512-2/iter_80000.pth
-
+# 训练好的权重：/opt/workspace/AI-Tianlong/ZGJ/0-检察遥感平台部署/1-哨兵2号-地物分类程序/X-code/mmsegmentation/checkpoints/ZGJ-S2-BEiTv2-mask2former-18类-512-2-iter_80000.pth
 num_classes = 18  # loss 要用，也要加 # 加上背景是25类
 
 # 推理的时候 放开
@@ -39,7 +38,7 @@ test_pipeline = [  #
     dict(type=PackSegInputs)
 ]
 test_dataloader = dict(
-    batch_size=2,
+    batch_size=1,
     num_workers=8,
     persistent_workers=True,
     sampler=dict(type=DefaultSampler, shuffle=False),
@@ -48,7 +47,7 @@ test_dataloader = dict(
         data_root=None,
         data_prefix=dict(
             img_path=
-            '/data/AI-Tianlong/ZGJ/Datasets/0-S2-IMG-2024年/4-用来多GPU推理的5120图像',
+            '/opt/workspace/AI-Tianlong/ZGJ/0-检察遥感平台部署/1-哨兵2号-地物分类程序/0-测试数据/2-波段组合(裁剪-拼接)结果',
             # seg_map_path=''
         ),
         # ann_file='',
@@ -60,6 +59,7 @@ pretrained = None
 # load_from = '/data/AI-Tianlong/ZGJ/checkpoints/5B-pretrained/BEiT/5-s2-5billion-24类地物-用5的接着训-黑龙江省tain和val都训-iter80k-mIoU82.69.pth'
 # pretrained = '/opt/AI-Tianlong/checkpoints/atl_s2_checkpoint/10_channel_beitv2_large_patch16_224_pt1k_ft21k_BGR.pth'
 # pretrained = None
+
 data_preprocessor.update(
     dict(
         type=SegDataPreProcessor,
