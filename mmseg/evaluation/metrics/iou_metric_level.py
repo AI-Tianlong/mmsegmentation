@@ -16,12 +16,11 @@ from torch import Tensor
 from mmengine.structures import BaseDataElement
 
 
-
 from mmseg.registry import METRICS
 from mmengine.dist import (broadcast_object_list, collect_results,
                            is_main_process)
 
-from mmseg.models.losses.atl_hiera_37_loss_convseg import convert_low_level_label_to_High_level, FiveBillion_18Classes_HieraMap_nobackground
+from mmseg.models.losses.atl_hsc_loss import convert_low_level_label_to_High_level, MM_5B_18_hiera_structure
 
 L1_classes_name = ('Vegetation', ' Water', 'Artificial_surface', 'Bare_land')
 
@@ -95,7 +94,7 @@ class IoUMetric_level(BaseMetric):
         self.format_only = format_only
         
     def convert_baseline_L3_to_L1_L2(self, L3_pred_label, test_output_level):
-        pred_label_list = convert_low_level_label_to_High_level(L3_pred_label, FiveBillion_18Classes_HieraMap_nobackground)
+        pred_label_list = convert_low_level_label_to_High_level(L3_pred_label, MM_5B_18_hiera_structure)
         if test_output_level == 'L3':
             pred_label = pred_label_list[2]
         elif test_output_level == 'L2':
@@ -112,7 +111,7 @@ class IoUMetric_level(BaseMetric):
             pred_label = self.convert_baseline_L3_to_L1_L2(pred_label, level)
             label = data_sample['gt_sem_seg']['data'].squeeze().to(pred_label)
             # import pdb; pdb.set_trace()
-            label_list = convert_low_level_label_to_High_level(label, FiveBillion_18Classes_HieraMap_nobackground)
+            label_list = convert_low_level_label_to_High_level(label, MM_5B_18_hiera_structure)
 
             if level == 'L3':
                 num_classes = self.num_classes_list[2]
@@ -136,7 +135,7 @@ class IoUMetric_level(BaseMetric):
             pred_label = self.convert_baseline_L3_to_L1_L2(pred_label, level)
             label = data_sample['gt_sem_seg']['data'].squeeze().to(pred_label)
             # import pdb; pdb.set_trace()
-            label_list = convert_low_level_label_to_High_level(label, FiveBillion_18Classes_HieraMap_nobackground)
+            label_list = convert_low_level_label_to_High_level(label, MM_5B_18_hiera_structure)
 
             if level == 'L3':
                 num_classes = self.num_classes_list[2]
@@ -180,7 +179,7 @@ class IoUMetric_level(BaseMetric):
             if not self.format_only:
                 label = data_sample['gt_sem_seg']['data'].squeeze().to(pred_label)
                 # import pdb; pdb.set_trace()
-                label_list = convert_low_level_label_to_High_level(label, FiveBillion_18Classes_HieraMap_nobackground)
+                label_list = convert_low_level_label_to_High_level(label, MM_5B_18_hiera_structure)
                 
                 if self.test_output_level is None:
                     self.test_output_level = 'L3'

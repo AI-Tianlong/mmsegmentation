@@ -13,7 +13,7 @@ from mmseg.evaluation import IoUMetric
 
 # dataset settings
 dataset_type = ATL_S2_5B_Dataset_18class
-data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-Google-5B-18-896'
+data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-裁切好的数据集文件/0-Google-5B-18-896'
 
 crop_size = (896, 896)   # 不要随机增强！！！！
 train_pipeline = [
@@ -54,7 +54,7 @@ test_pipeline = [  #
 
 
 train_dataloader = dict(
-    batch_size=2,
+    batch_size=4,
     num_workers=4,  # numworkers 也会影响！
     persistent_workers=True,
     sampler=dict(type=InfiniteSampler, shuffle=True),

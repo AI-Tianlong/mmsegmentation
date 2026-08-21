@@ -13,7 +13,7 @@ from mmseg.evaluation import IoUMetric
 
 # dataset settings
 dataset_type = ATL_S2_5B_Dataset_18class
-data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/0-GF2-5B-18-640'
+data_root = 'data/1-paper-segmentation/2-多领域地物覆盖基础/GF2_5B-19类/5-裁切好的图像/GF2-5B-18类-640'
 
 # mean =[454.1608733420, 320.6480230485 , 238.9676917808 , 301.4478970428],
 # std =[55.4731833972, 51.5171917858, 62.3875607521, 82.6082214602],
